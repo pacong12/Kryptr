@@ -3,21 +3,6 @@
 Phased clone of the BankrBot concept. Each phase ships with its security
 requirements — never bolted on afterwards.
 
-## Goals — what "done" means per phase
-
-| Phase | Goal (measurable) | Exit criteria |
-|---|---|---|
-| 1 | User connects wallet, sees balances, sends a transfer that passes the security gate; backoffice monitors it live | E2E happy path demo + all gates green |
-| 2 | Agent schedules DCA/limit orders that execute on time without human touch | 24h soak test, zero missed executions |
-| 3 | Agent launches a token; fees accrue to its wallet per the fixed schedule | On-chain fee split verified in Blockscout |
-| 4 | Natural-language request becomes a gated intent; Grok/Bankr attack replay is blocked | Red-team report, 0 unauthorized transfers |
-
-## When agents disagree or are confused
-
-Per `docs/ORCHESTRA.md`: contract-first proposals between the two agents
-involved; if unresolved after one round, the conductor decides. Roadmap
-ambiguities are bugs — report them, don't guess.
-
 ## Phase 1 — Wallet & basic trading (MVP)
 
 - [ ] Wallet service: create/list agent wallets (`AgentWallet`)

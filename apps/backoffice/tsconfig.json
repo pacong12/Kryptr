@@ -19,10 +19,15 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@kryptr/shared-ui/react/lib/*": [
+        "../../packages/shared-ui/src/react/lib/*"
+      ],
+      "@kryptr/shared-ui/react/*": [
+        "../../packages/shared-ui/src/react/components/ui/*"
+      ]
     },
     "outDir": "dist",
-    "rootDir": "src",
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
   },
   "include": [

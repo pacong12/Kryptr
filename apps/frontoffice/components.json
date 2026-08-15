@@ -1,0 +1,26 @@
+{
+  "$schema": "https://shadcn-vue.com/schema.json",
+  "style": "reka-nova",
+  "font": "geist-sans",
+  "typescript": true,
+  "tailwind": {
+    "config": "",
+    "css": "src/styles.css",
+    "baseColor": "neutral",
+    "cssVariables": true,
+    "prefix": ""
+  },
+  "iconLibrary": "lucide",
+  "rtl": false,
+  "pointer": false,
+  "aliases": {
+    "components": "@kryptr/shared-ui/vue/components",
+    "utils": "@kryptr/shared-ui/vue/lib/utils",
+    "ui": "@kryptr/shared-ui/vue/components/ui",
+    "lib": "@kryptr/shared-ui/vue/lib",
+    "composables": "@kryptr/shared-ui/vue/composables"
+  },
+  "menuColor": "default",
+  "menuAccent": "subtle",
+  "registries": {}
+}
