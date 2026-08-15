@@ -50,6 +50,25 @@ thing, safely, with sources.
 
 ## Retro (fill at end)
 
-- done:
-- blocked:
-- learned:
+- done: Three merged-quality research docs in `docs/research/` (bankrbot-analysis,
+  web3-agent-landscape, kryptr-threat-model) with ~50 dated, URL-cited sources;
+  root-cause → Kryptr-control mapping; Phase 1 threat model with HITL requirements;
+  5 security-gate requirements delivered to `vault` via IRC on 2026-08-15.
+- vault review ack (2026-08-15, IRC): gate is fail-closed everywhere (no policy →
+  rejected; unknown price → needs_human_approval; dailyCapUsd=0 blocks all outbound;
+  cap checked server-side after threshold); origin validated against
+  SecurityPolicy.allowedOrigins in EvaluateIntentUseCase; pricing behind a
+  PriceLookup port. Deferred to Wave 2 (documented by vault): server-side origin
+  stamping from session, kill switch + append-only decision audit (need Prisma
+  persistence). Recipient allowlist + cooldown proposed for shared-types policy
+  evolution next wave.
+- blocked: Nothing hard. Soft items: (1) `vault` review/ack of the threat model
+  landed 2026-08-15 (recorded above); (2) signing boundary provider (WalletConnect /
+  Privy / ERC-4337) still undecided, owned by conductor + `vault`; (3) no official
+  Bankr post-mortem exists for either May 2026 incident, so some incident detail rests
+  on press + independent analyses.
+- learned: The dominant failure mode of wallet agents is not key theft but
+  language-as-authorization: permissions granted by asset ownership (NFT escalation),
+  encoded instructions surviving decode, and one agent's public output being trusted as
+  another agent's command. Controls belong at the action layer (gate), never at the
+  interpretation layer (prompt filters).
