@@ -1,9 +1,17 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "paths": {
+      "@/*": ["./src/*"],
+      "@kryptr/shared-ui/vue/lib/*": ["../../packages/shared-ui/src/vue/lib/*"],
+      "@kryptr/shared-ui/vue/*": [
+        "../../packages/shared-ui/src/vue/components/ui/*"
+      ]
+    },
     "outDir": "dist",
+    "rootDir": "../..",
     "types": ["vite/client"],
-    "rootDir": "src",
     "jsx": "preserve",
     "jsxImportSource": "vue",
     "module": "esnext",
@@ -29,5 +37,12 @@
     "src/**/*.test.jsx",
     "src/**/*.spec.jsx"
   ],
-  "include": ["src/**/*.js", "src/**/*.jsx", "src/**/*.ts", "src/**/*.vue"]
+  "include": [
+    "src/**/*.js",
+    "src/**/*.jsx",
+    "src/**/*.ts",
+    "src/**/*.vue",
+    "../../packages/shared-ui/src/vue/**/*.ts",
+    "../../packages/shared-ui/src/vue/**/*.vue"
+  ]
 }
