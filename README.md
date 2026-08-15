@@ -8,12 +8,12 @@ security gate before anything is signed.
 
 Nx monorepo (npm workspaces + TypeScript project references):
 
-| Project | Path | Stack | Role |
-|---|---|---|---|
-| `@kryptr/backoffice` | `apps/backoffice` | Next.js 16 / React 19 | Admin & monitoring dashboard |
-| `@kryptr/frontoffice` | `apps/frontoffice` | Vue 3 / Vite | User-facing app |
-| `@kryptr/api` | `apps/api` | NestJS 11 | Core API: wallets, orders, security gate |
-| `@kryptr/shared-types` | `packages/shared-types` | TypeScript | Shared domain models & API envelope |
+| Project                | Path                    | Stack                 | Role                                     |
+| ---------------------- | ----------------------- | --------------------- | ---------------------------------------- |
+| `@kryptr/backoffice`   | `apps/backoffice`       | Next.js 16 / React 19 | Admin & monitoring dashboard             |
+| `@kryptr/frontoffice`  | `apps/frontoffice`      | Vue 3 / Vite          | User-facing app                          |
+| `@kryptr/api`          | `apps/api`              | NestJS 11             | Core API: wallets, orders, security gate |
+| `@kryptr/shared-types` | `packages/shared-types` | TypeScript            | Shared domain models & API envelope      |
 
 ## Prerequisites
 
@@ -33,15 +33,30 @@ npx nx serve frontoffice      # http://localhost:4200
 npx nx serve backoffice       # http://localhost:4200+1 (Next dev port)
 ```
 
+The `postgres` service in `docker-compose.yml` is the same instance Wave 2
+will point Prisma/Postgres migrations at — no new infrastructure needed.
+
 ## Common commands
 
 ```bash
 npx nx run-many -t build          # build everything
+npx nx run-many -t lint           # eslint all projects
 npx nx run-many -t test           # all unit tests
 npx nx affected -t build test     # CI-style: only what changed
 npx nx graph                      # dependency graph
 npx nx format:write               # prettier
 ```
+
+## Pre-commit hooks
+
+`npm install` wires a pre-commit hook via `simple-git-hooks` (config block in
+`package.json`). Every commit first runs:
+
+- `nx format:check` — prettier formatting gate
+- `nx affected -t lint --base=HEAD~1` — lint what the commit touches
+
+If the hook ever goes missing (fresh clone, git upgrade), re-install it with
+`npx simple-git-hooks`.
 
 ## Security model
 

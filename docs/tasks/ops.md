@@ -33,6 +33,24 @@ Make the quality gates real: today the apps were generated without linters.
 
 ## Retro
 
-- Done:
-- Blocked:
-- Learned:
+- Done: ESLint flat configs + inferred `lint` targets for all 5 projects
+  (api, backoffice, frontoffice, shared-types, shared-ui) via
+  `@nx/eslint/plugin`; warn-first `no-explicit-any`/`no-unused-vars`,
+  `no-console` (error) in api domain layer, eslint-config-prettier last.
+  CI runs `lint` in the affected gate (`--parallel=3` kept, format:check
+  kept). simple-git-hooks pre-commit: staged-scope `nx format:check` +
+  `nx affected -t lint --base=HEAD~1` (README documents usage + bypass).
+  `docker compose config -q` green; README notes the Wave 2 Prisma/Postgres
+  plan. Gates on branch: lint/typecheck/test/build/format:check all green.
+- Blocked: none left. Mid-wave escalations (all resolved with conductor):
+  (1) `typescript-eslint` was missing from the approved dep batch but is
+  required to parse TS at all — approved + installed (commit 2b8ddd9);
+  (2) shared-ui landed on main after kickoff — rebased and configured it.
+- Learned: `@eslint/js` is not installed, so configs derive
+  eslint:recommended from ESLint's builtin rules (swap when approved).
+  `eslint-plugin-vue` not installed → `.vue` SFCs are not linted yet
+  (frontoffice, shared-ui); their TS is covered. simple-git-hooks cannot
+  install into linked git worktrees (`.git` is a file → ENOTDIR); normal
+  clones get the hook via the npm `prepare` script. Rule-conflicts with
+  generated files (jest/webpack configs): fix the rule/config, never the
+  generated file.

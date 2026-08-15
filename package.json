@@ -2,7 +2,9 @@
   "name": "@kryptr/source",
   "version": "0.0.0",
   "license": "MIT",
-  "scripts": {},
+  "scripts": {
+    "prepare": "simple-git-hooks"
+  },
   "private": true,
   "devDependencies": {
     "@nestjs/schematics": "^11.0.0",
@@ -44,6 +46,7 @@
     "ts-node": "10.9.1",
     "tslib": "^2.3.0",
     "typescript": "~6.0.3",
+    "typescript-eslint": "^8.58.0",
     "vite": "^8.0.0",
     "vitest": "~4.1.0",
     "vue-tsc": "^2.2.8",
@@ -65,5 +68,8 @@
     "reflect-metadata": "^0.2.0",
     "rxjs": "^7.8.0",
     "vue": "^3.5.13"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "npx nx format:check --files=\"$(git diff --cached --name-only --diff-filter=ACMR | paste -sd' ' -)\" && npx nx affected -t lint --base=HEAD~1"
   }
 }
