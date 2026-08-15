@@ -10,6 +10,9 @@ export default defineConfig(() => ({
     alias: {
       '@': path.resolve(import.meta.dirname, 'src'),
     },
+    // Resolve @kryptr/* workspace packages to their TS source (matches
+    // tsconfig customConditions); avoids depending on a built dist.
+    conditions: ['@kryptr/source'],
   },
   cacheDir: '../../node_modules/.vite/apps/frontoffice',
   server: {
