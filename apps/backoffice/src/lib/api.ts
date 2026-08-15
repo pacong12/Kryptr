@@ -22,6 +22,13 @@ export function getApiBaseUrl(): string {
   return process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3333';
 }
 
+/**
+ * Global route prefix of the NestJS API (`app.setGlobalPrefix('api')`).
+ * Endpoint helpers below use controller-level paths (`/health`, `/wallets`,
+ * `/security/...`); the prefix is applied once, here.
+ */
+const API_PREFIX = '/api';
+
 /** Bound so an unreachable API never hangs a dashboard render. */
 const REQUEST_TIMEOUT_MS = 2500;
 
@@ -43,7 +50,7 @@ async function fetchEnvelope<T>(
 ): Promise<FetchOutcome<T>> {
   let response: Response;
   try {
-    response = await fetch(`${getApiBaseUrl()}${path}`, {
+    response = await fetch(`${getApiBaseUrl()}${API_PREFIX}${path}`, {
       cache: 'no-store',
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       ...init,
@@ -118,7 +125,7 @@ export interface DecisionOutcome {
 /**
  * Approve/reject a TransactionIntent through the security gate.
  *
- * Contract agreed with vault: `POST /security/intents/:id/decision` with
+ * Contract agreed with vault: `POST /api/security/intents/:id/decision` with
  * body `{ result: 'approved' | 'rejected', decidedBy: string }`, responding
  * `ApiEnvelope<SecurityDecision>` (`decidedAt` stamped server-side). The
  * endpoint ships in wave 2 (needs decision persistence); until then the

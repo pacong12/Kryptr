@@ -95,7 +95,7 @@ export function IntentDecisionPanel({
         </div>
         <p className="text-xs text-muted-foreground">
           Approve/Reject POSTs to{' '}
-          <span className="font-mono">/security/intents/:id/decision</span>
+          <span className="font-mono">/api/security/intents/:id/decision</span>
           (contract agreed with vault); the endpoint ships in wave 2, until then
           a local stub responds and is flagged above.
         </p>
