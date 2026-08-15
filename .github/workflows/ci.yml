@@ -28,5 +28,5 @@ jobs:
       - run: npx nx format:check --base="origin/main"
         if: github.event_name == 'pull_request'
 
-      # Build/test/typecheck only what changed vs the base branch.
-      - run: npx nx affected --base="origin/main" -t build test typecheck --parallel=3
+      # Lint/build/test/typecheck only what changed vs the base branch.
+      - run: npx nx affected --base="origin/main" -t build test typecheck lint --parallel=3
