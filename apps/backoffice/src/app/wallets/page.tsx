@@ -36,7 +36,7 @@ export default async function WalletsPage() {
           </CardAction>
           <CardDescription>
             {wallets.data.length} wallet{wallets.data.length === 1 ? '' : 's'}{' '}
-            from <span className="font-mono">GET /wallets</span>
+            from <span className="font-mono">GET /api/wallets</span>
           </CardDescription>
         </CardHeader>
         <WalletsTable wallets={wallets.data} />

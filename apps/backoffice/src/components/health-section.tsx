@@ -41,7 +41,7 @@ export async function HealthSection() {
           <Separator orientation="vertical" className="h-4" />
           <span>
             Checked via{' '}
-            <span className="font-mono text-foreground">GET /health</span>
+            <span className="font-mono text-foreground">GET /api/health</span>
           </span>
         </div>
         {health.mock ? (

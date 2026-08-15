@@ -76,7 +76,7 @@ export async function WalletsSection() {
         <CardDescription>
           {wallets.data.length} agent wallet
           {wallets.data.length === 1 ? '' : 's'} from{' '}
-          <span className="font-mono">GET /wallets</span>
+          <span className="font-mono">GET /api/wallets</span>
         </CardDescription>
       </CardHeader>
       <WalletsTable wallets={wallets.data} />
