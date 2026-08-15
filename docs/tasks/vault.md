@@ -47,6 +47,25 @@ Stand up the wallet & security core in `apps/api` with clean architecture.
 
 ## Retro
 
-- Done:
-- Blocked:
-- Learned:
+- Done: wallet module (domain rules + port + 3 use cases + in-memory repo,
+  POST/GET /wallets, GET /wallets/:id/balances), security gate
+  (EvaluateIntentUseCase: policy→payload→origin→chain→threshold→cap,
+  fail-closed; POST /security/evaluate; encoded-payload heuristic
+  documented in payload-inspection.ts), chain port (ChainReader + static
+  mock), class-validator DTOs + global ValidationPipe, global envelope
+  exception filter (every response ApiEnvelope), ConfigModule reading
+  API_PORT from .env.example. 76 jest tests green (TDD red-green), typecheck
+  - build green; lint target does not exist yet on main (skipped per rules).
+    CreateWallet provisions a fail-closed default SecurityPolicy so no wallet
+    can exist unknown to the gate. No signing logic, no private keys anywhere.
+- Blocked: nothing in Wave 1. Wave-2 prerequisites identified with web3
+  (threat model §7): server-side origin stamping from auth (origin is
+  client-supplied today — flagged in evaluate-intent.dto.ts), decision
+  persistence + append-only audit, kill switch, real ChainReader/PriceLookup
+  adapters. Deck (backoffice) contract agreed for POST
+  /security/intents/:id/decision — needs decision persistence first.
+- Learned: tsconfig project references (TS6305) require clean dist when
+  sources change mid-flight; jest.Mocked<Class> drags private members in —
+  Nest Test modules with provider overrides are the cleaner seam; the
+  encoded-payload heuristic must whitelist 0x-prefixed values or every
+  address looks like smuggled hex.
