@@ -1,33 +1,45 @@
-import { Button } from '@kryptr/shared-ui/react/button';
-import {
-  Card,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@kryptr/shared-ui/react/card';
-import { Badge } from '@kryptr/shared-ui/react/badge';
+import { Suspense } from 'react';
 
-export default function Index() {
+import {
+  HealthSection,
+  HealthSectionSkeleton,
+} from '@/components/health-section';
+import {
+  RecentIntentsSection,
+  RecentIntentsSectionSkeleton,
+} from '@/components/recent-intents-section';
+import {
+  WalletsSection,
+  WalletsSectionSkeleton,
+} from '@/components/wallets-section';
+
+/**
+ * Dashboard. Each section is its own async server component inside a
+ * Suspense boundary, so /health, /wallets and the intents feed are fetched
+ * in parallel and stream in independently (no request waterfall).
+ */
+export default function DashboardPage() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background p-8">
-      <div className="flex items-center gap-3">
-        <h1 className="text-3xl font-bold tracking-tight">Kryptr Backoffice</h1>
-        <Badge variant="secondary">scaffold</Badge>
+    <div className="mx-auto flex max-w-6xl flex-col gap-6">
+      <header className="flex flex-col gap-1">
+        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+        <p className="text-sm text-muted-foreground">
+          Fleet health, agent wallets and the latest transaction intents.
+        </p>
+      </header>
+
+      <Suspense fallback={<HealthSectionSkeleton />}>
+        <HealthSection />
+      </Suspense>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <Suspense fallback={<WalletsSectionSkeleton />}>
+          <WalletsSection />
+        </Suspense>
+        <Suspense fallback={<RecentIntentsSectionSkeleton />}>
+          <RecentIntentsSection />
+        </Suspense>
       </div>
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>shadcn/ui ready</CardTitle>
-          <CardDescription>
-            Base component set installed: button, card, input, label, badge,
-            table, select, dialog, separator, skeleton, tabs, dropdown-menu,
-            sonner, avatar, tooltip, sheet. The deck agent builds the real
-            dashboard on feat/backoffice-dashboard.
-          </CardDescription>
-        </CardHeader>
-      </Card>
-      <Button variant="outline" disabled>
-        Dashboard coming in Wave 1
-      </Button>
-    </main>
+    </div>
   );
 }
