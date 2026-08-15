@@ -2,6 +2,19 @@
   "extends": "./tsconfig.base.json",
   "compileOnSave": false,
   "files": [],
-  "references": [],
+  "references": [
+    {
+      "path": "./apps/backoffice"
+    },
+    {
+      "path": "./apps/frontoffice"
+    },
+    {
+      "path": "./apps/api"
+    },
+    {
+      "path": "./packages/shared-types"
+    }
+  ],
   "compilerOptions": {}
 }
