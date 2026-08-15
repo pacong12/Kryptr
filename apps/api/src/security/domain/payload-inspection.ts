@@ -29,8 +29,11 @@ export interface PayloadInspectionResult {
   reason: string | null;
 }
 
+// Intentionally matches ZWNJ/ZWJ and other invisible smugglers — the
+// "misleading character class" ESLint warns about is exactly the target.
 const INVISIBLE_UNICODE =
-  /[\u180e\u200b\u200c\u200d\u200e\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/;
+  // eslint-disable-next-line no-misleading-character-class
+  /[\u180e\u200b\u200c\u200d\u200e\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/u;
 
 const INJECTION_PHRASES = [
   'ignore previous',
