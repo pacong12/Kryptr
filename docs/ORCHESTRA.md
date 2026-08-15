@@ -24,7 +24,8 @@ it waits.
 | 🔮 | `web3` | Web3 research & threat intel | `docs/research/**` |
 
 **Conductor** (not one of the agents):
-- owns `packages/shared-types`, `docs/**`, root `package.json`, merges PRs
+- owns `packages/shared-types`, `packages/shared-ui`, `docs/**`, root
+  `package.json`, merges PRs
 - installs dependencies agents request (agents never install packages alone)
 - arbitrates disagreements and runs the final gate suite
 
@@ -33,19 +34,22 @@ it waits.
 1. **Nobody works on `main`.** Each agent creates one branch per task,
    named per `kryptr-git-flow` skill (`feat/api-vault`, `feat/frontoffice-home`, …).
 2. Branch from latest `main`; PR back to `main`; rebase, never merge-commit.
-3. Conductor merges after CI green. `packages/shared-types` diffs always
-   get conductor review — they are everyone's contract.
+3. Conductor merges after CI green. `packages/shared-types` and
+   `packages/shared-ui` diffs always get conductor review — they are
+   everyone's contract.
 
 ## Ownership & conduct
 
 1. Stay in your paths (table above). Read anything; write only your own.
-2. Never edit `packages/shared-types`, `docs/**`, root configs. Need a
-   change there? Message the conductor with the exact diff proposal.
+2. Never edit `packages/shared-types`, `packages/shared-ui`, `docs/**`,
+   root configs. Need a change there? Message the conductor with the
+   exact diff proposal.
 3. No package installs without conductor approval — record the need in
    your task file's "Needs" section instead.
 4. Import shared shapes from `@kryptr/shared-types`; never redeclare.
-5. UI controls: shadcn/ui (`deck`) and shadcn-vue (`face`) primitives only.
-   No hand-rolled native `<button>`/`<select>` styling.
+5. UI controls come from `@kryptr/shared-ui` only — `…/react/*` for
+   `deck`, `…/vue/*` for `face`. No hand-rolled native
+   `<button>`/`<select>` styling, no app-local component copies.
 6. Every PR passes: `lint`, `typecheck`, `test`, `build` (see
    `kryptr-ci-pipeline` skill). No gate-skipping.
 7. `apps/api` follows the layering in `kryptr-clean-architecture`
