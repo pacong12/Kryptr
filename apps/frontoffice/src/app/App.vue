@@ -1,31 +1,43 @@
 <script setup lang="ts">
-import { Button } from '@kryptr/shared-ui/vue/button';
 import { Badge } from '@kryptr/shared-ui/vue/badge';
-import { Input } from '@kryptr/shared-ui/vue/input';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@kryptr/shared-ui/vue/card';
+import { ShieldCheck } from '@lucide/vue';
 </script>
 
 <template>
-  <main class="bg-background flex min-h-screen items-center justify-center p-8">
-    <Card class="w-full max-w-md">
-      <CardHeader>
-        <CardTitle>Kryptr Frontoffice</CardTitle>
-        <CardDescription>
-          shadcn-vue smoke page — components live in
-          <code>@kryptr/shared-ui</code>
-        </CardDescription>
-      </CardHeader>
-      <CardContent class="grid gap-4">
-        <Badge class="w-fit">Wave 0</Badge>
-        <Input placeholder="Search assets…" aria-label="Search assets" />
-        <Button>Connect Wallet</Button>
-      </CardContent>
-    </Card>
-  </main>
+  <div class="bg-background text-foreground flex min-h-screen flex-col">
+    <header class="border-b">
+      <div
+        class="mx-auto flex h-14 w-full max-w-5xl items-center justify-between px-4"
+      >
+        <RouterLink
+          to="/"
+          class="flex items-center gap-2 font-semibold"
+          aria-label="Kryptr home"
+        >
+          <ShieldCheck class="size-5" aria-hidden="true" />
+          Kryptr
+          <Badge variant="secondary">frontoffice</Badge>
+        </RouterLink>
+        <nav aria-label="Primary">
+          <RouterLink
+            to="/"
+            class="text-muted-foreground hover:text-foreground text-sm font-medium transition-colors"
+          >
+            Home
+          </RouterLink>
+        </nav>
+      </div>
+    </header>
+
+    <main class="mx-auto w-full max-w-5xl flex-1 px-4 py-10">
+      <RouterView />
+    </main>
+
+    <footer class="border-t py-6">
+      <p class="text-muted-foreground mx-auto w-full max-w-5xl px-4 text-sm">
+        Every transaction intent passes the Kryptr security gate before anything
+        is signed.
+      </p>
+    </footer>
+  </div>
 </template>

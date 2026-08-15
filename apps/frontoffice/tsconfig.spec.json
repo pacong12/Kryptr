@@ -1,6 +1,9 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "paths": {
+      "@/*": ["./src/*"]
+    },
     "outDir": "./out-tsc/vitest",
     "types": [
       "vitest/globals",
