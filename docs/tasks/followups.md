@@ -38,3 +38,49 @@ Accepted risks (recorded, do not fix now):
 
 Source: independent one-shot `reviewer` + `security-reviewer` audits of PR #42
 (wave-4 prep A), both verdicts GO / safe-to-merge-with-conditions.
+
+### Wave 4 stage-B worker review (independent code + security review of PR #54)
+
+Review54 verdict: **GO-WITH-FIXES**. SecReview54 verdict: **SAFE-WITH-CONDITIONS**.
+Fix batch assigned to VaultAPI on branch `feat/order-worker` (pre-merge):
+
+- **H1 [high]** DCA one-shot: first approved slot terminated the order.
+  Fix: DCA returns to `open` after a successful slot; only the final slot
+  sets `filled`. Freeze amendment adds `triggered -> open` for DCA mid-cycle.
+- **M1 [medium]** retry-exhaustion zombie: no BullMQ `failed` finalizer left
+  orders `triggered` forever. Fix: failed-event listener marks execution +
+  order `failed` with audit (freeze §1).
+- **OW-1 [medium]** cancel_active in-flight window: an execution claimed
+  before the kill-switch flip could finalize `submitted` on a cancelled
+  order. Fix: re-read kill state + order liveness after gate approval,
+  before marking `submitted`. Mandatory before any real signer.
+- **OW-2 [medium]** claim-continuation race: two processors could work one
+  slot concurrently (in-memory transport has no dedupe; overlapping
+  scheduler ticks). Fix: ownership on continuation (dedupe + tick guard or
+  CAS claim); exactly one approved decision per slot. Mandatory before any
+  real signer (double-signing vector).
+- **M2 [medium]** ruling: `minBuyAmount` stays the quote slippage floor
+  (gate-consistent, wave-3 checkSwapContext); worker must re-verify the
+  re-quoted price against `limitPrice` before building the intent —
+  violated bound = fail-closed rejection, order stays open. Freeze §4
+  wording amended accordingly.
+- **M3 [medium]** cancel_active fan-out covers `open` + `paused`
+  (`findLive()`), per freeze §3.
+- **L4/L6** quick wins: `logger.error` on fan-out catch; clear REDIS_URL
+  config-validation error instead of bootstrap crash.
+
+Deferred (documented, not fixed now): L1 `expired` TTL unreachable (defer
+explicitly), L5 in-memory retry driver (dev/demo only), L2/L3 error-code
+usage notes for the FaceUI/DeckUI i18n maps.
+
+Operational conditions after merge:
+
+- **C1** run the API single-replica until spend ledger / claim store / kill
+  switch are persisted (in-memory mutex + stores do not survive scale-out).
+- **C2** automation origins stay default-denied; enabling requires an
+  authenticated HITL policy grant.
+- **C3** OW-1 + OW-2 fixes are mandatory before any real signer replaces
+  DryRunSigner (design §9 execution-authorization ruling still pending).
+
+Source: one-shot `reviewer` (Review54) + `security-reviewer` (SecReview54)
+audits of PR #54 (wave-4 stage B), read-only.
