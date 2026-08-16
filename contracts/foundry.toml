@@ -16,7 +16,8 @@ script = "script"
 libs = ["lib"]
 # Deploy kit writes its offline transaction JSON under deploy-kit-out/
 # (simulate-only kit; no broadcast, no signing code — script/DeployKit.s.sol).
-fs_permissions = [{ access = "write", path = "./deploy-kit-out/" }]
+# read-write: the run()-level assembly tests read the emitted JSON back.
+fs_permissions = [{ access = "read-write", path = "./deploy-kit-out/" }]
 
 # T21 §4.4 campaign params (wave5-t21-verification-design.md): runs >= 256,
 # depth >= 100, no fail-on-revert (reverting paths are expected in handlers).

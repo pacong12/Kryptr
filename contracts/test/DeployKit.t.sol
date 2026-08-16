@@ -2,7 +2,9 @@
 pragma solidity 0.8.24;
 
 import {Test} from "forge-std/Test.sol";
+import {stdJson} from "forge-std/StdJson.sol";
 import {DeployKitLib} from "../script/DeployKitLib.sol";
+import {DeployKit} from "../script/DeployKit.s.sol";
 import {KryptrLaunchTokenTemplate} from "../src/TokenTemplate.sol";
 import {KryptrTokenFactory} from "../src/TokenFactory.sol";
 
@@ -81,5 +83,50 @@ contract DeployKitTest is Test {
             keccak256(DeployKitLib.factoryDeployData(impl, sink)),
             keccak256(DeployKitLib.factoryDeployData(impl, sink))
         );
+    }
+}
+
+/// @notice F2 (Review54): run()-level proof — drive DeployKit.run() through the
+///         real env -> JSON assembly path (vm.setEnv -> script -> file on disk)
+///         and verify the emitted JSON field-by-field against DeployKitLib.
+contract DeployKitRunTest is Test {
+    using stdJson for string;
+    address internal tmpl = makeAddr("templatePlaceholder");
+    address internal sink = makeAddr("bondSinkPlaceholder");
+
+    function test_run_templateStage_emitsExactJson() public {
+        vm.setEnv("KIT_STAGE", "template");
+        DeployKit kit = new DeployKit();
+        kit.run();
+        string memory j = vm.readFile("deploy-kit-out/template-deploy.json");
+        assertEq(j.readString(".value"), "0x0");
+        assertTrue(vm.keyExists(j, ".to"), "to field must be present");
+        assertEq(j.readBytes(".data"), DeployKitLib.templateDeployData(), "tx1 data drift");
+    }
+
+    function test_run_factoryStage_emitsExactJson() public {
+        vm.setEnv("KIT_STAGE", "factory");
+        vm.setEnv("TEMPLATE_ADDRESS", vm.toString(tmpl));
+        vm.setEnv("BOND_SINK", vm.toString(sink));
+        DeployKit kit = new DeployKit();
+        kit.run();
+        string memory j = vm.readFile("deploy-kit-out/factory-deploy.json");
+        assertEq(j.readString(".kind"), "factory-deploy");
+        assertEq(j.readString(".value"), "0x0");
+        assertEq(j.readAddress(".constructorArgs.template"), tmpl);
+        assertEq(j.readUint(".constructorArgs.totalFeeBps"), 175);
+        assertEq(j.readUint(".constructorArgs.bondAmountWei"), 0.01 ether);
+        assertEq(j.readAddress(".constructorArgs.bondSink"), sink);
+        assertEq(j.readBytes(".data"), DeployKitLib.factoryDeployData(tmpl, sink), "tx2 data drift");
+    }
+
+    function test_run_invalidStage_reverts() public {
+        // a non-empty INVALID stage (empty-string env semantics are
+        // process-global and leak across tests — a bogus value is
+        // deterministic)
+        vm.setEnv("KIT_STAGE", "launch");
+        DeployKit kit = new DeployKit();
+        vm.expectRevert(bytes("kit: set KIT_STAGE=template|factory"));
+        kit.run();
     }
 }
