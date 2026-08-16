@@ -1,4 +1,5 @@
 import type { ChainId } from './chains.js';
+import type { SwapContext } from './trading.js';
 
 export const TX_STATUSES = [
   'pending_approval',
@@ -27,6 +28,8 @@ export interface TransactionIntent {
   amount: string;
   /** Who/what originated the intent: 'user' | 'agent:<id>' | 'automation:<id>'. */
   origin: string;
+  /** Present iff kind === 'swap'; binds the intent to one quote. */
+  swap?: SwapContext;
   createdAt: string;
 }
 
@@ -39,4 +42,18 @@ export interface ExecutedTransaction {
   approvedBy: string;
   submittedAt: string;
   confirmedAt: string | null;
+}
+
+/**
+ * One lifecycle step of an intent, for the backoffice timeline view
+ * (GET /api/security/intents/:id/timeline).
+ */
+export interface IntentTimelineStep {
+  /** e.g. 'created' | 'quoted' | 'gate_decision' | 'submitted' | 'confirmed' | 'failed'. */
+  step: string;
+  /** ISO-8601. */
+  at: string;
+  /** e.g. 'user' | 'agent:<id>' | 'gate' | 'system'. */
+  actor: string;
+  detail?: string;
 }
