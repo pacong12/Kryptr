@@ -66,6 +66,7 @@
     "@nestjs/core": "^11.0.0",
     "@nestjs/platform-express": "^11.0.0",
     "bullmq": "^6.1.1",
+    "ioredis": "^5.11.1",
     "next": "~16.1.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
