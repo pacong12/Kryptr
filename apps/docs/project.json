@@ -1,0 +1,44 @@
+{
+  "name": "@kryptr/docs",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "tags": ["domain:docs", "scope:user-docs"],
+  "targets": {
+    "dev": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "cwd": "apps/docs",
+        "command": "npm run dev"
+      },
+      "metadata": {
+        "description": "VitePress dev server (local authoring only, never CI)"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": ["default", "^default"],
+      "outputs": ["{projectRoot}/.vitepress/dist"],
+      "options": {
+        "cwd": "apps/docs",
+        "command": "npm run build"
+      },
+      "metadata": {
+        "description": "VitePress static build -> apps/docs/.vitepress/dist; deployed later as a SEPARATE Vercel project on docs.* (OpsCI note in PR)"
+      }
+    },
+    "preview": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "dependsOn": ["build"],
+      "options": {
+        "cwd": "apps/docs",
+        "command": "npm run preview"
+      },
+      "metadata": {
+        "description": "Serve the built static site locally (vitepress preview)"
+      }
+    }
+  }
+}
