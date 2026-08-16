@@ -61,11 +61,17 @@ const walletApiDegraded = computed(
   () => !loading.value && (mockMode.value || error.value !== null),
 );
 
-/** Worker chip: unknown or down both read "unavailable" — never guessed. */
+/**
+ * Worker chip: error, unknown or down all read "unavailable" — never
+ * guessed healthy. Only an `ok: true` health card earns "operational".
+ */
+const workerOperational = computed(
+  () => workerHealthState.value === 'ready' && !workerDown.value,
+);
 const workerLabel = computed(() => {
   if (workerHealthState.value === 'loading') return 'Order worker: checking…';
-  if (workerDown.value) return 'Order worker: unavailable';
-  return 'Order worker: operational';
+  if (workerOperational.value) return 'Order worker: operational';
+  return 'Order worker: unavailable';
 });
 
 /**
@@ -90,7 +96,7 @@ const affordances = [
   {
     title: 'Orders',
     description:
-      "Limit and DCA automation with a full lifecycle. The order-worker API hasn't landed in this deployment — the page degrades fail-closed.",
+      'Limit and DCA automation with a full lifecycle. The worker defaults to disabled mode, so the page degrades fail-closed until automation is switched on.',
     route: 'wallet-orders',
     action: 'View orders',
   },
@@ -134,11 +140,7 @@ const affordances = [
       </Badge>
       <Badge
         data-testid="order-worker-status"
-        :variant="
-          workerHealthState !== 'loading' && !workerDown
-            ? 'secondary'
-            : 'outline'
-        "
+        :variant="workerOperational ? 'secondary' : 'outline'"
       >
         {{ workerLabel }}
       </Badge>
@@ -231,8 +233,8 @@ const affordances = [
           Signing is dry-run only — signature previews are never broadcast.
         </li>
         <li>
-          Order-worker endpoints are pending: the contract is frozen and the
-          Orders page degrades fail-closed until they land.
+          Order executions stop at the unsigned dry-run boundary — nothing is
+          broadcast on-chain yet.
         </li>
         <li>
           Robinhood Chain is shown but disabled for orders until chain support

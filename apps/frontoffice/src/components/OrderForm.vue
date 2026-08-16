@@ -120,6 +120,15 @@ const INTERVAL_OPTIONS = [
  * demands an explicit `order_type_unsupported` rejection, not silent drops.
  */
 const typeSupported = computed(() => isSupportedOrderType(props.type));
+
+/**
+ * Side-aware amount label: the worker reads BUY amounts in QUOTE-asset
+ * units (amount to spend) and SELL amounts in BASE-asset units (amount to
+ * sell). The label mirrors that contract so users never mis-denominate.
+ */
+const amountLabel = computed(() =>
+  props.side === 'buy' ? 'Amount to spend' : 'Amount to sell',
+);
 const unsupportedMeta = computed(() =>
   workerErrorMeta({
     code: 'order_type_unsupported',
@@ -244,7 +253,7 @@ const submitBlockedReason = computed(() => {
         </Select>
       </div>
       <div class="grid gap-2">
-        <Label for="order-amount">Amount</Label>
+        <Label for="order-amount">{{ amountLabel }}</Label>
         <Input
           id="order-amount"
           v-model="amountModel"

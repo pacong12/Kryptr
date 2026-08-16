@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { effectScope } from 'vue';
-import type { ApiEnvelope, Order, WorkerHealth } from '@kryptr/shared-types';
+import type {
+  ApiEnvelope,
+  Order,
+  OrderExecution,
+  WorkerHealth,
+} from '@kryptr/shared-types';
 import { ok, err } from '@kryptr/shared-types';
 import { useOrders } from './useOrders';
 import { createStubOrdersSource, type OrdersSource } from '@/lib/orders';
@@ -45,6 +50,8 @@ function sourceFrom(options: {
     health: async () => options.health ?? ok(makeHealth()),
     create: async () =>
       err<Order>({ code: 'worker_unavailable', message: 'not used' }),
+    executions: async () =>
+      err<OrderExecution[]>({ code: 'worker_unavailable', message: '' }),
   };
 }
 
