@@ -13,21 +13,30 @@ never retrofitted. Discipline:
   gate; promote to blocking by tightening the `--fail-*` flag in
   `project.json`.
 
-## Never-triage set (cross-ref: T21)
+## Never-triage set (binding — T21 gate #1)
 
-Per T21 (`docs/research/launchpad-discussion.md` §4 — per-token clone bugs
-are UNFIXABLE; mitigation = Slither gate + fork tests + audited
-implementation before first launch), the following can NEVER be accepted
-into this baseline — findings always block, no exceptions:
+Root: T21 in `docs/research/launchpad-discussion.md` §4 — per-token clone
+bugs are UNFIXABLE; mitigation = Slither gate + fork tests + audited
+implementation before first launch. The concrete detector set is defined in
+`docs/research/wave5-t21-verification-design.md` §5.3 (Web3Intel, gate #1)
+and is copied here VERBATIM per the scaffolding PR (#61) commitment:
 
-- Every **high-severity** detector, unconditionally.
-- The detector set Web3Intel's T21 verification suite design (wave-5 entry
-  gate #1) designates as never-triage; when that document lands, its set is
-  copied here verbatim and becomes binding. Until then: no medium-severity
-  acceptance either without Main's explicit ruling.
+> For factory + template these detectors must have **zero** findings,
+> triaged or not — any hit is a NO-GO: `suicidal`, `unprotected-upgrade`,
+> `arbitrary-send-eth`, `arbitrary-send-erc20`,
+> `arbitrary-send-erc20-permit`, `controlled-delegatecall`,
+> `uninitialized-storage`, `reentrancy-eth`.
 
-Rationale: an immutable clone cannot be patched after launch, so any
-finding class that could hide a clone bug is non-triageable by policy.
+Any finding from this set blocks unconditionally — it can never be logged
+under "Accepted findings" below, and no config change may filter these
+detectors. Additionally, every **high-severity** detector outside this set
+blocks unconditionally as well.
+
+Rationale (§5.3 inference): the set matches our structural promises — no
+self-destruct, no upgrade path, no unauthorized value extraction, no
+delegatecall/storage hazards — the exact ways an "immutable" design secretly
+stops being immutable. An immutable clone cannot be patched after launch, so
+any finding class that could hide a clone bug is non-triageable by policy.
 
 ## Accepted findings
 
