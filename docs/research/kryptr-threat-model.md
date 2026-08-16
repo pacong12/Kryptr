@@ -8,6 +8,9 @@
 > evidence base in `bankrbot-analysis.md` / `web3-agent-landscape.md`. External sources `[S#]` /
 > `[L#]` resolve in those documents' registries. `[fact]` = sourced; **[design]** = Kryptr
 > requirement proposed here.
+>
+> **Revised 2026-08-16:** added T22–T24 (trigger-price threats for wave-4 order automation)
+> from `wave4-oracle-research.md` §3; external tags `[O#]` resolve in that document's registry.
 
 ---
 
@@ -72,6 +75,10 @@ agent surface early because the May 2026 Bankr incidents prove it is the eventua
 ## 5. Top-10 threats with mitigations
 
 Severity = Likelihood × Impact judged for Phase 1. "Must" items are Phase 1 gate requirements.
+
+**Numbering note:** T11–T16 (swap surface) are registered in `wave2-trading-research.md` and
+T17–T21 (launchpad surface) in `launchpad-discussion.md`; this file carries T1–T10 and, as of
+the 2026-08-16 revision, T22–T24 below.
 
 ### T1 — Gate bypass: direct path from API/agent to signing (CRITICAL)
 
@@ -157,6 +164,41 @@ blinds operators during an ongoing drain.
 /`rejected`, never auto-approved; health endpoints (`HealthStatus`, `api.ts`) feed the backoffice
 dashboard (Phase 1 deliverable) + operator kill switch ("pause all" like Bankr's `[S4][S14]`).
 
+### T22 — Wick / flash-print trigger manipulation (HIGH)
+
+A brief, manipulated print (thin-venue wick, flash-loan-driven spot move) crosses a limit/DCA
+trigger and fires an order. Precedent: **Mango Markets (Oct 2022, ~$110–116M)** — collateral
+valued on thin-venue spot prices was inflated with flash-loan-funded buys; the protocol executed
+"correctly" on false inputs `[O19]`.
+**Mitigations [design]:** (a) trigger source = on-chain Chainlink Data Feeds (multi-venue
+aggregation), never single-venue spot `[O1][O2]`; (b) **deviation circuit breaker**: if
+`|primary feed − sanity source| > TRIGGER_DEVIATION_BPS`, no trigger + alert
+(`wave4-contract-freeze.md` §4); (c) **TWAP window option** for large orders — sustained
+manipulation across the window is far costlier (Uniswap v3 cumulative-oracle pattern), accepting
+lag in genuine crashes `[O18]`; (d) uncertainty filtering when a confidence/spread signal exists
+`[O14]`; (e) **execution backstop**: a trigger is a _proposal_, never an authorization — it mints
+a fresh `TransactionIntent` through the full gate with re-quoted `minBuyAmount` (T1 pattern).
+
+### T23 — Stale-feed trigger (MEDIUM)
+
+A heartbeat gap leaves `updatedAt` far behind; triggering on stale data executes at the wrong
+level. On-chain observation 2026-08-16: the Base ETH/USD feed (`0x71041ddd…Bb70`, verified via
+`mainnet.base.org` reads) updated every ≈1230 s during a quiet window — the frozen default
+`TRIGGER_MAX_AGE_MS = 2_700_000` (45 min) carries ~2× headroom over the empirical heartbeat
+`[O21][O22]`.
+**Mitigations [design]:** per-feed `maxAge` policy, fail-closed (stale → `trigger_price_stale`,
+no trigger, no cancellation, health flag — consistent with T10 and freeze §2); backoffice shows
+last-update age per feed (deck health-card pattern).
+
+### T24 — Trigger-oracle outage / dependency (MEDIUM)
+
+Single-source dependency: primary RPC down, feed deprecated, or provider outage blinds the
+trigger loop.
+**Mitigations [design]:** primary (on-chain feed) and sanity (off-chain API) sources are
+independent systems; RPC fallback chain in `ChainConfig` (wave 3 §2); order state survives oracle
+outage — unknown price → `needs_human_approval` posture, order stays `open` (freeze §4; worker
+persistence semantics per `wave4-worker-design.md`).
+
 ## 6. Human-in-the-loop (HITL) signing requirements — normative for Phase 1
 
 These are the requirements `vault`'s gate must implement; `face` must render them.
@@ -214,6 +256,9 @@ These are the requirements `vault`'s gate must implement; `face` must render the
 ## 9. Sources
 
 External evidence tags `[S#]`/`[L#]` resolve in the registries of `bankrbot-analysis.md` §9 and
-`web3-agent-landscape.md` §10. Internal: `docs/ORCHESTRA.md`, `docs/ROADMAP.md`,
+`web3-agent-landscape.md` §10; `[O#]` tags resolve in the registry of
+`wave4-oracle-research.md` §7 (T22–T24 use `O1`, `O2`, `O14`, `O18`, `O19`, plus `O21`/`O22`
+added there by the 2026-08-16 revision for the on-chain feed verification). Internal:
+`docs/ORCHESTRA.md`, `docs/ROADMAP.md`,
 `packages/shared-types/src/lib/{security,transactions,wallet,chains,api}.ts` (all accessed
-2026-08-15).
+2026-08-15); `wave4-contract-freeze.md` §2/§4 (accessed 2026-08-16).
