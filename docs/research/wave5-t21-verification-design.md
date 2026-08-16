@@ -109,10 +109,11 @@ uses, and the relationship is one-directional:
   non-integer bps values (e.g. 23.75 bps) and a venue member; it is a historical reference, not
   a valid Kryptr parameterization. The factory-era parameter set MUST re-express the split as
   four integer-bps shares summing to the launch total (open item §9.6).
-- **Mirror rule:** integer mirrors vs `TokenFeeSchedule` float shares follow PR #59's
-  `bps === share * 10_000` consistency check (Q1); where a float share cannot be mirrored
-  exactly in integers, the integer mirror is authoritative for the gate and display rounds
-  toward it.
+- **Mirror rule:** integer mirrors vs `TokenFeeSchedule` float shares MUST satisfy the frozen
+  check `Math.round(share * 10_000) === bps` (PR #59, merged; deploy.ts freeze). Literal
+  float-equality (`bps === share * 10_000`) is **banned** in gates, tests, and docs — rounding
+  is part of the check. Where a float share cannot be mirrored exactly in integers, the integer
+  mirror is authoritative for the gate and display rounds toward it.
 
 ### 4.3 Required invariants
 
