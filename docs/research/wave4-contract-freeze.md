@@ -3,6 +3,9 @@
 Status: **FROZEN** — kontrak di bawah ini mengikat untuk seluruh build wave 4.
 Perubahan shape setelah freeze = PR amandemen eksplisit + pengumuman IRC "shape FROZEN (revisi)".
 
+**Revisi 2026-08-16 (shape FROZEN, revisi):** §4 ditambah spesifikasi feed ETH/USD Base yang
+terverifikasi on-chain — penambahan fakta, shape kontrak TIDAK berubah.
+
 Rujukan: ruling evaluasi (docs/research/wave1-3-evaluation.md), desain worker
 (wave4-worker-design.md), desain CI (wave4-ci-redis-design.md), riset oracle
 (wave4-oracle-research.md).
@@ -67,6 +70,13 @@ KILL_SWITCH_MODES = ['off', 'pause_new', 'cancel_active'];
 - Sumber primer: **Chainlink Data Feeds on-chain** via viem/Multicall3
   (keyless). ETH/USD Base feed; feed lain ditambahkan per-asset via registry
   konfigurasi.
+- Spesifikasi feed primer terverifikasi on-chain 2026-08-16 (amandemen): proxy ETH/USD
+  Base = `0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70` — `latestRoundData()`/`decimals()=8`
+  live via RPC publik `mainnet.base.org` (keyless); heartbeat empiris ≈ 1230 s (~20,5 mnt)
+  dan deviation ≈ 0,15% dari 18 ronde berurutan (26691–26708, 01:09–06:27 UTC).
+  `TRIGGER_MAX_AGE_MS = 2_700_000` (45 mnt) terkonfirmasi kompatibel dengan headroom ~2×
+  atas heartbeat empiris. Detail + metode: `wave4-oracle-research.md` §2.1 + registry
+  `O21`/`O22`.
 - Sumber pembanding (hint): **CoinGecko keyless** (adapter wave 3 yang sudah
   ada). Dua-sumber: `|primary − hint| ≤ TRIGGER_DEVIATION_BPS` wajib lolos.
 - Default beku: `TRIGGER_MAX_AGE_MS = 2_700_000` (45 menit),
