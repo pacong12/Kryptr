@@ -268,12 +268,20 @@ EIP-1967 slots zero (P-2).
 #### 7.1.2 Reviewed allowlist (expected full surface)
 
 - **Factory:** payable entry `deployToken(…)` + views `template()`, `totalFeeBps()`,
-  `bondAmount()`, `bondSink()`, `totalBondsCollected()`, `bondsByDeployer(address)`.
+  `bondAmount()`, `bondSink()`, `totalBondsCollected()`, `bondsByDeployer(address)`,
+  `FACTORY_VERSION()`, `deploySalt(address,(…))`, `predictTokenAddress(address,(…))` (the two
+  tuple-signature views pin their exact canonical expansion in the fixture).
 - **Template:** ERC-20 standard (`name()`, `symbol()`, `decimals()`, `totalSupply()`,
   `balanceOf(address)`, `transfer(address,uint256)`, `approve(address,uint256)`,
   `allowance(address,address)`, `transferFrom(address,address,uint256)`), exactly-once
   `initialize(…)`, and schedule getters (`feeShares()`, `feeRecipients()`).
-- Any addition requires a revision of this doc + consent-vocabulary re-review (§8 rule 2).
+- **Custom-error selectors** appear as PUSH4 in deployed bytecode; the fixture enumerates and
+  allowlists them alongside function selectors (errors carry no state-control surface).
+- `predictTokenAddress` is the on-chain oracle for consent-address derivation (consent freezes
+  all salt inputs incl. nonce); circularity is broken by FK-1, which asserts prediction ==
+  actually-deployed address inside the battery.
+- Any further addition requires a revision of this doc + consent-vocabulary re-review (§8
+  rule 2).
 
 **Residual [inference]:** G4 proves the **absence of control surface**; it cannot prove the
 template's economic logic correct — that is G1–G3's job. The consent UI (§8) may state
