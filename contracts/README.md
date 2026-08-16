@@ -47,19 +47,18 @@ contracts/
 ├── SLITHER_TRIAGE.md        # triage baseline log (acceptances recorded here)
 ├── deployments.schema.json  # deploy manifest schema (Q3 baseline)
 ├── deployments/             # {chain}.json manifests (empty pre-launch)
-├── src/                     # implementation (factory phase fills this)
-├── test/                    # *.t.sol (forge-std arrives with factory phase)
+├── src/                     # TokenFactory + TokenTemplate (no probe, no deps)
+├── test/                    # *.t.sol (forge-std vendored at lib/forge-std)
 ├── script/                  # deploy scripts (later)
 └── tools/                   # validate-manifests.mjs
 ```
 
-## Probe removal condition
+## Probe removal condition (SATISFIED in the factory PR)
 
-`src/ScaffoldingProbe.sol` exists only so the gates exercise real source
-from this first PR. When the factory phase removes it, the factory/template
-test suite must take over the gate-exercise role **in the same PR** — never
-a gap where slither/fmt run on empty src again (vault condition, wave-5
-kickoff).
+`src/ScaffoldingProbe.sol` existed only so the gates exercised real source
+from the scaffolding PR. The factory/template test suite removed it **in the
+same PR** that added the real sources — never a gap where slither/fmt run on
+empty src again (vault condition, wave-5 kickoff).
 
 ## CI lessons (PR #61 debug rounds)
 

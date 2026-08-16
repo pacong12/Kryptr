@@ -132,7 +132,13 @@ jobs:
         with:
           version: v1.7.1
 
-      - name: Fork tests (public Base RPC, keyless)
+      # UNIT-ONLY on fork by ruling (Main, fork round 31949753694): the
+      # 256x128 invariant campaigns saturate the keyless public RPC (HTTP
+      # 429) — they run locally on anvil in forge-test; the fork-test target
+      # excludes test/invariant/*. Public-RPC rate limits must never gate
+      # this job; forked invariant campaigns return with a keyed RPC in the
+      # nightly deep campaign.
+      - name: Fork tests (public Base RPC, keyless, unit-only)
         run: npx nx run @kryptr/contracts:fork-test
         env:
           RPC_URL_BASE: https://mainnet.base.org

@@ -1,14 +1,26 @@
 [profile.default]
 # Wave-5 kickoff contract (vault): pinned solc for EIP-1167 factory+template
-# work; evm_version stays at the solc default until Base fork tests say
-# otherwise; optimizer on with runs=200.
+# work; optimizer on with runs=200. SecReview76 S1: evm_version AND
+# bytecode_hash are pinned so the selector-surface gate is deterministic
+# across Foundry generations — the exact-allowlist scan must never flip
+# because a toolchain default changed (bytecode_hash = "none" strips the
+# CBOR auxdata entirely; the scanner also truncates it defensively).
 solc_version = "0.8.24"
 optimizer = true
 optimizer_runs = 200
+evm_version = "cancun"
+bytecode_hash = "none"
 src = "src"
 test = "test"
 script = "script"
 libs = ["lib"]
+
+# T21 §4.4 campaign params (wave5-t21-verification-design.md): runs >= 256,
+# depth >= 100, no fail-on-revert (reverting paths are expected in handlers).
+[profile.default.invariant]
+runs = 256
+depth = 128
+fail_on_revert = false
 
 [fmt]
 line_length = 100
