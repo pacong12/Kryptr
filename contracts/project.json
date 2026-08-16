@@ -115,6 +115,17 @@
         "description": "Tier F G1 (runbook Appendix A): unit suite + DEEP invariant campaigns (runs 2048 x depth 512 via [profile.battery.invariant]) — the release-tag battery's stateful evidence. Long-running by design (32x embryo volume); release-tag.yml should give it a generous timeout."
       }
     },
+    "battery-g1-campaign": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "cwd": "contracts",
+        "command": "FOUNDRY_PROFILE=battery forge test --match-test \"$INVARIANT_CAMPAIGN\" -vv"
+      },
+      "metadata": {
+        "description": "One DEEP invariant campaign at a time (release-tag parallel split, Main ruling): GitHub-hosted jobs hard-cap at 360 minutes and the four campaigns in a single g1 run exceed it. release-tag.yml fans out one job per campaign via INVARIANT_CAMPAIGN (exact invariant_* function name); each job lands far under the cap, wall-clock drops to the slowest campaign, and a counterexample in one campaign no longer buries the others' evidence. battery-g1 stays the single-process aggregate for local/nightly use. Proven: --match-test isolates one campaign (bondParams, 1 test)."
+      }
+    },
     "battery-g2": {
       "executor": "nx:run-commands",
       "cache": false,

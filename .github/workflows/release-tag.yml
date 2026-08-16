@@ -1,13 +1,19 @@
 name: Release-tag battery
 
 # Wave-5 close / release gate (wave5-release-tag-battery-runbook.md):
-# dispatch at a named contracts-v* tag -> run the Tier-F battery
-# (G1 -> G2 -> G3 fail-fast via the `battery` wrapper target, cache off),
-# then INDEPENDENTLY re-derive every G5 artifact's contentHash (never
-# trust the producer's recorded hash — runbook §7 pass criterion).
+# dispatch at a named contracts-v* tag -> run the Tier-F battery as
+# PARALLEL jobs, then INDEPENDENTLY re-derive every G5 artifact's
+# contentHash (never trust the producer's recorded hash — runbook §7).
 #
-# Two SEPARATE gates, never conflated (VaultAPI review of this file):
-#   - job `battery`   — Tier F PASS. Always required.
+# Parallel split (Main ruling): GitHub-hosted jobs hard-cap at 360
+# minutes, and the four deep invariant campaigns (2048 x 512, super-
+# linear in depth) exceed that in a single sequential g1 run. One job
+# per campaign (battery-g1-campaign target) keeps every job far under
+# the cap, drops wall-clock to the slowest campaign, and a
+# counterexample in one campaign no longer buries the others' evidence.
+#
+# Two SEPARATE gates, never conflated (VaultAPI review):
+#   - the five evidence jobs — Tier F PASS. Always required.
 #   - job `verify-g5` — G5 artifact presence + hash verification.
 #     G5 assembly itself is a runbook §7 step carried over to wave 6
 #     (Main ruling), so the wave-5 closing tag legitimately has NO
@@ -17,9 +23,8 @@ name: Release-tag battery
 #     that DO exist are always verified, in both modes.
 #
 # Dispatch-only by design: the opt-out is an input, so an automatic
-# tag-push trigger could never carry it (and a bare tag push must never
-# decide gate semantics). The operator cuts the tag AND explicitly runs
-# the battery at it — two deliberate, audited acts (keyless ruling).
+# tag-push trigger could never carry it. The operator cuts the tag AND
+# explicitly dispatches at it — two deliberate, audited acts (keyless).
 # Deploy is NOT part of this workflow: factory stays dark until wave 6.
 
 on:
@@ -49,47 +54,132 @@ permissions:
   contents: read
 
 jobs:
-  battery:
+  g1-bondledger:
     runs-on: ubuntu-latest
+    timeout-minutes: 330
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
           submodules: recursive
-          # Run the battery at exactly the named tag (single-commit
-          # provenance — same principle as B_pin).
           ref: refs/tags/${{ github.event.inputs.tag }}
-
       - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: 'npm'
-
       - run: npm ci
-
       - uses: foundry-rs/foundry-toolchain@v1
         with:
-          # Exact pin — matches the contracts CI job; never float.
           version: v1.7.1
+      - name: G1 deep invariant — bondLedger reconciles with sink
+        run: npx nx run @kryptr/contracts:battery-g1-campaign
+        env:
+          INVARIANT_CAMPAIGN: invariant_bondLedger_reconcilesWithSink
 
+  g1-bondparams:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          ref: refs/tags/${{ github.event.inputs.tag }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: 'npm'
+      - run: npm ci
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.7.1
+      - name: G1 deep invariant — bondParams immutable
+        run: npx nx run @kryptr/contracts:battery-g1-campaign
+        env:
+          INVARIANT_CAMPAIGN: invariant_bondParams_immutable
+
+  g1-supplyfrozen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          ref: refs/tags/${{ github.event.inputs.tag }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: 'npm'
+      - run: npm ci
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.7.1
+      - name: G1 deep invariant — clones supply and schedule frozen
+        run: npx nx run @kryptr/contracts:battery-g1-campaign
+        env:
+          INVARIANT_CAMPAIGN: invariant_clones_supplyAndScheduleFrozen
+
+  g1-neverreinit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          ref: refs/tags/${{ github.event.inputs.tag }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: 'npm'
+      - run: npm ci
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.7.1
+      - name: G1 deep invariant — clones never reinitializable
+        run: npx nx run @kryptr/contracts:battery-g1-campaign
+        env:
+          INVARIANT_CAMPAIGN: invariant_clones_neverReinitializable
+
+  fast-legs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          ref: refs/tags/${{ github.event.inputs.tag }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: 'npm'
+      - run: npm ci
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.7.1
       - name: Install Slither
         run: python3 -m pip install --user slither-analyzer==0.11.6
-
-      # Vault's Tier-F harness defines battery-g1/g2/g3 + the `battery`
-      # wrapper (G1 -> G2 -> G3, fail-fast, all cache:false — the battery
-      # must be a real execution, Main ruling). G3 is the keyless Base
-      # Sepolia fork leg (unit-only per the 429 ruling).
-      - name: Tier-F battery (G1 -> G2 -> G3, fail-fast)
-        run: npx nx run @kryptr/contracts:battery
+      - name: G1 unit suite (default profile)
+        run: npx nx run @kryptr/contracts:forge-test
+      - name: G2 slither + never-triage guard + selector surface
+        run: npx nx run @kryptr/contracts:battery-g2
+      - name: G3 keyless Base Sepolia fork (unit-only, 429 ruling)
+        run: npx nx run @kryptr/contracts:battery-g3
         env:
-          RPC_URL_BASE: https://mainnet.base.org
           RPC_URL_BASE_SEPOLIA: https://sepolia.base.org
-          FORK_BLOCK_BASE: ${{ github.event.inputs.fork_block_base || vars.FORK_BLOCK_BASE }}
           FORK_BLOCK_BASE_SEPOLIA: ${{ github.event.inputs.fork_block_base_sepolia || vars.FORK_BLOCK_BASE_SEPOLIA }}
 
   verify-g5:
-    needs: battery
+    needs:
+      - g1-bondledger
+      - g1-bondparams
+      - g1-supplyfrozen
+      - g1-neverreinit
+      - fast-legs
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
         with:
