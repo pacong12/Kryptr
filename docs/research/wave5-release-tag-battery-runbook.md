@@ -43,20 +43,21 @@ produces them.
 
 ## 2. Inputs and owners
 
-| Input                                                                                                                                                                                                                                     | Owner     | Blocking?               |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ----------------------- |
-| Factory deploy mechanism ruling (keyless policy)                                                                                                                                                                                          | Main/user | YES — deploy itself     |
-| Release tag + commit sha of the exact deployed source — tag MUST include this runbook + T21 criteria doc (battery scopes against in-tree criteria); proposed `contracts-v0.1.0`                                                           | VaultAPI  | YES                     |
-| Deployed **template** tuple `(address, tx, block)` — deployed FIRST                                                                                                                                                                       | VaultAPI  | YES (post-deploy steps) |
-| Deployed **factory** tuple `(address, tx, block)` — deployed SECOND (constructor takes the live template address)                                                                                                                         | VaultAPI  | YES (post-deploy steps) |
-| Constructor params: `totalFeeBps=175` CERTIFIED (in-tree parity test vs gate constant); `bondAmount` + `bondSink` UNRULED (Main/user owes); confirmation = kit output + on-chain immutable readback transcript recorded into the artifact | VaultAPI  | YES                     |
-| Pinned Slither version (0.11.6 per #76 CI pin) + `slither.config.json` + never-triage guard (#78)                                                                                                                                         | OpsCI     | YES (G2)                |
-| Fork-test runner with retry/backoff against rehearsal RPC `[F5]` + fork label gates                                                                                                                                                       | OpsCI     | YES (G3)                |
-| RFC 8785 canonicalizer, pinned, with test vectors (G5 `contentHash`)                                                                                                                                                                      | OpsCI     | YES (G5)                |
-| Artifact commit path + manifest schema-validation job                                                                                                                                                                                     | OpsCI     | YES (G5)                |
-| Venue-phase G1 completion timing (INV-FEE-2/4, FK-2, rounding)                                                                                                                                                                            | VaultAPI  | YES for Tier V          |
-| Testnet faucet ETH for live-exercise scenarios                                                                                                                                                                                            | OpsCI     | venue phase only        |
-| Release-tag workflow (tag/dispatch trigger → battery → G5 artifact upload); awaits vault naming battery entry points                                                                                                                      | OpsCI     | YES (G5 automation)     |
+| Input                                                                                                                                                                                                                                     | Owner                         | Blocking?               |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- | ----------------------- |
+| Factory deploy mechanism ruling (keyless policy)                                                                                                                                                                                          | Main/user                     | YES — deploy itself     |
+| Release tag + commit sha of the exact deployed source — tag MUST include this runbook + T21 criteria doc (battery scopes against in-tree criteria); proposed `contracts-v0.1.0`                                                           | VaultAPI                      | YES                     |
+| Deployed **template** tuple `(address, tx, block)` — deployed FIRST                                                                                                                                                                       | VaultAPI                      | YES (post-deploy steps) |
+| Deployed **factory** tuple `(address, tx, block)` — deployed SECOND (constructor takes the live template address)                                                                                                                         | VaultAPI                      | YES (post-deploy steps) |
+| Constructor params: `totalFeeBps=175` CERTIFIED (in-tree parity test vs gate constant); `bondAmount` + `bondSink` UNRULED (Main/user owes); confirmation = kit output + on-chain immutable readback transcript recorded into the artifact | VaultAPI                      | YES                     |
+| Pinned Slither version (0.11.6 per #76 CI pin) + `slither.config.json` + never-triage guard (#78)                                                                                                                                         | OpsCI                         | YES (G2)                |
+| Fork-test runner with retry/backoff against rehearsal RPC `[F5]` + fork label gates                                                                                                                                                       | OpsCI                         | YES (G3)                |
+| RFC 8785 canonicalizer, pinned, with test vectors (G5 `contentHash`)                                                                                                                                                                      | OpsCI                         | YES (G5)                |
+| Artifact commit path + manifest schema-validation job                                                                                                                                                                                     | OpsCI                         | YES (G5)                |
+| Venue-phase G1 completion timing (INV-FEE-2/4, FK-2, rounding)                                                                                                                                                                            | VaultAPI                      | YES for Tier V          |
+| Testnet faucet ETH for live-exercise scenarios                                                                                                                                                                                            | OpsCI                         | venue phase only        |
+| Release-tag workflow (tag/dispatch trigger → battery → G5 artifact upload); awaits vault naming battery entry points                                                                                                                      | OpsCI                         | YES (G5 automation)     |
+| Blockscout source-verification submission (each rehearsal chain) — prerequisite for G4 P-5; owner open (§9.6)                                                                                                                             | OpsCI or VaultAPI (open §9.6) | YES (G4)                |
 
 ## 3. Rehearsal chain **[design + fact]**
 
@@ -102,7 +103,7 @@ Factory-phase scenarios (keyless — fork tests never send real transactions):
 | FK-3 bond lifecycle on forked ETH (`deal`), sink-only flow                 | RUN                                                                                   |
 | FK-4 same-salt revert, template direct calls, garbage calldata, slots zero | RUN                                                                                   |
 | FK-5 gas realism incl. OP-stack L1 data cost                               | RUN                                                                                   |
-| FK-6 Blockscout source verification                                        | RUN (needs verification submission, §7)                                               |
+| FK-6 Blockscout source verification                                        | RUN (needs verification submission — owner open, §9.6)                                |
 
 **Pass:** all non-deferred scenarios green at `B_pin`.
 
@@ -116,7 +117,8 @@ from P-3 + INV-CLONE-1). Every proof is third-party re-runnable; the pinned bloc
 hashes make RPC lies detectable offline against the artifact. Cross-check critical reads via a
 second RPC where available (T24 discipline).
 
-**Pass:** all six proofs at `B_pin`; P-5 requires prior source verification (§7 owner).
+**Pass:** all six proofs at `B_pin`; P-5 requires prior source verification (submission owner
+open — §9.6).
 
 ## 7. G5 at the release tag — artifact assembly **[design]**
 
