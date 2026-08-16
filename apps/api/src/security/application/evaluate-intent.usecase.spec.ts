@@ -13,6 +13,7 @@ import type {
 import type { QuoteStore } from '../../trading/domain/quote-store.port';
 import { EvaluateIntentUseCase } from './evaluate-intent.usecase';
 import { InMemorySpendLedger } from '../infrastructure/in-memory-spend-ledger';
+import { defaultPolicyFor } from '../domain/default-policy';
 
 const POLICY: SecurityPolicy = {
   walletId: 'wallet-1',
@@ -397,7 +398,7 @@ describe('EvaluateIntentUseCase', () => {
   });
 
   describe('wave-4 prep: spend recording at decision time', () => {
-    it('records approved spend exactly once, idempotent per intentId', async () => {
+    it('records approved spend once with the decision-time USD', async () => {
       const decision = await useCase.execute(makeIntent({}));
       expect(decision.result).toBe('approved');
       expect(spendLedger.record).toHaveBeenCalledTimes(1);
@@ -415,6 +416,33 @@ describe('EvaluateIntentUseCase', () => {
       await useCase.execute(makeIntent({ id: 'intent-2' }));
       await useCase.execute(
         makeIntent({ id: 'intent-3', origin: 'agent:rogue' }),
+      );
+      expect(spendLedger.record).not.toHaveBeenCalled();
+    });
+
+    it('records nothing on cap-rejection or deploy escalation (audit still valued)', async () => {
+      spendLedger.getSpentUsdToday.mockResolvedValue(960);
+      const capDecision = await useCase.execute(makeIntent({})); // $50
+      expect(capDecision.result).toBe('rejected');
+      expect(capDecision.reason).toContain('daily cap');
+      expect(decisionAudit.append).toHaveBeenLastCalledWith(
+        expect.objectContaining({ result: 'rejected', decisionUsd: 50 }),
+      );
+      expect(spendLedger.record).not.toHaveBeenCalled();
+
+      await useCase.execute(
+        makeIntent({
+          id: 'intent-deploy',
+          kind: 'deploy',
+          to: null,
+          amount: '0',
+        }),
+      );
+      expect(decisionAudit.append).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          result: 'needs_human_approval',
+          decisionUsd: null,
+        }),
       );
       expect(spendLedger.record).not.toHaveBeenCalled();
     });
@@ -441,13 +469,68 @@ describe('EvaluateIntentUseCase', () => {
       expect(overflow.result).toBe('rejected');
       expect(overflow.reason).toContain('daily cap');
     });
+
+    it('dedupe is per UTC day: re-approve across days records again (over-count fail-safe)', async () => {
+      jest.useFakeTimers();
+      try {
+        jest.setSystemTime(new Date('2026-05-01T10:00:00.000Z'));
+        const realLedger = new InMemorySpendLedger();
+        const uc = new EvaluateIntentUseCase(
+          priceFeed,
+          realLedger,
+          policyProvider,
+          intentStore,
+          decisionAudit,
+          quoteStore,
+        );
+        await uc.execute(makeIntent({}));
+        jest.setSystemTime(new Date('2026-05-02T10:00:00.000Z'));
+        await uc.execute(makeIntent({})); // same intentId, next UTC day
+        // A GLOBAL dedupe would leave day 2 empty (total 0). The ledger
+        // instead keys by (wallet, UTC day, intentId), so the re-approval
+        // is recorded again on the new day — over-counting is the
+        // fail-safe direction (never under-counts the cap).
+        await expect(realLedger.getSpentUsdToday('wallet-1')).resolves.toBe(50);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('re-approval at a different price carries the LAST decision value', async () => {
+      const realLedger = new InMemorySpendLedger();
+      const uc = new EvaluateIntentUseCase(
+        priceFeed,
+        realLedger,
+        policyProvider,
+        intentStore,
+        decisionAudit,
+        quoteStore,
+      );
+      await uc.execute(makeIntent({})); // approved at $50
+      priceFeed.getUsdValue.mockResolvedValue(80);
+      await uc.execute(makeIntent({})); // same intentId, re-valued
+      // last-decision-wins: record() overwrites per intentId within the
+      // day (port contract); accumulating instead would over-count.
+      await expect(realLedger.getSpentUsdToday('wallet-1')).resolves.toBe(80);
+    });
   });
 
   describe('wave-4 prep: automation origin allowlist (default deny)', () => {
     it('rejects automation origins under the default policy', async () => {
+      // Cross-ref defaultPolicyFor(): the provisioned default policy is
+      // exactly what denies automation origins here (default deny).
+      const provisioned = defaultPolicyFor({
+        id: 'wallet-1',
+        address: '0x4444444444444444444444444444444444444444',
+        ownerId: 'owner-1',
+        chains: ['base'],
+        createdAt: '2026-05-01T00:00:00.000Z',
+        lastKeyRotationAt: null,
+      });
+      expect(provisioned.allowedOrigins).toEqual(['user']);
       policyProvider.getPolicyForWallet.mockResolvedValue({
         ...POLICY,
-        allowedOrigins: ['user'],
+        allowedOrigins: provisioned.allowedOrigins,
       });
       const decision = await useCase.execute(
         makeIntent({ origin: 'automation:order-worker' }),

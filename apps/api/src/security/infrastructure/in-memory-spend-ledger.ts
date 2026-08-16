@@ -2,7 +2,9 @@ import type { SpendLedger } from '../application/ports';
 
 /**
  * In-memory daily spend ledger. Spend is keyed (wallet, UTC day,
- * intentId) so re-confirmation of the same intent never double-counts.
+ * intentId): re-confirmation within the same UTC day never
+ * double-counts and the last value wins; a re-approval on a later day
+ * records again for that day (over-count fail-safe, see port contract).
  * Replaced by the Postgres-backed ledger in the persistence task.
  */
 export class InMemorySpendLedger implements SpendLedger {
