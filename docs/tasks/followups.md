@@ -2,8 +2,11 @@
 
 Small conductor-filed tasks between waves.
 
-## Backoffice polling (from wave 2, PR #16 review)
+## Done
 
-Add 10–15s auto-refresh + manual Refresh button to the backoffice dashboard
-(queue + health sections). Client-side; no API changes. Candidate: DeckUI,
-branch `feat/backoffice-polling`.
+- ~~Backoffice polling~~ — shipped in wave 3 (PR #26, commit 73e3f0b):
+  12s router.refresh() paused when tab hidden + manual Refresh button.
+
+## Open
+
+(none)

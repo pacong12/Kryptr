@@ -10,9 +10,12 @@
     "jest.config.ts",
     "jest.config.cts",
     "jest.smoke.cts",
+    "jest.live.cts",
     "src/**/*.test.ts",
     "src/**/*.spec.ts",
     "src/**/*.smoke.ts",
+    "src/**/*.live.ts",
+    "src/test/**/*.ts",
     "src/**/*.d.ts"
   ],
   "references": [
