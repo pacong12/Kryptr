@@ -55,3 +55,30 @@ from this first PR. When the factory phase removes it, the factory/template
 test suite must take over the gate-exercise role **in the same PR** — never
 a gap where slither/fmt run on empty src again (vault condition, wave-5
 kickoff).
+
+## CI lessons (PR #61 debug rounds)
+
+Paid for in failed CI runs — keep them paid:
+
+1. **Foundry action org is `foundry-rs`.** `foundry-toolchain/foundry-toolchain`
+   does not exist ("repository not found"). Use
+   `foundry-rs/foundry-toolchain@v1` with an EXACT `version:` pin
+   (currently `v1.7.1`, matches the conductor-proven local toolchain);
+   never let the toolchain float.
+2. **Nx target names are workspace-global in affected lines.** The
+   workspace-wide `nx affected -t build test ...` line runs ANY project
+   defining a target with that name — on TS-only runners with no forge.
+   Contracts targets therefore use unique names (`forge-build`,
+   `forge-test`); the dedicated `contracts` job owns them.
+3. **`nx affected --projects=X` forwards `--projects` into run-commands
+   commands** (forge choked: "unexpected argument"). Don't narrow
+   run-commands targets with `--projects`; rely on target-name uniqueness
+   instead (only `@kryptr/contracts` defines the contracts gates).
+4. **Multiline `run: |` scripts lose lines silently in review.** The
+   `else`/`fi` tail of the nx-base script got dropped once and the runner
+   failed with "unexpected end of file". After ANY workflow edit, parse
+   the YAML AND `bash -n` every extracted script block.
+5. **Slither gate flag:** `--fail-high` and `--fail-medium` are mutually
+   exclusive — `--fail-medium` is the gate (it fails on high too);
+   `filter_paths` is a comma-separated string, not a JSON array. Verified
+   against Slither 0.11.6.
