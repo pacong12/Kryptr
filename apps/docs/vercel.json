@@ -1,5 +1,4 @@
 {
-  "$comment": "Kryptr docs deploy headers (OpsCI: deploy as a SEPARATE Vercel project on the docs.* domain pinned in apps/docs/.vitepress/site.ts). Binding Web3Intel ruling 2026-08-17: strict CSP, no third-party scripts ever. The build externalizes VitePress' inline boot scripts (see config.mts buildEnd), so script-src 'self' holds without 'unsafe-inline'. style-src keeps 'unsafe-inline' only because Vue applies some element style attributes at runtime; scripts are the protected surface.",
   "headers": [
     {
       "source": "/(.*)",
