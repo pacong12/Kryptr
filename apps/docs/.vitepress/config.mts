@@ -16,6 +16,24 @@ import {
 } from './site';
 
 /**
+ * Fail-closed domain pin guard. The anti-phishing pin in ./site.ts is the
+ * single source of truth for the docs domain; an empty or implausible pin
+ * must never reach a built artifact (llms.txt links, footer). The build
+ * fails instead of guessing — deliberately NO localhost fallback: this site
+ * only ships under the pinned official domain (OpsCI confirms it before the
+ * first deploy).
+ */
+const DOMAIN_PIN_PATTERN =
+  /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
+if (!DOMAIN_PIN_PATTERN.test(CANONICAL_DOCS_DOMAIN)) {
+  throw new Error(
+    `CANONICAL_DOCS_DOMAIN is empty or invalid (${JSON.stringify(
+      CANONICAL_DOCS_DOMAIN,
+    )}) — fix the pin in apps/docs/.vitepress/site.ts; refusing to build ` +
+      `with an unpinned docs domain.`,
+  );
+}
+/**
  * CSP hardening (Web3Intel binding ruling, 2026-08-17): the deployed site
  * must satisfy `script-src 'self'`. VitePress emits three small inline
  * scripts per page (dark-mode check, macOS check, SPA hash map). This
