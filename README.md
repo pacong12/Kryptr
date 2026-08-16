@@ -90,9 +90,17 @@ them locally.
 
 A nightly workflow (`.github/workflows/nightly-live.yml`, advisory, never
 a required check) runs the keyed adapter suites with user-owned GitHub
-secrets (`ZEROX_API_KEY`, `COINGECKO_API_KEY`) plus the keyless
-`test:live`. Without secrets, keyed suites skip with a logged reason and
-the run stays green.
+secrets (`ZEROX_API_KEY`, `COINGECKO_API_KEY`), the keyless `test:live`,
+and the contracts fork tests (public Base RPC). Without secrets, keyed
+suites skip with a logged reason and the run stays green.
+
+## Contracts (launchpad, wave 5)
+
+`contracts/` is a Foundry root wrapped as the `@kryptr/contracts` Nx
+project — `forge build`/`test`/`fmt`, a Slither gate with a committed
+triage baseline, label-gated + nightly fork tests (never default CI), and
+fail-closed deploy-manifest validation. See
+[`contracts/README.md`](contracts/README.md).
 
 ## Security model
 

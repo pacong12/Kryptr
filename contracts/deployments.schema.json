@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Kryptr deploy manifest entry (wave-5 Q3 baseline)",
+  "description": "One file per deployment at contracts/deployments/{chain}.json. The vault factory allowlist binds each factory to its T21 verification artifact via verificationId — missing verificationId means no allowlist entry and the factory stays dark (fail-closed).",
+  "type": "object",
+  "required": [
+    "chain",
+    "factoryAddress",
+    "verificationId",
+    "commitSha",
+    "deployedAt"
+  ],
+  "properties": {
+    "chain": {
+      "type": "string",
+      "description": "Chain identifier, e.g. 'base' (chainId may be embedded in CI checks later).",
+      "minLength": 1
+    },
+    "factoryAddress": {
+      "type": "string",
+      "pattern": "^0x[0-9a-fA-F]{40}$",
+      "description": "Deployed factory (CREATE2) address."
+    },
+    "verificationId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Explorer verification artifact id binding factory → verified source (T21). REQUIRED — fail-closed without it."
+    },
+    "verificationHash": {
+      "type": "string",
+      "description": "Optional verification source hash (extra binding strength)."
+    },
+    "salt": {
+      "type": "string",
+      "description": "Deterministic CREATE2 salt (derived from token params + version, never random)."
+    },
+    "commitSha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{7,40}$",
+      "description": "Commit sha the deployed bytecode was built from."
+    },
+    "deployedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 deploy timestamp."
+    },
+    "verificationTx": {
+      "type": "string",
+      "description": "Optional explorer verification transaction/link."
+    }
+  },
+  "additionalProperties": false
+}

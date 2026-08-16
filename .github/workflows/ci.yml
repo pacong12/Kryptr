@@ -63,6 +63,69 @@ jobs:
       # the computed base.
       - run: npx nx affected --base="${{ steps.nx_base.outputs.base }}" -t build test typecheck lint smoke test-workers --parallel=3
 
+  # Wave-5 contracts gates (entry gate #2 — present from the FIRST
+  # contracts PR, never retrofitted): forge build/test/fmt + Slither
+  # triage-baseline scan + deploy-manifest validation. Foundry and Slither
+  # are installed ON THE RUNNER here (foundry-toolchain action + pinned
+  # slither), never assumed from dev machines. Fork tests stay OUT of
+  # default CI (label-gated job below; nightly schedule).
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - run: npm ci
+
+      - uses: foundry-toolchain/foundry-toolchain@v1
+
+      - name: Install Slither
+        run: python3 -m pip install --user slither-analyzer==0.11.6
+      - name: Compute nx base
+        id: nx_base
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            echo "base=origin/main" >> "$GITHUB_OUTPUT"
+          elif git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+            echo "base=HEAD~1" >> "$GITHUB_OUTPUT"
+          else
+            echo "base=$(git rev-list --max-parents=0 HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Runs the contracts targets only when contracts/ is affected;
+      # no-op (green) otherwise.
+      - name: Contracts gates (build/test/fmt/slither/manifests)
+        run: npx nx affected --base="${{ steps.nx_base.outputs.base }}" -t build test fmt slither manifests --projects=@kryptr/contracts
+
+  # Fork tests against real Base RPC: OPT-IN via the `fork-tests` PR label
+  # (public RPC rate limits/flakes must never gate default CI). Nightly
+  # schedule covers the recurring signal.
+  fork-tests:
+    if: contains(github.event.pull_request.labels.*.name, 'fork-tests')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - run: npm ci
+
+      - uses: foundry-toolchain/foundry-toolchain@v1
+
+      - name: Fork tests (public Base RPC, keyless)
+        run: npx nx run @kryptr/contracts:fork-test
+        env:
+          RPC_URL_BASE: https://mainnet.base.org
+
   # Secret scanning: fail if anything that looks like a real key lands in
   # the repo. GitGuardian alone does not cover pushes from this repo, so
   # gitleaks runs on both PRs and pushes-to-main.

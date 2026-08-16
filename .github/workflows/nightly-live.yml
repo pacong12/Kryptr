@@ -1,8 +1,9 @@
 name: Nightly live
 
 # Advisory live signal, never a required check. Runs keyed adapter suites
-# (0x, CoinGecko) when the user-owned secrets exist, and test:live (public
-# Base RPC, no keys) always — so every run contributes regression signal.
+# (0x, CoinGecko) when the user-owned secrets exist, test:live (public
+# Base RPC, no keys) always, and the contracts fork tests (public Base
+# RPC) — so every run contributes regression signal.
 #
 # Secrets policy: keys live in GitHub Actions repo settings under the
 # canonical names below; they are NEVER committed to this repo. Without
@@ -49,3 +50,25 @@ jobs:
       # `nx run api:test:live` (that parses as target=test config=live).
       - name: Live Base RPC reads (no keys needed)
         run: npx nx test:live api
+
+  # Contracts fork tests against real Base RPC (keyless). Recurring signal
+  # lives here (plus the opt-in `fork-tests` PR label in ci.yml) — real-RPC
+  # flakiness never gates default CI.
+  fork-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - run: npm ci
+
+      - uses: foundry-toolchain/foundry-toolchain@v1
+
+      - name: Contracts fork tests (public Base RPC, keyless)
+        run: npx nx run @kryptr/contracts:fork-test
+        env:
+          RPC_URL_BASE: https://mainnet.base.org
