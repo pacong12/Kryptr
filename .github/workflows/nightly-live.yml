@@ -24,6 +24,11 @@ on:
         required: false
         default: ''
         type: string
+      fork_block_base_sepolia:
+        description: 'Optional Base Sepolia fork block pin (rehearsal stage 1). Empty = latest.'
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
@@ -85,3 +90,11 @@ jobs:
           # Release-gate B_pin (runbook §5): dispatch with an explicit
           # block; cron runs unpinned (latest) unless the repo var is set.
           FORK_BLOCK_BASE: ${{ github.event.inputs.fork_block_base || vars.FORK_BLOCK_BASE }}
+
+      - name: Contracts fork tests (Base Sepolia rehearsal, keyless)
+        run: npx nx run @kryptr/contracts:fork-test-sepolia
+        env:
+          # Rehearsal stage 1 (runbook §3): Base Sepolia 84532, public
+          # keyless RPC. Stage 2 (Robinhood 46630) lands by ruling.
+          RPC_URL_BASE_SEPOLIA: https://sepolia.base.org
+          FORK_BLOCK_BASE_SEPOLIA: ${{ github.event.inputs.fork_block_base_sepolia || vars.FORK_BLOCK_BASE_SEPOLIA }}

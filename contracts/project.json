@@ -65,6 +65,17 @@
         "description": "Fork tests against real Base RPC — label-gated in CI + nightly only (never default CI). UNIT-ONLY by ruling (Main, fork round 31949753694): the 256x128 invariant campaigns saturate a keyless public RPC (HTTP 429) — they run locally on anvil via forge-test, and move to fork only with a keyed RPC in the nightly deep campaign. The invariant funding fix stays: future forked invariant runs must not die in setup. Retry/backoff (500ms initial) absorbs public-RPC rate-limit blips [F5]. Optional FORK_BLOCK_BASE pins the block (release-gate B_pin policy, runbook §5: artifact valid only at its recorded block; unset = latest)."
       }
     },
+    "fork-test-sepolia": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "cwd": "contracts",
+        "command": "forge test --fork-url \"$RPC_URL_BASE_SEPOLIA\" --fork-retry-backoff 500 ${FORK_BLOCK_BASE_SEPOLIA:+--fork-block-number \"$FORK_BLOCK_BASE_SEPOLIA\"} --no-match-path \"test/invariant/*\" -vv"
+      },
+      "metadata": {
+        "description": "Fork tests against Base Sepolia (84532) — wave-5 rehearsal stage 1 (runbook §3, Main ruling): the full unit-only suite is chain-agnostic (deploys into forked state; no venue dependency), proven 49/49 keyless. Nightly + release-tag only; same unit-only/invariant exclusion and B_pin env pattern as fork-test. Stage 2 (Robinhood Chain 46630) lands by ruling once the user RPC arrives."
+      }
+    },
     "manifests": {
       "executor": "nx:run-commands",
       "cache": true,
