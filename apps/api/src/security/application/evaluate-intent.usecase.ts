@@ -77,6 +77,9 @@ export class EvaluateIntentUseCase {
       }
     }
 
+    // Exact-match allowlist ONLY — no prefix/glob matching. Automation
+    // origins ('automation:order-worker', wave 4) must be listed
+    // explicitly; the default policy denies them fail-closed.
     if (!policy.allowedOrigins.includes(intent.origin)) {
       return this.finish(
         intent,
@@ -198,7 +201,9 @@ export class EvaluateIntentUseCase {
 
   /**
    * Finalize a decision: append the immutable audit entry (USD fixed at
-   * decision time) and — for non-rejected swaps — take the quote's
+   * decision time), record approved spend against the daily cap
+   * (idempotent per intentId — re-evaluating the same intent never
+   * double-counts), and — for non-rejected swaps — take the quote's
    * single-use binding.
    */
   private async finish(
@@ -220,6 +225,13 @@ export class EvaluateIntentUseCase {
       decidedAt: decision.decidedAt,
       decisionUsd,
     });
+    if (result === 'approved' && decisionUsd !== null) {
+      await this.spendLedger.record({
+        intentId: intent.id,
+        walletId: intent.walletId,
+        usd: decisionUsd,
+      });
+    }
     if (intent.kind === 'swap' && intent.swap && result !== 'rejected') {
       await this.quoteStore.bind(intent.swap.quoteId, intent.id);
     }
