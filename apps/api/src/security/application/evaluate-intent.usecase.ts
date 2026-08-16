@@ -1,14 +1,17 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { SecurityDecision, TransactionIntent } from '@kryptr/shared-types';
 import { inspectIntentPayload } from '../domain/payload-inspection';
+import { validateDeployPreconditions } from '../domain/deploy-preconditions';
 import { KeyedMutex } from '../../common/keyed-mutex';
 import {
   DECISION_AUDIT,
+  DEPLOY_ALLOWLIST,
   INTENT_STORE,
   POLICY_PROVIDER,
   PRICE_FEED,
   SPEND_LEDGER,
   type DecisionAudit,
+  type DeployAllowlistPort,
   type IntentStore,
   type PriceFeedPort,
   type SecurityPolicyProvider,
@@ -18,6 +21,10 @@ import {
   QUOTE_STORE,
   type QuoteStore,
 } from '../../trading/domain/quote-store.port';
+import {
+  VERIFICATION_STORE,
+  type VerificationArtifactStore,
+} from '../../launchpad/domain/verification-store.port';
 
 /**
  * Safety margin before quote expiry: intents bound to a quote that
@@ -35,8 +42,10 @@ export const QUOTE_EXPIRY_MARGIN_MS = 5_000;
  * decision time. Never signs, never sees a private key.
  *
  * Decision chain (fail-closed):
+ *   [wave 5] automation-deploy firewall (BELOW every policy read) ->
  *   policy lookup -> payload inspection -> origin allowlist ->
- *   chain allowlist -> swap-context checks (kind='swap') ->
+ *   chain allowlist -> deploy preconditions (kind='deploy', then
+ *   unconditional HITL) -> swap-context checks (kind='swap') ->
  *   price/valuation -> approval threshold -> daily cap
  */
 @Injectable()
@@ -49,6 +58,10 @@ export class EvaluateIntentUseCase {
     @Inject(INTENT_STORE) private readonly intentStore: IntentStore,
     @Inject(DECISION_AUDIT) private readonly decisionAudit: DecisionAudit,
     @Inject(QUOTE_STORE) private readonly quoteStore: QuoteStore,
+    @Inject(DEPLOY_ALLOWLIST)
+    private readonly deployAllowlist: DeployAllowlistPort,
+    @Inject(VERIFICATION_STORE)
+    private readonly verificationStore: VerificationArtifactStore,
   ) {}
 
   /** Per-wallet serialization of the cap path (F1). Per-instance by
@@ -58,6 +71,19 @@ export class EvaluateIntentUseCase {
   async execute(intent: TransactionIntent): Promise<SecurityDecision> {
     await this.intentStore.save(intent);
 
+    // Wave-5 firewall layer 1 (launchpad-decision.md condition 3):
+    // automation origins can NEVER deploy. This rejection sits BELOW
+    // every policy/allowlist read on purpose — the worker's origin must
+    // be policy-granted for its swaps, so deploy authorization can never
+    // derive from a config grant. Unconditional, permanent (Q4).
+    if (intent.kind === 'deploy' && intent.origin.startsWith('automation:')) {
+      return this.finish(
+        intent,
+        null,
+        'rejected',
+        'automation_deploy_forbidden',
+      );
+    }
     const policy = await this.policyProvider.getPolicyForWallet(
       intent.walletId,
     );
@@ -103,9 +129,21 @@ export class EvaluateIntentUseCase {
       );
     }
 
-    // Wave 3: contract deploys move no value but grant economic control,
-    // so USD valuation is meaningless — ALWAYS escalate, before pricing.
+    // Wave 3 + wave 5: contract deploys move no value but grant economic
+    // control, so USD valuation is meaningless — validate the frozen
+    // consent context, then ALWAYS escalate, before pricing. Automation
+    // origins never reach here (layer-1 firewall above policy).
     if (intent.kind === 'deploy') {
+      const rejectCode = await validateDeployPreconditions(intent, {
+        isFactoryAllowed: (chain, factory) =>
+          this.deployAllowlist.isAllowed(chain, factory),
+        verificationIdFor: (chain, factory) =>
+          this.deployAllowlist.verificationIdFor(chain, factory),
+        resolveVerification: (id) => this.verificationStore.get(id),
+      });
+      if (rejectCode !== null) {
+        return this.finish(intent, null, 'rejected', rejectCode);
+      }
       return this.finish(
         intent,
         null,

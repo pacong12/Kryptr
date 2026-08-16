@@ -7,6 +7,7 @@ import { WalletModule } from '../wallet/wallet.module';
 import { SecurityModule } from '../security/security.module';
 import { TradingModule } from '../trading/trading.module';
 import { OrderWorkerModule } from '../order-worker/order-worker.module';
+import { LaunchpadModule } from '../launchpad/launchpad.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { OrderWorkerModule } from '../order-worker/order-worker.module';
     SecurityModule,
     TradingModule,
     OrderWorkerModule,
+    LaunchpadModule,
   ],
   controllers: [AppController],
   providers: [AppService],

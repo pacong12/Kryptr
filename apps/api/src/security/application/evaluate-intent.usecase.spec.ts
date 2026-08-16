@@ -1,16 +1,20 @@
 import type {
+  DeployContext,
   SecurityPolicy,
   SwapQuote,
   TransactionIntent,
+  VerificationArtifactRef,
 } from '@kryptr/shared-types';
 import type {
   DecisionAudit,
+  DeployAllowlistPort,
   IntentStore,
   PriceFeedPort,
   SecurityPolicyProvider,
   SpendLedger,
 } from './ports';
 import type { QuoteStore } from '../../trading/domain/quote-store.port';
+import type { VerificationArtifactStore } from '../../launchpad/domain/verification-store.port';
 import { EvaluateIntentUseCase } from './evaluate-intent.usecase';
 import { InMemorySpendLedger } from '../infrastructure/in-memory-spend-ledger';
 import { defaultPolicyFor } from '../domain/default-policy';
@@ -81,6 +85,53 @@ function makeSwapIntent(
   });
 }
 
+const FACTORY = '0xaaaa000000000000000000000000000000000001' as `0x${string}`;
+
+const ARTIFACT: VerificationArtifactRef = {
+  id: 't21:factory-base:v1',
+  hash: '0xdeadbeef',
+  claims: [
+    { claim: 'admin_key_free', verifiedAt: '2026-08-01T00:00:00.000Z' },
+    { claim: 'non_upgradeable', verifiedAt: '2026-08-01T00:00:00.000Z' },
+  ],
+};
+
+/** Consent-frozen context that passes every wave-5 precondition. */
+const VALID_DEPLOY: DeployContext = {
+  tokenName: 'Kryptr Test Token',
+  tokenSymbol: 'KTT1',
+  totalSupply: '1000000000000000000000000',
+  factory: FACTORY,
+  feeSchedule: {
+    creatorShare: 0.007,
+    lpShare: 0.005,
+    protocolShare: 0.0049,
+    buybackShare: 0.0006,
+  },
+  feeBps: { creator: 70, lp: 50, protocol: 49, buyback: 6 },
+  feeRecipients: {
+    creator: '0x1111111111111111111111111111111111111111',
+    lp: '0x2222222222222222222222222222222222222222',
+    protocol: '0x3333333333333333333333333333333333333333',
+    buyback: '0x4444444444444444444444444444444444444444',
+  },
+  bondPaid: true,
+  verification: ARTIFACT,
+};
+
+function makeDeployIntent(
+  overrides: Partial<TransactionIntent> = {},
+  deploy: DeployContext | undefined = { ...VALID_DEPLOY },
+): TransactionIntent {
+  return makeIntent({
+    kind: 'deploy',
+    to: FACTORY,
+    amount: '0',
+    deploy,
+    ...overrides,
+  });
+}
+
 describe('EvaluateIntentUseCase', () => {
   let priceFeed: jest.Mocked<PriceFeedPort>;
   let spendLedger: jest.Mocked<SpendLedger>;
@@ -88,6 +139,8 @@ describe('EvaluateIntentUseCase', () => {
   let intentStore: jest.Mocked<IntentStore>;
   let decisionAudit: jest.Mocked<DecisionAudit>;
   let quoteStore: jest.Mocked<QuoteStore>;
+  let deployAllowlist: jest.Mocked<DeployAllowlistPort>;
+  let verificationStore: jest.Mocked<VerificationArtifactStore>;
   let useCase: EvaluateIntentUseCase;
 
   beforeEach(() => {
@@ -123,6 +176,18 @@ describe('EvaluateIntentUseCase', () => {
       findById: jest.fn().mockResolvedValue(null),
       bind: jest.fn().mockResolvedValue(true),
     };
+    deployAllowlist = {
+      isAllowed: jest.fn().mockReturnValue(true),
+      verificationIdFor: jest.fn().mockReturnValue(ARTIFACT.id),
+    };
+    verificationStore = {
+      get: jest
+        .fn()
+        .mockImplementation(async (id: string) =>
+          id === ARTIFACT.id ? ARTIFACT : null,
+        ),
+      put: jest.fn().mockResolvedValue(undefined),
+    };
     useCase = new EvaluateIntentUseCase(
       priceFeed,
       spendLedger,
@@ -130,6 +195,8 @@ describe('EvaluateIntentUseCase', () => {
       intentStore,
       decisionAudit,
       quoteStore,
+      deployAllowlist,
+      verificationStore,
     );
   });
 
@@ -357,43 +424,135 @@ describe('EvaluateIntentUseCase', () => {
     });
   });
 
-  describe('wave-3 deploy branch', () => {
-    it('escalates deploy intents to human approval regardless of valuation', async () => {
-      const decision = await useCase.execute(
-        makeIntent({ kind: 'deploy', to: null, amount: '0' }),
-      );
+  describe('wave-5 deploy firewall + preconditions', () => {
+    it('escalates valid interactive deploys to HITL regardless of valuation', async () => {
+      const decision = await useCase.execute(makeDeployIntent());
       expect(decision.result).toBe('needs_human_approval');
       expect(decision.reason).toBe('deploy_requires_human_approval');
       // Short-circuits BEFORE valuation: price feed never consulted.
       expect(priceFeed.getUsdValue).not.toHaveBeenCalled();
     });
 
-    it('still rejects deploys from unauthorized origins (allowlists first)', async () => {
+    it('rejects deploys without a deploy context (fail-closed)', async () => {
       const decision = await useCase.execute(
-        makeIntent({
-          kind: 'deploy',
-          to: null,
-          amount: '0',
-          origin: 'agent:rogue',
-        }),
+        makeIntent({ kind: 'deploy', to: FACTORY, amount: '0' }),
+      );
+      expect(decision.result).toBe('rejected');
+      expect(decision.reason).toBe('deploy_context_invalid');
+    });
+
+    it('rejects deploys from unauthorized origins (allowlists first)', async () => {
+      const decision = await useCase.execute(
+        makeDeployIntent({ origin: 'agent:rogue' }),
       );
       expect(decision.result).toBe('rejected');
       expect(decision.reason).toContain('origin');
     });
 
-    it('still rejects deploys on non-allowlisted chains', async () => {
+    it('rejects deploys on non-allowlisted chains', async () => {
       const decision = await useCase.execute(
-        makeIntent({ kind: 'deploy', to: null, amount: '0', chain: 'solana' }),
+        makeDeployIntent({ chain: 'solana' }),
       );
       expect(decision.result).toBe('rejected');
       expect(decision.reason).toContain('chain');
     });
 
     it('audits the deploy escalation with null valuation', async () => {
-      await useCase.execute(
-        makeIntent({ kind: 'deploy', to: null, amount: '0' }),
-      );
+      await useCase.execute(makeDeployIntent());
       expectAudit('needs_human_approval', null);
+    });
+
+    it('rejects a deploy whose factory misses the layer-2 allowlist', async () => {
+      deployAllowlist.isAllowed.mockReturnValue(false);
+      const decision = await useCase.execute(makeDeployIntent());
+      expect(decision.result).toBe('rejected');
+      expect(decision.reason).toBe('factory_not_allowlisted');
+    });
+
+    it('rejects consent against a release other than the pinned one (Review54 F1)', async () => {
+      // Factory allowlisted for release v1; consent references v2. The
+      // canonical store may even know v2 — release confusion still
+      // rejects with the allowlist code (stable tuple unchanged).
+      deployAllowlist.verificationIdFor.mockReturnValue('t21:factory-base:v2');
+      const decision = await useCase.execute(makeDeployIntent());
+      expect(decision.result).toBe('rejected');
+      expect(decision.reason).toBe('factory_not_allowlisted');
+    });
+
+    it('rejects when the allowlist pins no release for the factory (fail-closed)', async () => {
+      deployAllowlist.verificationIdFor.mockReturnValue(null);
+      const decision = await useCase.execute(makeDeployIntent());
+      expect(decision.result).toBe('rejected');
+      expect(decision.reason).toBe('factory_not_allowlisted');
+    });
+
+    it('rejects a deploy with a tampered verification hash', async () => {
+      const decision = await useCase.execute(
+        makeDeployIntent(
+          {},
+          {
+            ...VALID_DEPLOY,
+            verification: { ...ARTIFACT, hash: '0xtampered' },
+          },
+        ),
+      );
+      expect(decision.result).toBe('rejected');
+      expect(decision.reason).toBe('verification_missing');
+    });
+
+    it('L1 firewall: automation deploys are hard-rejected BELOW every policy read', async () => {
+      // Even with the origin explicitly policy-granted (as it must be for
+      // the worker's swaps) the deploy never reaches policy evaluation.
+      policyProvider.getPolicyForWallet.mockResolvedValue({
+        ...POLICY,
+        allowedOrigins: [...POLICY.allowedOrigins, 'automation:order-worker'],
+      });
+      const decision = await useCase.execute(
+        makeDeployIntent({ origin: 'automation:order-worker' }),
+      );
+      expect(decision.result).toBe('rejected');
+      expect(decision.reason).toBe('automation_deploy_forbidden');
+      expect(policyProvider.getPolicyForWallet).not.toHaveBeenCalled();
+      expect(priceFeed.getUsdValue).not.toHaveBeenCalled();
+    });
+
+    it('L1 firewall: synthetic automation origins are rejected too', async () => {
+      const decision = await useCase.execute(
+        makeDeployIntent({ origin: 'automation:anything-else' }),
+      );
+      expect(decision.result).toBe('rejected');
+      expect(decision.reason).toBe('automation_deploy_forbidden');
+    });
+
+    it('L1 firewall: automation swaps are untouched (only deploys are firewalled)', async () => {
+      policyProvider.getPolicyForWallet.mockResolvedValue({
+        ...POLICY,
+        allowedOrigins: [...POLICY.allowedOrigins, 'automation:order-worker'],
+      });
+      quoteStore.findById.mockResolvedValue({
+        quote: QUOTE,
+        boundIntentId: null,
+      });
+      const decision = await useCase.execute({
+        ...makeSwapIntent(QUOTE),
+        origin: 'automation:order-worker',
+      });
+      expect(decision.result).toBe('approved');
+    });
+
+    it('Q4 permanence: agent deploys escalate, never auto-approve', async () => {
+      const decision = await useCase.execute(
+        makeDeployIntent({ origin: 'agent:trader-1' }),
+      );
+      expect(decision.result).toBe('needs_human_approval');
+      expect(decision.reason).toBe('deploy_requires_human_approval');
+    });
+
+    it('audits the firewall rejection with null valuation', async () => {
+      await useCase.execute(
+        makeDeployIntent({ origin: 'automation:order-worker' }),
+      );
+      expectAudit('rejected', null);
     });
   });
 
@@ -431,11 +590,8 @@ describe('EvaluateIntentUseCase', () => {
       expect(spendLedger.record).not.toHaveBeenCalled();
 
       await useCase.execute(
-        makeIntent({
+        makeDeployIntent({
           id: 'intent-deploy',
-          kind: 'deploy',
-          to: null,
-          amount: '0',
         }),
       );
       expect(decisionAudit.append).toHaveBeenLastCalledWith(
@@ -456,6 +612,8 @@ describe('EvaluateIntentUseCase', () => {
         intentStore,
         decisionAudit,
         quoteStore,
+        deployAllowlist,
+        verificationStore,
       );
       policyProvider.getPolicyForWallet.mockResolvedValue({
         ...POLICY,
@@ -482,6 +640,8 @@ describe('EvaluateIntentUseCase', () => {
           intentStore,
           decisionAudit,
           quoteStore,
+          deployAllowlist,
+          verificationStore,
         );
         await uc.execute(makeIntent({}));
         jest.setSystemTime(new Date('2026-05-02T10:00:00.000Z'));
@@ -505,6 +665,8 @@ describe('EvaluateIntentUseCase', () => {
         intentStore,
         decisionAudit,
         quoteStore,
+        deployAllowlist,
+        verificationStore,
       );
       await uc.execute(makeIntent({})); // approved at $50
       priceFeed.getUsdValue.mockResolvedValue(80);
@@ -594,6 +756,8 @@ describe('EvaluateIntentUseCase', () => {
         intentStore,
         decisionAudit,
         quoteStore,
+        deployAllowlist,
+        verificationStore,
       );
       priceFeed.getUsdValue.mockResolvedValue(200);
       policyProvider.getPolicyForWallet.mockResolvedValue({

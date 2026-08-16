@@ -182,7 +182,7 @@ describe('AppModule wave-3 env wiring (fresh module per block)', () => {
     await app.close();
   });
 
-  it('keyless default escalates EVERYTHING (deploy reason + price-based)', async () => {
+  it('keyless default: price-based HITL + fail-closed wave-5 deploy posture', async () => {
     setEnv({
       PRICE_FEED_MODE: undefined,
       COINGECKO_API_KEY: undefined,
@@ -211,14 +211,57 @@ describe('AppModule wave-3 env wiring (fresh module per block)', () => {
     });
     expect(transfer.result).toBe('needs_human_approval');
     expect(transfer.reason).toContain('price');
-    const deploy = await app.get(EvaluateIntentUseCase).execute({
+    // Wave 5: a deploy WITHOUT a consent-frozen context is rejected
+    // fail-closed (deploy_context_invalid), never escalated blind.
+    const contextlessDeploy = await app.get(EvaluateIntentUseCase).execute({
       ...base,
-      id: 'intent-deploy',
+      id: 'intent-deploy-contextless',
       kind: 'deploy',
       to: null,
     });
-    expect(deploy.result).toBe('needs_human_approval');
-    expect(deploy.reason).toBe('deploy_requires_human_approval');
+    expect(contextlessDeploy.result).toBe('rejected');
+    expect(contextlessDeploy.reason).toBe('deploy_context_invalid');
+    // Pre-launch posture: with no deploy manifests wired, even a fully
+    // valid consent context hits the fail-closed factory allowlist —
+    // the launchpad stays dark until a T21-verified factory lands.
+    const factory =
+      '0xaaaa000000000000000000000000000000000001' as `0x${string}`;
+    const fullDeploy = await app.get(EvaluateIntentUseCase).execute({
+      ...base,
+      id: 'intent-deploy-full',
+      kind: 'deploy',
+      to: factory,
+      amount: '0',
+      deploy: {
+        tokenName: 'Smoke Token',
+        tokenSymbol: 'SMK1',
+        totalSupply: '1000000',
+        factory,
+        feeSchedule: {
+          creatorShare: 0.007,
+          lpShare: 0.005,
+          protocolShare: 0.0049,
+          buybackShare: 0.0006,
+        },
+        feeBps: { creator: 70, lp: 50, protocol: 49, buyback: 6 },
+        feeRecipients: {
+          creator: '0x1111111111111111111111111111111111111111',
+          lp: '0x2222222222222222222222222222222222222222',
+          protocol: '0x3333333333333333333333333333333333333333',
+          buyback: '0x4444444444444444444444444444444444444444',
+        },
+        bondPaid: true,
+        verification: {
+          id: 't21:factory-base:v1',
+          hash: '0xdeadbeef',
+          claims: [
+            { claim: 'admin_key_free', verifiedAt: '2026-08-01T00:00:00.000Z' },
+          ],
+        },
+      },
+    });
+    expect(fullDeploy.result).toBe('rejected');
+    expect(fullDeploy.reason).toBe('factory_not_allowlisted');
     await app.close();
   });
 });
