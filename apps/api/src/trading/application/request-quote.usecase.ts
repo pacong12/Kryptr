@@ -56,6 +56,7 @@ export class RequestQuoteUseCase {
     const quote = await this.dex.getQuote({
       ...request,
       slippageBps: request.slippageBps ?? DEFAULT_SLIPPAGE_BPS,
+      taker: wallet.address,
     });
     await this.quoteStore.save(quote);
     return quote;

@@ -18,12 +18,19 @@ import { GetFeedHealthUseCase } from '../security/application/get-feed-health.us
 describe('swap flow (AppModule integration, zero overrides)', () => {
   let app: TestingModule;
   let walletId: string;
-  const originalPriceFeedMode = process.env.PRICE_FEED_MODE;
+  const ORIGINAL = {
+    priceFeedMode: process.env.PRICE_FEED_MODE,
+    chainMode: process.env.CHAIN_MODE,
+    dexSource: process.env.DEX_SOURCE,
+  };
 
   beforeAll(async () => {
-    // Explicit dev opt-in: the wave-3 default price feed is
-    // coingecko-configured-or-fail-closed and would escalate this flow.
+    // Explicit dev opt-ins pin the DEFAULT wiring regardless of any local
+    // .env (nx loads .env into task env); wave-3 defaults would escalate
+    // this flow or swap the bindings under a populated .env.
     process.env.PRICE_FEED_MODE = 'static';
+    process.env.CHAIN_MODE = 'static';
+    process.env.DEX_SOURCE = 'static-mock';
     app = await Test.createTestingModule({ imports: [AppModule] }).compile();
     const wallet = await app.get(CreateWalletUseCase).execute({
       ownerId: 'flow-owner',
@@ -35,11 +42,16 @@ describe('swap flow (AppModule integration, zero overrides)', () => {
 
   afterAll(async () => {
     await app.close();
-    if (originalPriceFeedMode === undefined) {
-      delete process.env.PRICE_FEED_MODE;
-    } else {
-      process.env.PRICE_FEED_MODE = originalPriceFeedMode;
-    }
+    const restore = (name: string, value: string | undefined) => {
+      if (value === undefined) {
+        delete process.env[name];
+      } else {
+        process.env[name] = value;
+      }
+    };
+    restore('PRICE_FEED_MODE', ORIGINAL.priceFeedMode);
+    restore('CHAIN_MODE', ORIGINAL.chainMode);
+    restore('DEX_SOURCE', ORIGINAL.dexSource);
   });
 
   it('runs quote -> approved decision -> timeline -> unsigned preview', async () => {

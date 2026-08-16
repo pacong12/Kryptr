@@ -1,4 +1,3 @@
-import type { QuoteRequest } from '@kryptr/shared-types';
 import { StaticMockDexAdapter, QUOTE_TTL_MS } from './static-mock-dex.adapter';
 import {
   baseQuoteRequest,
@@ -30,7 +29,7 @@ describe('StaticMockDexAdapter (adapter-specific)', () => {
       now: () => Date.parse('2026-05-01T00:00:00.000Z'),
     });
     const unknownToken = '0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef';
-    const request: QuoteRequest = baseQuoteRequest({ assetOut: unknownToken });
+    const request = baseQuoteRequest({ assetOut: unknownToken });
     const first = await dex.getQuote(request);
     const second = await dex.getQuote(request);
     expect(first).toEqual(second);

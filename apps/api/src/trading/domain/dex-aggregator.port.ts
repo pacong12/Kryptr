@@ -19,8 +19,17 @@ export interface UnsignedSwapTx {
   value: string;
 }
 
+/**
+ * Port-level quote request: the HTTP QuoteRequest enriched with the
+ * taker address resolved SERVER-SIDE from the wallet entity. Clients
+ * never choose the taker — a spoofed taker would quote for the wrong
+ * account. Aggregators that need it (0x AllowanceHolder) send it;
+ * deterministic mocks ignore it.
+ */
+export type DexQuoteRequest = QuoteRequest & { taker: `0x${string}` };
+
 export interface DexAggregatorPort {
-  getQuote(request: QuoteRequest): Promise<SwapQuote>;
+  getQuote(request: DexQuoteRequest): Promise<SwapQuote>;
   buildSwapTx(quote: SwapQuote): Promise<UnsignedSwapTx>;
   /** Freshness for GET /health/feeds. */
   health(): FeedHealth;
