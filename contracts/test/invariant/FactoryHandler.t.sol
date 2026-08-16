@@ -19,8 +19,10 @@ contract FactoryHandler is Test {
 
     address[] internal _clones;
     mapping(address => bool) internal _isClone;
-    // ghost: fee share recorded at deploy, per clone (INV-FEE-3 ghost)
-    mapping(address => uint256) internal _ghostCreatorBps;
+    // ghost (INV-FEE-3): FULL schedule snapshot at deploy — keccak over all
+    // four shares AND four recipients, so sum-preserving share swaps or
+    // recipient substitutions cannot pass (G1 self-contained per §4.3).
+    mapping(address => bytes32) internal _ghostScheduleHash;
 
     uint256 public deployCount;
     uint256 public ghostBondsPaid;
@@ -40,8 +42,8 @@ contract FactoryHandler is Test {
         return _clones;
     }
 
-    function ghostCreatorBps(address clone) external view returns (uint256) {
-        return _ghostCreatorBps[clone];
+    function ghostScheduleHash(address clone) external view returns (bytes32) {
+        return _ghostScheduleHash[clone];
     }
 
     /// @dev Deploys a token with a randomized VALID schedule (four integer-bps
@@ -84,7 +86,18 @@ contract FactoryHandler is Test {
             if (!_isClone[token]) {
                 _isClone[token] = true;
                 _clones.push(token);
-                _ghostCreatorBps[token] = c1;
+                _ghostScheduleHash[token] = keccak256(
+                    abi.encodePacked(
+                        c1,
+                        c2,
+                        c3,
+                        uint16(RATE_BPS - c1 - c2 - c3),
+                        p.creatorRecipient,
+                        p.lpRecipient,
+                        p.protocolRecipient,
+                        p.buybackRecipient
+                    )
+                );
             }
             deployCount++;
             ghostBondsPaid += BOND;

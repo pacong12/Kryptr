@@ -63,11 +63,23 @@ contract FactoryInvariantTest is Test {
                     + uint256(t.buybackFeeBps()),
                 RATE_BPS
             );
-            assertEq(
-                uint256(t.creatorFeeBps()),
-                handler.ghostCreatorBps(clones[i]),
-                "creator share changed after deploy"
+            // INV-FEE-3 (G1 self-contained): the FULL schedule — all four
+            // shares AND all four recipients — must be byte-identical to the
+            // deploy-time snapshot. A sum-preserving share swap or recipient
+            // substitution cannot pass this hash.
+            bytes32 live = keccak256(
+                abi.encodePacked(
+                    t.creatorFeeBps(),
+                    t.lpFeeBps(),
+                    t.protocolFeeBps(),
+                    t.buybackFeeBps(),
+                    t.creatorRecipient(),
+                    t.lpRecipient(),
+                    t.protocolRecipient(),
+                    t.buybackRecipient()
+                )
             );
+            assertEq(live, handler.ghostScheduleHash(clones[i]), "schedule drifted after deploy");
         }
     }
 
