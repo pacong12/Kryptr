@@ -315,12 +315,15 @@ Two findings from reading the current gate code:
    ticks, cap never consumed. **Prerequisite for wave 4: spend
    recording at decision time (approved decisions) inside the gate,
    idempotent per intent id** — matches the ledger's documented
-   contract ("Idempotent per intentId").
+   contract ("Idempotent per intentId"). **RESOLVED-by-ruling**:
+   accepted as a wave-4 prerequisite; separate prep PR before worker
+   execution begins.
 2. Gate `origin` is client-supplied; automation intents use
    `origin: 'automation'` and MUST be allowlisted explicitly in
-   policies (default policies need updating at contract freeze) — a
-   wallet whose policy only allows `'user'` correctly refuses its own
-   automation, fail-closed.
+   policies — a wallet whose policy only allows `'user'` correctly
+   refuses its own automation, fail-closed. **RESOLVED-by-ruling**:
+   explicit allowlist in the contract freeze; default deny asserted in
+   tests.
 
 ## 12. Env semantics (wave-3 pattern)
 
@@ -362,12 +365,13 @@ cancelled`; time-based `expired` (order-level TTL, e.g. limit orders
 
 ## 15. Risks & open questions
 
-| Owner     | Question                                                                                          |
-| --------- | ------------------------------------------------------------------------------------------------- |
-| Conductor | Freeze order lifecycle + worker error codes in shared-types before parallel build (ruling 5).     |
-| Conductor | Approve `SpendLedger.record()` at gate decision time (prerequisite §11.1).                        |
-| Web3Intel | Oracle source choice on Base (Chainlink feeds vs data streams), pricing, dual-source feasibility. |
-| OpsCI     | Redis persistence policy (AOF/replicas), service-container sizing, nightly live-run schedule.     |
-| DeckUI    | Kill switch confirmation UX + pause-new vs cancel-active display; order timeline steps.           |
-| VaultAPI  | Gate decision dedupe by intent id vs duplicate-entry forensics (§10).                             |
-| VaultAPI  | `TRIGGER_DEVIATION_BPS` / `TRIGGER_MAX_AGE_MS` defaults pending oracle choice.                    |
+| Owner     | Question                                                                                                                                                                                                                             |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Conductor | Freeze order lifecycle + worker error codes in shared-types before parallel build (ruling 5).                                                                                                                                        |
+| Conductor | ~~Approve `SpendLedger.record()` at gate decision time (prerequisite §11.1).~~ **RESOLVED-by-ruling**: record() at decision time (approve), idempotent per intentId; scheduled as a separate prep PR BEFORE worker execution begins. |
+| Conductor | ~~Allowlist `origin: 'automation'` explicitly (§11.2).~~ **RESOLVED-by-ruling**: explicit allowlist in the contract freeze; default deny stays fail-closed and asserted in tests (automation intent without allowlist → rejected).   |
+| Web3Intel | Oracle source choice on Base (Chainlink feeds vs data streams), pricing, dual-source feasibility.                                                                                                                                    |
+| OpsCI     | Redis persistence policy (AOF/replicas), service-container sizing, nightly live-run schedule.                                                                                                                                        |
+| DeckUI    | Kill switch confirmation UX + pause-new vs cancel-active display; order timeline steps.                                                                                                                                              |
+| VaultAPI  | Gate decision dedupe by intent id vs duplicate-entry forensics (§10).                                                                                                                                                                |
+| VaultAPI  | `TRIGGER_DEVIATION_BPS` / `TRIGGER_MAX_AGE_MS` defaults pending oracle choice.                                                                                                                                                       |
