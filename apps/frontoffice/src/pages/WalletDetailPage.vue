@@ -26,6 +26,7 @@ const wallet = computed(
 const activeTab = computed(() => {
   if (route.name === 'wallet-swap') return 'swap';
   if (route.name === 'wallet-orders') return 'orders';
+  if (route.name === 'wallet-launch') return 'launch';
   return 'overview';
 });
 
@@ -35,7 +36,9 @@ function handleTabChange(value: string | number): void {
       ? 'wallet-swap'
       : value === 'orders'
         ? 'wallet-orders'
-        : 'wallet-detail';
+        : value === 'launch'
+          ? 'wallet-launch'
+          : 'wallet-detail';
   void router.push({
     name: target,
     params: { walletId: props.walletId },
@@ -71,6 +74,7 @@ function handleTabChange(value: string | number): void {
         <TabsTrigger value="overview">Overview</TabsTrigger>
         <TabsTrigger value="swap">Swap</TabsTrigger>
         <TabsTrigger value="orders">Orders</TabsTrigger>
+        <TabsTrigger value="launch">Launch</TabsTrigger>
       </TabsList>
     </Tabs>
 

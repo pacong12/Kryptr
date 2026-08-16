@@ -1,4 +1,9 @@
-import type { AgentWallet, WalletBalance } from '@kryptr/shared-types';
+import type {
+  AgentWallet,
+  DeployContext,
+  VerificationArtifactRef,
+  WalletBalance,
+} from '@kryptr/shared-types';
 
 /**
  * Fixture data shown when the Kryptr API is unreachable (mock mode), so the
@@ -92,6 +97,65 @@ export function randomAddress(): `0x${string}` {
   ).join('');
   return `0x${hex}`;
 }
+
+/**
+ * Wave-5 launchpad fixtures (mock mode only — shown while the launchpad API
+ * endpoints have not landed). The consent screen badges everything sourced
+ * from here as mock data; live envelopes are never fixture-masked.
+ */
+export const MOCK_FACTORY: `0x${string}` =
+  '0xfa07000000000000000000000000000000000001';
+
+/** Canonical T21 artifact the fixture chip fetches + hash-compares. */
+export const MOCK_VERIFICATION_ARTIFACT: VerificationArtifactRef = {
+  id: 't21:base:contracts/v1.0.0-demo',
+  hash: '0x21c1d4a87f02e3b6a5f33ccf6f0e6a9a3f2c9b2f7c4d9a3b6f1e0c5d8a2b7e4f',
+  claims: [
+    {
+      claim: 'admin_key_free',
+      evidence: 'G4 P-1/P-2/P-3 + G2 never-triage set',
+      verifiedAt: '2026-08-16T12:00:00.000Z',
+    },
+    {
+      claim: 'non_upgradeable',
+      evidence: 'G4 P-1/P-2/P-3 + G2 never-triage set',
+      verifiedAt: '2026-08-16T12:00:00.000Z',
+    },
+    {
+      claim: 'fee_split_invariant',
+      evidence: 'INV-FEE-1..4 + G4 P-3',
+      verifiedAt: '2026-08-16T12:00:00.000Z',
+    },
+    {
+      claim: 'bond_accounting',
+      evidence: 'INV-BOND-1..3 + FK-3',
+      verifiedAt: '2026-08-16T12:00:00.000Z',
+    },
+  ],
+};
+
+/** Integer-bps mirrors sum to the 175-bps reference launch fee (Q1). */
+export const MOCK_LAUNCH_DRAFT: DeployContext = {
+  tokenName: 'Kryptr Demo Token',
+  tokenSymbol: 'KDEM',
+  totalSupply: '1000000000000000000000000',
+  factory: MOCK_FACTORY,
+  feeSchedule: {
+    creatorShare: 0.0067,
+    lpShare: 0.0028,
+    protocolShare: 0.0047,
+    buybackShare: 0.0033,
+  },
+  feeBps: { creator: 67, lp: 28, protocol: 47, buyback: 33 },
+  feeRecipients: {
+    creator: '0xaaa1000000000000000000000000000000000001',
+    lp: '0xbbb2000000000000000000000000000000000002',
+    protocol: '0xccc3000000000000000000000000000000000003',
+    buyback: '0xddd4000000000000000000000000000000000004',
+  },
+  bondPaid: true,
+  verification: MOCK_VERIFICATION_ARTIFACT,
+};
 
 /** Locally fabricated wallet used by "New wallet" while in mock mode. */
 export function createMockWallet(): AgentWallet {
