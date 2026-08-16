@@ -5,6 +5,7 @@ import type {
 } from '@kryptr/shared-types';
 import { EvaluateIntentUseCase } from './application/evaluate-intent.usecase';
 import { GetIntentTimelineUseCase } from './application/get-intent-timeline.usecase';
+import { RequestSignatureUseCase } from './application/request-sign.usecase';
 import {
   PreviewSwapExecutionUseCase,
   type SwapExecutionPreview,
@@ -51,17 +52,33 @@ const PREVIEW: SwapExecutionPreview = {
   note: 'Unsigned execution preview only. This API never signs transactions.',
 };
 
+const SIGN_REQUEST = {
+  id: 'dry-run-1',
+  intentId: 'intent-1',
+  status: 'dry_run',
+  unsignedTx: {
+    to: '0x1111111111111111111111111111111111111111',
+    data: '0xabcdef',
+    value: '0x3e8',
+  },
+  digest: '0xabc',
+  note: 'dry-run only — nothing broadcast',
+  createdAt: '2026-05-01T00:00:10.000Z',
+} as const;
+
 describe('SecurityController (envelope shape)', () => {
   let module: TestingModule;
   let controller: SecurityController;
   let evaluateIntent: { execute: jest.Mock };
   let getIntentTimeline: { execute: jest.Mock };
   let previewSwapExecution: { execute: jest.Mock };
+  let requestSignature: { execute: jest.Mock };
 
   beforeAll(async () => {
     evaluateIntent = { execute: jest.fn().mockResolvedValue(DECISION) };
     getIntentTimeline = { execute: jest.fn().mockResolvedValue(TIMELINE) };
     previewSwapExecution = { execute: jest.fn().mockResolvedValue(PREVIEW) };
+    requestSignature = { execute: jest.fn().mockResolvedValue(SIGN_REQUEST) };
     module = await Test.createTestingModule({
       controllers: [SecurityController],
       providers: [
@@ -71,6 +88,7 @@ describe('SecurityController (envelope shape)', () => {
           provide: PreviewSwapExecutionUseCase,
           useValue: previewSwapExecution,
         },
+        { provide: RequestSignatureUseCase, useValue: requestSignature },
       ],
     }).compile();
     controller = module.get(SecurityController);
@@ -115,5 +133,12 @@ describe('SecurityController (envelope shape)', () => {
     expect(envelope).toEqual({ ok: true, data: PREVIEW, error: null });
     expect(envelope.data?.signed).toBe(false);
     expect(previewSwapExecution.execute).toHaveBeenCalledWith('intent-1');
+  });
+
+  it('POST /security/intents/:id/sign-request wraps the dry-run SignRequest', async () => {
+    const envelope = await controller.signRequest('intent-1');
+    expect(envelope).toEqual({ ok: true, data: SIGN_REQUEST, error: null });
+    expect(envelope.data?.status).toBe('dry_run');
+    expect(requestSignature.execute).toHaveBeenCalledWith('intent-1');
   });
 });

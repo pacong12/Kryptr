@@ -34,8 +34,14 @@ jest.setTimeout(30_000);
 
 describe('api smoke: swap golden path (in-memory, no DB)', () => {
   let app: INestApplication;
+  const savedPriceFeedMode = process.env.PRICE_FEED_MODE;
 
   beforeAll(async () => {
+    // Dev-only opt-in: the static price feed keeps the wave-2 golden path
+    // auto-approval deterministic. The fail-closed default (coingecko
+    // unconfigured → needs_human_approval) is covered by the wave-3 wiring
+    // specs, not here.
+    process.env.PRICE_FEED_MODE = 'static';
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -56,6 +62,11 @@ describe('api smoke: swap golden path (in-memory, no DB)', () => {
 
   afterAll(async () => {
     await app.close();
+    if (savedPriceFeedMode === undefined) {
+      delete process.env.PRICE_FEED_MODE;
+    } else {
+      process.env.PRICE_FEED_MODE = savedPriceFeedMode;
+    }
   });
 
   it('create wallet → quote → evaluate(swap) approved → timeline', async () => {

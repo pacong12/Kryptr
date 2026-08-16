@@ -1,6 +1,7 @@
 import type { FeedHealth } from '@kryptr/shared-types';
 import type { PriceFeedPort } from './ports';
 import type { DexAggregatorPort } from '../../trading/domain/dex-aggregator.port';
+import type { ViemClientPort } from '../../chain/viem-client.port';
 import { GetFeedHealthUseCase } from './get-feed-health.usecase';
 
 function feed(overrides: Partial<FeedHealth>): FeedHealth {
@@ -17,6 +18,7 @@ function feed(overrides: Partial<FeedHealth>): FeedHealth {
 describe('GetFeedHealthUseCase', () => {
   let priceFeed: jest.Mocked<PriceFeedPort>;
   let dex: jest.Mocked<DexAggregatorPort>;
+  let viem: jest.Mocked<ViemClientPort>;
   let useCase: GetFeedHealthUseCase;
 
   beforeEach(() => {
@@ -34,7 +36,16 @@ describe('GetFeedHealthUseCase', () => {
           feed({ feedId: 'dex:static-mock', source: 'static-mock' }),
         ),
     };
-    useCase = new GetFeedHealthUseCase(priceFeed, dex);
+    viem = {
+      getNativeBalance: jest.fn(),
+      getTokenBalances: jest.fn(),
+      lastBlockNumber: jest.fn(),
+      health: jest
+        .fn()
+        .mockReturnValue(feed({ feedId: 'chain:base', source: 'static' })),
+      chainHealth: jest.fn(),
+    } as unknown as jest.Mocked<ViemClientPort>;
+    useCase = new GetFeedHealthUseCase(priceFeed, dex, viem);
   });
 
   it('reports all feeds and flags nothing when healthy', async () => {
@@ -44,7 +55,23 @@ describe('GetFeedHealthUseCase', () => {
     expect(report.feeds.map((f) => f.feedId)).toEqual([
       'price:static',
       'dex:static-mock',
+      'chain:base',
     ]);
+  });
+
+  it('treats unconfigured as degraded — a config TODO is never silent', async () => {
+    priceFeed.health.mockReturnValue(
+      feed({
+        feedId: 'price:coingecko',
+        source: 'coingecko',
+        status: 'unconfigured',
+        lastUpdateAt: null,
+        priceAgeSec: null,
+      }),
+    );
+    const report = await useCase.execute();
+    expect(report.degraded).toBe(true);
+    expect(report.staleFeedIds).toEqual(['price:coingecko']);
   });
 
   it('flags degradation when the price feed is stale', async () => {

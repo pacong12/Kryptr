@@ -11,7 +11,8 @@ import {
 /**
  * Assembles the backoffice timeline for an intent (GET
  * /security/intents/:id/timeline): the 'created' step from the stored
- * intent plus one 'gate_decision' step per append-only audit entry.
+ * intent, one 'gate_decision' step per audit entry, and wave-3 signer
+ * steps ('sign_requested'/'dry_run_signed') — merged chronologically.
  */
 @Injectable()
 export class GetIntentTimelineUseCase {
@@ -30,6 +31,31 @@ export class GetIntentTimelineUseCase {
       );
     }
     const entries = await this.decisionAudit.findByIntentId(intentId);
+    const signEvents =
+      await this.decisionAudit.findSignEventsByIntentId(intentId);
+    const steps: Array<IntentTimelineStep & { order: number }> = [
+      ...entries.map(
+        (entry, index): IntentTimelineStep & { order: number } => ({
+          step: 'gate_decision',
+          at: entry.decidedAt,
+          actor: 'gate',
+          detail: entry.reason,
+          order: index,
+        }),
+      ),
+      ...signEvents.map(
+        (event, index): IntentTimelineStep & { order: number } => ({
+          step: event.step,
+          at: event.at,
+          actor: 'signer',
+          detail: event.detail,
+          order: entries.length + index,
+        }),
+      ),
+    ];
+    steps.sort(
+      (a, b) => Date.parse(a.at) - Date.parse(b.at) || a.order - b.order,
+    );
     return [
       {
         step: 'created',
@@ -37,14 +63,7 @@ export class GetIntentTimelineUseCase {
         actor: intent.origin,
         detail: `${intent.kind} intent received`,
       },
-      ...entries.map((entry): IntentTimelineStep => {
-        return {
-          step: 'gate_decision',
-          at: entry.decidedAt,
-          actor: 'gate',
-          detail: entry.reason,
-        };
-      }),
+      ...steps.map(({ order: _order, ...step }) => step),
     ];
   }
 }

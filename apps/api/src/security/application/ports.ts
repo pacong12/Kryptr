@@ -73,8 +73,25 @@ export interface DecisionAuditEntry {
   decisionUsd: number | null;
 }
 
+/**
+ * Signer activity recorded as timeline steps (wave 3). Kept in the same
+ * append-only audit so the backoffice timeline stays a single source.
+ */
+export type SignEventStep = 'sign_requested' | 'dry_run_signed';
+
+export interface SignEventEntry {
+  id: string;
+  intentId: string;
+  step: SignEventStep;
+  detail: string;
+  /** ISO-8601. */
+  at: string;
+}
+
 export interface DecisionAudit {
   append(entry: Omit<DecisionAuditEntry, 'id'>): Promise<DecisionAuditEntry>;
   /** Append-only: entries are immutable once written. */
   findByIntentId(intentId: string): Promise<DecisionAuditEntry[]>;
+  appendSignEvent(entry: Omit<SignEventEntry, 'id'>): Promise<SignEventEntry>;
+  findSignEventsByIntentId(intentId: string): Promise<SignEventEntry[]>;
 }

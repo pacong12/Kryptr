@@ -27,7 +27,9 @@ describe('GetIntentTimelineUseCase', () => {
     decisionAudit = {
       append: jest.fn(),
       findByIntentId: jest.fn().mockResolvedValue([]),
-    };
+      appendSignEvent: jest.fn(),
+      findSignEventsByIntentId: jest.fn().mockResolvedValue([]),
+    } as unknown as jest.Mocked<DecisionAudit>;
     useCase = new GetIntentTimelineUseCase(intentStore, decisionAudit);
   });
 
@@ -84,5 +86,72 @@ describe('GetIntentTimelineUseCase', () => {
       actor: 'gate',
       detail: 'approved: within policy',
     });
+  });
+
+  it('merges sign events with decisions chronologically', async () => {
+    decisionAudit.findByIntentId.mockResolvedValue([
+      {
+        id: 'decision-1',
+        intentId: 'intent-1',
+        result: 'approved',
+        reason: 'approved: within policy',
+        decidedAt: '2026-05-01T00:00:01.000Z',
+        decisionUsd: 30,
+      },
+    ]);
+    decisionAudit.findSignEventsByIntentId.mockResolvedValue([
+      {
+        id: 'sign-event-1',
+        intentId: 'intent-1',
+        step: 'sign_requested',
+        detail: 'sign request prepared',
+        at: '2026-05-01T00:00:02.000Z',
+      },
+      {
+        id: 'sign-event-2',
+        intentId: 'intent-1',
+        step: 'dry_run_signed',
+        detail: 'dry-run only — nothing broadcast',
+        at: '2026-05-01T00:00:03.000Z',
+      },
+    ]);
+    const steps = await useCase.execute('intent-1');
+    expect(steps.map((step) => step.step)).toEqual([
+      'created',
+      'gate_decision',
+      'sign_requested',
+      'dry_run_signed',
+    ]);
+    expect(steps[2].actor).toBe('signer');
+    expect(steps[3].detail).toBe('dry-run only — nothing broadcast');
+  });
+
+  it('orders a decision before a same-timestamp sign event', async () => {
+    const at = '2026-05-01T00:00:01.000Z';
+    decisionAudit.findByIntentId.mockResolvedValue([
+      {
+        id: 'decision-1',
+        intentId: 'intent-1',
+        result: 'approved',
+        reason: 'approved: within policy',
+        decidedAt: at,
+        decisionUsd: 30,
+      },
+    ]);
+    decisionAudit.findSignEventsByIntentId.mockResolvedValue([
+      {
+        id: 'sign-event-1',
+        intentId: 'intent-1',
+        step: 'sign_requested',
+        detail: 'sign request prepared',
+        at,
+      },
+    ]);
+    const steps = await useCase.execute('intent-1');
+    expect(steps.map((step) => step.step)).toEqual([
+      'created',
+      'gate_decision',
+      'sign_requested',
+    ]);
   });
 });

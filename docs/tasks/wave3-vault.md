@@ -65,3 +65,47 @@ keys exist yet — every keyed adapter degrades cleanly, never fakes data.
 - Gates green incl. describeKeyed skips logged in CI.
 - Deterministic degradation: every unconfigured path asserted in tests.
 - Nothing signs; no keys logged; no raw RPC URLs in responses.
+
+## Retro
+
+- Done: `ViemChainReader` behind the existing `ChainReader` port
+  (`CHAIN_MODE=viem|static`, default static) with a `VIEM_CLIENT` seam —
+  `StaticViemClient` (zero network) and `RealViemClient` (JSON-RPC via
+  custom transport, `RPC_URL_BASE` primary + PublicNode fallback,
+  multicall3 for ERC-20 balances, host-only provider label); RPC failure
+  maps to `chain_unavailable`/502; `GET /health/chains` (never raw RPC
+  URLs). `ZeroExDexAdapter` on `/swap/v2/quote` (`DEX_SOURCE=zero-ex|
+static-mock`, default static-mock): keyless → `aggregator_unconfigured`
+  /503 + health `unconfigured`; status-mapped 401/403/429/5xx; unsigned
+  tx cached per quote id; **minAmountOut always recomputed from
+  slippageBps** — the embedded floor is never trusted. Contract suite
+  gained a `{live:true}` mode + keyed live suite via the `env-gate`
+  helper (`ZEROX_API_KEY`). `CoingeckoPriceFeed` with TTL cache,
+  micro-USD BigInt math, `unconfigured`/`stale`/`down` health
+  (`PRICE_FEED_MODE=static` is a dev-only opt-in; default = configured
+  key or fail-closed gate). Deploy intents short-circuit to
+  `needs_human_approval` (`deploy_requires_human_approval`) after
+  origin/chain allowlists, before valuation. SignerPort + `DryRunSigner`
+  (digest-to-be-signed via viem hashing, status `dry_run` only — never a
+  signature) and `POST /security/intents/:id/sign-request` with the
+  approved-only guard; sign events join the timeline as audit steps.
+  `/health/feeds` now reports price + dex + chain freshness.
+- Learned: viem's custom transport is EIP-1193 `request({method,params})`
+  (not `{body}`) — the JSON-RPC envelope/id echo lives in the adapter,
+  not viem; viem's `PublicClient` needs a documented cast to satisfy the
+  structural `multicall` seam; ts-jest's transpile-only mode hides
+  project-wide type errors, so `tsc --build` (typecheck target) is the
+  source of truth and spec mocks must keep up when ports grow; stale
+  `dist` → TS6305, solved by clean rebuild; spec tsconfig must list
+  non-spec helper files (`src/test/**`) explicitly.
+- Decisions: keyed adapters degrade to `*_unconfigured` (never fake
+  data, never auto-approve); gate valuations stay independent of
+  aggregator quotes (both recomputed floors agree in tests);
+  `unconfigured` counts as degraded for `/health/feeds` (a config TODO
+  is never silent); the `env-gate` helper is vendored here until the ops
+  PR lands (ops owns the final file); timeline merges decisions + sign
+  events chronologically with decisions-first tie-break.
+- Follow-ups (wave 4+): real `HARD_SIGNER` behind SignerPort (wave 3
+  ships dry-run only), Postgres/Prisma swap behind the ports, server-side
+  origin stamping from auth, recipient allowlist + cooldown (HITL-3),
+  MFA-gated policy changes (HITL-4), ops smoke blocks 2–5 once keys land.

@@ -28,9 +28,19 @@ export function baseQuoteRequest(
   };
 }
 
+export interface DexContractOptions {
+  /**
+   * Live-aggregator mode (keyed runs against the real 0x API): relaxes
+   * market-dependent assertions (byte-identical quotes, cross-request
+   * amountOut equality). Per-quote invariants still hold.
+   */
+  live?: boolean;
+}
+
 export function dexAggregatorContractSuite(
   name: string,
   factory: () => DexAggregatorPort,
+  options: DexContractOptions = {},
 ): void {
   describe(`${name} — DexAggregatorPort contract`, () => {
     let dex: DexAggregatorPort;
@@ -55,11 +65,17 @@ export function dexAggregatorContractSuite(
       expect(Date.parse(quote.expiresAt)).not.toBeNaN();
     });
 
-    it('is deterministic: identical requests produce identical quotes', async () => {
-      const first = await dex.getQuote(baseQuoteRequest());
-      const second = await dex.getQuote(baseQuoteRequest());
-      expect(second).toEqual(first);
-    });
+    // Live markets move between calls; byte-determinism is a static-only
+    // guarantee. Live adapters still must produce stable per-quote txs.
+    const determinismIt = options.live ? it.skip : it;
+    determinismIt(
+      'is deterministic: identical requests produce identical quotes',
+      async () => {
+        const first = await dex.getQuote(baseQuoteRequest());
+        const second = await dex.getQuote(baseQuoteRequest());
+        expect(second).toEqual(first);
+      },
+    );
 
     it('distinguishes quotes by input (different amount -> different id)', async () => {
       const one = await dex.getQuote(baseQuoteRequest());
@@ -77,10 +93,12 @@ export function dexAggregatorContractSuite(
         10_000n;
       expect(BigInt(tight.minAmountOut)).toBe(floorOf(tight));
       expect(BigInt(loose.minAmountOut)).toBe(floorOf(loose));
-      expect(BigInt(loose.minAmountOut)).toBeLessThan(
-        BigInt(tight.minAmountOut),
-      );
-      expect(BigInt(loose.amountOut)).toBe(BigInt(tight.amountOut));
+      if (!options.live) {
+        expect(BigInt(loose.minAmountOut)).toBeLessThan(
+          BigInt(tight.minAmountOut),
+        );
+        expect(BigInt(loose.amountOut)).toBe(BigInt(tight.amountOut));
+      }
     });
 
     it('quotes expire after they are fetched', async () => {

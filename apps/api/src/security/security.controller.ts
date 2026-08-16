@@ -4,9 +4,11 @@ import {
   type ApiEnvelope,
   type IntentTimelineStep,
   type SecurityDecision,
+  type SignRequest,
 } from '@kryptr/shared-types';
 import { EvaluateIntentUseCase } from './application/evaluate-intent.usecase';
 import { GetIntentTimelineUseCase } from './application/get-intent-timeline.usecase';
+import { RequestSignatureUseCase } from './application/request-sign.usecase';
 import {
   PreviewSwapExecutionUseCase,
   type SwapExecutionPreview,
@@ -16,8 +18,8 @@ import { EvaluateIntentDto } from './dto/evaluate-intent.dto';
 /**
  * The gate's entrances. Evaluates a TransactionIntent against the
  * wallet's SecurityPolicy, serves the decision timeline, and — ONLY for
- * approved swap intents — an UNSIGNED execution preview. This module
- * never signs and never touches keys.
+ * approved intents — an UNSIGNED execution preview or a dry-run sign
+ * request. This module never signs and never touches keys.
  */
 @Controller('security')
 export class SecurityController {
@@ -25,6 +27,7 @@ export class SecurityController {
     private readonly evaluateIntent: EvaluateIntentUseCase,
     private readonly getIntentTimeline: GetIntentTimelineUseCase,
     private readonly previewSwapExecution: PreviewSwapExecutionUseCase,
+    private readonly requestSignature: RequestSignatureUseCase,
   ) {}
 
   @Post('evaluate')
@@ -46,5 +49,12 @@ export class SecurityController {
     @Param('id') id: string,
   ): Promise<ApiEnvelope<SwapExecutionPreview>> {
     return ok(await this.previewSwapExecution.execute(id));
+  }
+
+  @Post('intents/:id/sign-request')
+  async signRequest(
+    @Param('id') id: string,
+  ): Promise<ApiEnvelope<SignRequest>> {
+    return ok(await this.requestSignature.execute(id));
   }
 }
