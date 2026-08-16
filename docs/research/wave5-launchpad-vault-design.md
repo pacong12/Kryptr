@@ -124,7 +124,12 @@ manifest, single source of truth, CI-schema-validated.
   `apps/api/src/order-worker/**/*.ts` at test time and assert no file
   contains a `kind: 'deploy'` construction or a `DeployContext` import.
   Turns "order-worker never produces deploys" into a red/green property that
-  survives refactors.
+  survives refactors. Caveat (Review54 F3): textual scanning can be evaded by
+  non-literal construction (`kind` flowing in from a variable or shared
+  const) in future edits — the spec therefore ALSO pins the positive form:
+  the extracted builder is the SOLE automation intent construction site. At
+  implementation time prefer an AST scan; L1's unconditional runtime
+  rejection remains the binding layer regardless — L3 is defense-in-depth.
 - **Regression spec**: interactive deploy still escalates to
   `needs_human_approval` (wave-3 behavior preserved).
 - **HITL-permanence spec (Q4 ruling)**: deploy intents from EVERY
@@ -161,18 +166,28 @@ PR, TDD red-green:
    - `bondPaid === true` required (memo ruling 2 split: bond PARAMETER is
      factory/on-chain; bond-paid VALIDATION is gate-side) →
      `deploy_bond_unpaid` rejection otherwise;
-   - fee validation via INTEGER BPS mirrors (Q1 ruling): per-share bps
-     non-negative, sum equals the per-launch total fee bps (parameterized;
-     175 reference), mirrors consistent with `TokenFeeSchedule` shares
-     (`bps === share * 10_000`) → `fee_schedule_invalid`;
+   - fee validation via INTEGER BPS mirrors (Q1 ruling): `feeBps` is the
+     SOURCE OF TRUTH for gate arithmetic — per-share bps non-negative, sum
+     equals the per-launch total fee bps (parameterized; 175 reference),
+     both PURE INTEGER checks. Mirror↔share consistency is
+     `Math.round(share * 10_000) === bps` (rounding tolerance pinned by the
+     T21 invariant battery) — NEVER literal float equality: Review54 measured
+     `bps === share * 10_000` failing for ~11.5% of derived shares, and the
+     "last recipient = 1−Σ" remainder pattern fails outright (IEEE754) →
+     `fee_schedule_invalid`;
    - recipients: four valid EVM addresses → `fee_recipients_invalid`.
      All pre-sign, all `rejected` (fail-closed), all audited with stable
      reason strings for the DeckUI timeline.
-4. **Audit strings**: deploy decisions get DeckUI-consumable reasons
+4. **Verification artifact surface** (§3, FaceUI flag): read endpoint
+   `GET /launchpad/verification/:id` returning the canonical artifact
+   `{ id, hash, claims }` + the `verification_missing` precondition
+   (required + non-empty claims for allowlisted factories).
+5. **Audit strings**: deploy decisions get DeckUI-consumable reasons
    (`automation_deploy_forbidden`, `factory_not_allowlisted`,
-   `deploy_bond_unpaid`, existing `deploy_requires_human_approval`).
+   `deploy_bond_unpaid`, `verification_missing`, existing
+   `deploy_requires_human_approval`).
 
-Ordering (decision condition 5): after wave 4 closes → this branch → DeckUI
+Ordering (decision condition 5): after wave 4 closes → this branch → vault
 `DeployContext` prep PR (gate #4, may overlap) → factory/contracts work
 (OpsCI/Web3Intel territory) → T21 battery → manifest entry → first launch.
 Explicitly OUT of this branch: signer changes, calldata construction,
@@ -229,7 +244,10 @@ export interface DeployContext {
   /**
    * Q1 ruling: integer-bps mirrors are the gate's validation basis
    * (deterministic precision, T21 invariant-testable). Additive — the
-   * float shares above stay the display/on-chain shape.
+   * float shares above stay the display/on-chain shape. feeBps is the
+   * SOURCE OF TRUTH for gate arithmetic; share↔bps consistency is checked
+   * via Math.round(share*10_000)===bps, never literal float equality
+   * (IEEE754: ~11.5% of derived shares break literal equality).
    */
   feeBps: { creator: number; lp: number; protocol: number; buyback: number };
   feeRecipients: FeeRecipients;
@@ -274,16 +292,16 @@ Field notes:
 
 Gate-side validation table (§2.3 consumes this):
 
-| Check                                                                           | Failure reason            |
-| ------------------------------------------------------------------------------- | ------------------------- |
-| `deploy.factory === intent.to`                                                  | `factory_mismatch`        |
-| factory allowlisted on chain                                                    | `factory_not_allowlisted` |
-| `bondPaid === true`                                                             | `deploy_bond_unpaid`      |
-| name/symbol non-empty (symbol charset/length TBD w/ FaceUI)                     | `deploy_context_invalid`  |
-| totalSupply positive integer string                                             | `deploy_context_invalid`  |
-| feeBps integers non-negative, sum = launch total bps, mirrors match shares (Q1) | `fee_schedule_invalid`    |
-| recipients ×4 valid addresses                                                   | `fee_recipients_invalid`  |
-| verification present for allowlisted factory; claims non-empty (FaceUI flag)    | `verification_missing`    |
+| Check                                                                                        | Failure reason            |
+| -------------------------------------------------------------------------------------------- | ------------------------- |
+| `deploy.factory === intent.to`                                                               | `factory_mismatch`        |
+| factory allowlisted on chain                                                                 | `factory_not_allowlisted` |
+| `bondPaid === true`                                                                          | `deploy_bond_unpaid`      |
+| name 1–64 chars (trimmed, printable, no control chars); symbol 1–12 [A-Z0-9]                 | `deploy_context_invalid`  |
+| totalSupply positive integer string                                                          | `deploy_context_invalid`  |
+| feeBps (source of truth) non-negative ints, sum = total bps; Math.round(share\*10_000) = bps | `fee_schedule_invalid`    |
+| recipients ×4 valid addresses                                                                | `fee_recipients_invalid`  |
+| verification present for allowlisted factory; claims non-empty (FaceUI flag)                 | `verification_missing`    |
 
 ---
 
@@ -311,6 +329,10 @@ Gate-side validation table (§2.3 consumes this):
   precision, T21 invariant-testable. Implemented as additive `feeBps`
   mirrors on `DeployContext` (§3); float `TokenFeeSchedule` shares stay the
   display/on-chain shape; gate validates mirrors + mirror↔share consistency.
+  Review54 refinement (F1): `feeBps` is the source of truth, gate checks are
+  pure integer arithmetic, consistency uses `Math.round(share * 10_000) ===
+bps` — never literal float equality (IEEE754 trap, ~11.5% failure rate
+  measured); remainder-style share derivation is prohibited.
 - **Q2 — creator ≠ deploying wallet: display + audit, NO enforcement.**
   Accepted. Enforcement, if ever needed, belongs to bond/wallet policy
   later — not the deploy gate.
