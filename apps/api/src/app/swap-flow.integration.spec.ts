@@ -18,8 +18,12 @@ import { GetFeedHealthUseCase } from '../security/application/get-feed-health.us
 describe('swap flow (AppModule integration, zero overrides)', () => {
   let app: TestingModule;
   let walletId: string;
+  const originalPriceFeedMode = process.env.PRICE_FEED_MODE;
 
   beforeAll(async () => {
+    // Explicit dev opt-in: the wave-3 default price feed is
+    // coingecko-configured-or-fail-closed and would escalate this flow.
+    process.env.PRICE_FEED_MODE = 'static';
     app = await Test.createTestingModule({ imports: [AppModule] }).compile();
     const wallet = await app.get(CreateWalletUseCase).execute({
       ownerId: 'flow-owner',
@@ -31,6 +35,11 @@ describe('swap flow (AppModule integration, zero overrides)', () => {
 
   afterAll(async () => {
     await app.close();
+    if (originalPriceFeedMode === undefined) {
+      delete process.env.PRICE_FEED_MODE;
+    } else {
+      process.env.PRICE_FEED_MODE = originalPriceFeedMode;
+    }
   });
 
   it('runs quote -> approved decision -> timeline -> unsigned preview', async () => {
@@ -129,12 +138,13 @@ describe('swap flow (AppModule integration, zero overrides)', () => {
     expect(second.reason).toContain('already bound');
   });
 
-  it('reports healthy feeds before any staleness', async () => {
+  it('reports healthy feeds (price + dex + chain) before any staleness', async () => {
     const report = await app.get(GetFeedHealthUseCase).execute();
     expect(report.degraded).toBe(false);
     expect(report.feeds.map((feed) => feed.feedId)).toEqual([
       'price:static',
       'dex:static-mock',
+      'chain:base',
     ]);
   });
 });

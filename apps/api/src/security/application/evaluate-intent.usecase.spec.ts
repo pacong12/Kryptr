@@ -113,6 +113,8 @@ describe('EvaluateIntentUseCase', () => {
           Promise.resolve({ id: 'audit-1', ...entry }),
         ),
       findByIntentId: jest.fn().mockResolvedValue([]),
+      appendSignEvent: jest.fn(),
+      findSignEventsByIntentId: jest.fn().mockResolvedValue([]),
     };
     quoteStore = {
       save: jest.fn().mockResolvedValue(undefined),
@@ -350,6 +352,46 @@ describe('EvaluateIntentUseCase', () => {
       });
       const decision = await useCase.execute(makeSwapIntent(QUOTE));
       expect(decision.result).toBe('approved');
+    });
+  });
+
+  describe('wave-3 deploy branch', () => {
+    it('escalates deploy intents to human approval regardless of valuation', async () => {
+      const decision = await useCase.execute(
+        makeIntent({ kind: 'deploy', to: null, amount: '0' }),
+      );
+      expect(decision.result).toBe('needs_human_approval');
+      expect(decision.reason).toBe('deploy_requires_human_approval');
+      // Short-circuits BEFORE valuation: price feed never consulted.
+      expect(priceFeed.getUsdValue).not.toHaveBeenCalled();
+    });
+
+    it('still rejects deploys from unauthorized origins (allowlists first)', async () => {
+      const decision = await useCase.execute(
+        makeIntent({
+          kind: 'deploy',
+          to: null,
+          amount: '0',
+          origin: 'agent:rogue',
+        }),
+      );
+      expect(decision.result).toBe('rejected');
+      expect(decision.reason).toContain('origin');
+    });
+
+    it('still rejects deploys on non-allowlisted chains', async () => {
+      const decision = await useCase.execute(
+        makeIntent({ kind: 'deploy', to: null, amount: '0', chain: 'solana' }),
+      );
+      expect(decision.result).toBe('rejected');
+      expect(decision.reason).toContain('chain');
+    });
+
+    it('audits the deploy escalation with null valuation', async () => {
+      await useCase.execute(
+        makeIntent({ kind: 'deploy', to: null, amount: '0' }),
+      );
+      expectAudit('needs_human_approval', null);
     });
   });
 });

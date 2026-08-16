@@ -95,6 +95,17 @@ export class EvaluateIntentUseCase {
       );
     }
 
+    // Wave 3: contract deploys move no value but grant economic control,
+    // so USD valuation is meaningless — ALWAYS escalate, before pricing.
+    if (intent.kind === 'deploy') {
+      return this.finish(
+        intent,
+        null,
+        'needs_human_approval',
+        'deploy_requires_human_approval',
+      );
+    }
+
     if (intent.kind === 'swap') {
       const swapRejection = await this.checkSwapContext(intent);
       if (swapRejection) {

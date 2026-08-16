@@ -13,14 +13,25 @@ import type { PriceFeedPort } from '../application/ports';
  * implement the same PriceFeedPort interface.
  */
 
-/** USD price of one WHOLE unit, plus display decimals for the asset. */
-const STATIC_PRICES: Record<string, { usd: number; decimals: number }> = {
-  'base:native': { usd: 3000, decimals: 18 },
-  'robinhood-chain:native': { usd: 1, decimals: 18 },
-  'base:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48': { usd: 1, decimals: 6 },
+/**
+ * Display decimals per chain:asset, shared by every PriceFeedPort
+ * implementation (static + CoinGecko). Null asset = chain native.
+ */
+export const ASSET_DECIMALS: Record<string, number> = {
+  'base:native': 18,
+  'robinhood-chain:native': 18,
+  'base:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48': 6,
 };
 
-const NON_DECIMAL = /[^0-9]/;
+/** USD price of one WHOLE unit, keyed chain:asset. */
+const STATIC_USD: Record<string, number> = {
+  'base:native': 3000,
+  'robinhood-chain:native': 1,
+  'base:0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48': 1,
+};
+
+/** Rejects anything that is not a plain decimal integer string. */
+export const NON_DECIMAL_AMOUNT = /[^0-9]/;
 
 export interface StaticPriceFeedOptions {
   ttlMs?: number;
@@ -47,25 +58,27 @@ export class StaticPriceFeed implements PriceFeedPort {
       return null;
     }
     const key = `${chain}:${asset ?? 'native'}`;
-    const entry = STATIC_PRICES[key];
-    return entry ? entry.usd : null;
+    const usd = STATIC_USD[key];
+    return usd ?? null;
   }
 
   async getUsdValue(intent: TransactionIntent): Promise<number | null> {
     if (!this.isFresh()) {
       return null;
     }
-    const price = STATIC_PRICES[`${intent.chain}:${intent.asset ?? 'native'}`];
-    if (!price) {
+    const key = `${intent.chain}:${intent.asset ?? 'native'}`;
+    const usd = STATIC_USD[key];
+    const decimals = ASSET_DECIMALS[key];
+    if (usd === undefined || decimals === undefined) {
       return null;
     }
-    if (!intent.amount || NON_DECIMAL.test(intent.amount)) {
+    if (!intent.amount || NON_DECIMAL_AMOUNT.test(intent.amount)) {
       return null;
     }
     // Fixed-point: price in micro-USD, so sub-unit amounts keep precision.
-    const usdMicro = Math.round(price.usd * 1_000_000);
+    const usdMicro = Math.round(usd * 1_000_000);
     const raw =
-      (BigInt(intent.amount) * BigInt(usdMicro)) / BigInt(10 ** price.decimals);
+      (BigInt(intent.amount) * BigInt(usdMicro)) / BigInt(10 ** decimals);
     return Number(raw) / 1_000_000;
   }
 

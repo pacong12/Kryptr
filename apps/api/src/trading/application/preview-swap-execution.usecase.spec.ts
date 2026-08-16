@@ -81,6 +81,8 @@ describe('PreviewSwapExecutionUseCase', () => {
     decisionAudit = {
       append: jest.fn(),
       findByIntentId: jest.fn().mockResolvedValue([auditEntry({})]),
+      appendSignEvent: jest.fn(),
+      findSignEventsByIntentId: jest.fn().mockResolvedValue([]),
     };
     quoteStore = {
       save: jest.fn(),

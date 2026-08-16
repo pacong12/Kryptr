@@ -1,20 +1,27 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Inject } from '@nestjs/common';
 import {
   err,
   ok,
   type ApiEnvelope,
+  type ChainReaderHealth,
   type FeedHealth,
 } from '@kryptr/shared-types';
 import { GetFeedHealthUseCase } from './application/get-feed-health.usecase';
+import { VIEM_CLIENT, type ViemClientPort } from '../chain/viem-client.port';
 
 /**
- * Feed freshness for the backoffice (GET /health/feeds). When any feed
- * is stale or down the envelope itself degrades (ok:false, code
- * 'feeds_degraded') — staleness is never silent.
+ * Feed freshness for the backoffice (GET /health/feeds) and chain
+ * reachability (GET /health/chains). When any feed is stale, down or
+ * unconfigured the feeds envelope itself degrades (ok:false, code
+ * 'feeds_degraded') — degradation is never silent. Chain health never
+ * exposes raw RPC URLs (they may embed credentials).
  */
 @Controller('health')
 export class HealthController {
-  constructor(private readonly getFeedHealth: GetFeedHealthUseCase) {}
+  constructor(
+    private readonly getFeedHealth: GetFeedHealthUseCase,
+    @Inject(VIEM_CLIENT) private readonly viem: ViemClientPort,
+  ) {}
 
   @Get('feeds')
   async feeds(): Promise<ApiEnvelope<FeedHealth[]>> {
@@ -28,5 +35,10 @@ export class HealthController {
       });
     }
     return ok(report.feeds);
+  }
+
+  @Get('chains')
+  async chains(): Promise<ApiEnvelope<ChainReaderHealth[]>> {
+    return ok([await this.viem.chainHealth()]);
   }
 }

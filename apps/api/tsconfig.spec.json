@@ -13,7 +13,8 @@
     "src/**/*.test.ts",
     "src/**/*.spec.ts",
     "src/**/*.smoke.ts",
-    "src/**/*.d.ts"
+    "src/**/*.d.ts",
+    "src/test/**/*.ts"
   ],
   "references": [
     {
