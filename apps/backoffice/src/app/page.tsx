@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 
+import { FeedsSection, FeedsSectionSkeleton } from '@/components/feeds-section';
 import {
   HealthSection,
   HealthSectionSkeleton,
@@ -28,9 +29,14 @@ export default function DashboardPage() {
         </p>
       </header>
 
-      <Suspense fallback={<HealthSectionSkeleton />}>
-        <HealthSection />
-      </Suspense>
+      <div className="grid gap-6 md:grid-cols-2">
+        <Suspense fallback={<HealthSectionSkeleton />}>
+          <HealthSection />
+        </Suspense>
+        <Suspense fallback={<FeedsSectionSkeleton />}>
+          <FeedsSection />
+        </Suspense>
+      </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <Suspense fallback={<WalletsSectionSkeleton />}>
