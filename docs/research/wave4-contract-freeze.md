@@ -106,8 +106,9 @@ KILL_SWITCH_MODES = ['off', 'pause_new', 'cancel_active'];
 
 ## 7. Dependensi yang disetujui wave 4
 
-- `bullmq` (membawa `ioredis`) — dipasang konduktor di prep PR. Tidak ada
-  paket lain tanpa persetujuan baru.
+- `bullmq` + `ioredis` — bullmq v6 mendeklarasikan ioredis sebagai OPTIONAL
+  peer dependency (tidak dibawa; berbeda dari v5), jadi keduanya dipasang
+  eksplisit oleh konduktor. Tidak ada paket lain tanpa persetujuan baru.
 
 ## 8. Pembagian kerja (setelah prep PR merge)
 
