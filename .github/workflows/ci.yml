@@ -75,6 +75,9 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          # forge-std arrives as a pinned git submodule (factory phase);
+          # recursive checkout keeps the gates hermetic on the runner.
+          submodules: recursive
 
       - uses: actions/setup-node@v5
         with:
@@ -115,6 +118,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          submodules: recursive
 
       - uses: actions/setup-node@v5
         with:
