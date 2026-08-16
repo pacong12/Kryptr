@@ -6,7 +6,7 @@ import type {
   SecurityDecision,
   WalletBalance,
 } from '@kryptr/shared-types';
-import WalletDetailPage from './WalletDetailPage.vue';
+import App from '@/app/App.vue';
 import { createAppRouter } from '@/router';
 
 const WALLET_ID = 'wallet-base-demo';
@@ -71,7 +71,7 @@ function fetchMock() {
   });
 }
 
-describe('WalletDetailPage (transfer through the security gate)', () => {
+describe('Wallet overview tab (transfer through the security gate)', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', fetchMock());
   });
@@ -87,8 +87,7 @@ describe('WalletDetailPage (transfer through the security gate)', () => {
       params: { walletId: WALLET_ID },
     });
     await router.isReady();
-    const wrapper = mount(WalletDetailPage, {
-      props: { walletId: WALLET_ID },
+    const wrapper = mount(App, {
       global: { plugins: [router] },
     });
     await flushPromises();

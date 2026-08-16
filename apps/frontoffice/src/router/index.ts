@@ -1,6 +1,8 @@
 import { createRouter, createWebHistory, type RouterHistory } from 'vue-router';
 import HomePage from '@/pages/HomePage.vue';
+import SwapPage from '@/pages/SwapPage.vue';
 import WalletDetailPage from '@/pages/WalletDetailPage.vue';
+import WalletOverviewPage from '@/pages/WalletOverviewPage.vue';
 
 export const routes = [
   {
@@ -10,9 +12,22 @@ export const routes = [
   },
   {
     path: '/wallets/:walletId',
-    name: 'wallet-detail',
     component: WalletDetailPage,
     props: true,
+    children: [
+      {
+        path: '',
+        name: 'wallet-detail',
+        component: WalletOverviewPage,
+        props: true,
+      },
+      {
+        path: 'swap',
+        name: 'wallet-swap',
+        component: SwapPage,
+        props: true,
+      },
+    ],
   },
 ];
 

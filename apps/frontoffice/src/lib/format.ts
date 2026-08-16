@@ -1,4 +1,4 @@
-import type { ChainId } from '@kryptr/shared-types';
+import type { ChainId, WalletBalance } from '@kryptr/shared-types';
 
 /** Display labels for supported chains (UI metadata only). */
 export const CHAIN_LABELS: Record<ChainId, string> = {
@@ -84,3 +84,38 @@ export function formatTimestamp(iso: string): string {
   }
   return `${date.toISOString().slice(0, 16).replace('T', ' ')} UTC`;
 }
+
+/** Display metadata needed to render/format a swappable asset. */
+export interface AssetMeta {
+  symbol: string;
+  decimals: number;
+}
+
+/**
+ * Resolve display metadata for an asset on a chain: the native token when
+ * the address is null, otherwise the matching token holding from the wallet
+ * balances. Returns null when the token is unknown (never throws).
+ */
+export function resolveAssetMeta(
+  chain: ChainId,
+  address: `0x${string}` | null,
+  balances: WalletBalance[],
+): AssetMeta | null {
+  if (address === null) {
+    return { symbol: NATIVE_SYMBOLS[chain], decimals: NATIVE_DECIMALS };
+  }
+  const needle = address.toLowerCase();
+  for (const balance of balances) {
+    if (balance.chain !== chain) continue;
+    for (const token of balance.tokens) {
+      const contract = token.contractAddress;
+      if (contract !== null && contract.toLowerCase() === needle) {
+        return { symbol: token.symbol, decimals: token.decimals };
+      }
+    }
+  }
+  return null;
+}
+
+/** Select-value key representing the chain's native asset (null address). */
+export const NATIVE_ASSET = 'native';
