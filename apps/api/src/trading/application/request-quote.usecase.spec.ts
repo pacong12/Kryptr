@@ -90,10 +90,23 @@ describe('RequestQuoteUseCase', () => {
   it('quotes through the aggregator and stores the quote', async () => {
     const quote = await useCase.execute(baseQuoteRequest());
     expect(dex.getQuote).toHaveBeenCalledWith(
-      expect.objectContaining({ walletId: 'wallet-1', chain: 'base' }),
+      expect.objectContaining({
+        walletId: 'wallet-1',
+        chain: 'base',
+        taker: WALLET.address,
+      }),
     );
     expect(quoteStore.save).toHaveBeenCalledWith(QUOTE);
     expect(quote).toEqual(QUOTE);
+  });
+
+  it('always resolves taker server-side (client taker is ignored)', async () => {
+    await useCase.execute(
+      baseQuoteRequest({ taker: '0x9999999999999999999999999999999999999999' }),
+    );
+    expect(dex.getQuote).toHaveBeenCalledWith(
+      expect.objectContaining({ taker: WALLET.address }),
+    );
   });
 
   it('applies the default slippage tolerance when omitted', async () => {

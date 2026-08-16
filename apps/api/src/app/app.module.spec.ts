@@ -32,12 +32,19 @@ import { EvaluateIntentUseCase } from '../security/application/evaluate-intent.u
 
 describe('AppModule composition (wiring smoke)', () => {
   let app: TestingModule;
-  const originalPriceFeedMode = process.env.PRICE_FEED_MODE;
+  const ORIGINAL = {
+    priceFeedMode: process.env.PRICE_FEED_MODE,
+    chainMode: process.env.CHAIN_MODE,
+    dexSource: process.env.DEX_SOURCE,
+  };
 
   beforeAll(async () => {
-    // Explicit dev opt-in: the wave-3 default is
-    // coingecko-configured-or-fail-closed, which escalates this smoke.
+    // Explicit dev opt-ins pin the DEFAULT wiring regardless of any local
+    // .env (nx loads .env into task env; wave-3 defaults are
+    // coingecko-configured-or-fail-closed / viem-when-configured).
     process.env.PRICE_FEED_MODE = 'static';
+    process.env.CHAIN_MODE = 'static';
+    process.env.DEX_SOURCE = 'static-mock';
     app = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -45,11 +52,16 @@ describe('AppModule composition (wiring smoke)', () => {
 
   afterAll(async () => {
     await app.close();
-    if (originalPriceFeedMode === undefined) {
-      delete process.env.PRICE_FEED_MODE;
-    } else {
-      process.env.PRICE_FEED_MODE = originalPriceFeedMode;
-    }
+    const restore = (name: string, value: string | undefined) => {
+      if (value === undefined) {
+        delete process.env[name];
+      } else {
+        process.env[name] = value;
+      }
+    };
+    restore('PRICE_FEED_MODE', ORIGINAL.priceFeedMode);
+    restore('CHAIN_MODE', ORIGINAL.chainMode);
+    restore('DEX_SOURCE', ORIGINAL.dexSource);
   });
 
   it('binds every port to its in-memory implementation (zero overrides needed)', () => {
@@ -140,6 +152,7 @@ describe('AppModule wave-3 env wiring (fresh module per block)', () => {
     await expect(
       dex.getQuote({
         walletId: 'w',
+        taker: '0x5555555555555555555555555555555555555555',
         chain: 'base',
         assetIn: null,
         assetOut: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',

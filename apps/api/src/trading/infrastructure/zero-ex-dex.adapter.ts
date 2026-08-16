@@ -10,12 +10,14 @@ import type {
 import { DomainError } from '../../common/domain-error';
 import type {
   DexAggregatorPort,
+  DexQuoteRequest,
   UnsignedSwapTx,
 } from '../domain/dex-aggregator.port';
 import { QUOTE_TTL_MS } from './static-mock-dex.adapter';
 
 /**
- * 0x Swap API v2 adapter (https://api.0x.org/swap/v2/quote), Base only
+ * 0x Swap API v2 adapter — AllowanceHolder quote endpoint
+ * (https://api.0x.org/swap/allowance-holder/quote), Base only
  * this wave (chainId=8453). Selected via DEX_SOURCE=zero-ex; without
  * ZEROX_API_KEY it fails closed (aggregator_unconfigured/503 + health
  * 'unconfigured') and never fabricates a quote.
@@ -25,7 +27,7 @@ import { QUOTE_TTL_MS } from './static-mock-dex.adapter';
  * amountOut and the requested slippageBps.
  */
 
-const ZERO_EX_VERSION = '1.0.0';
+const ZERO_EX_VERSION = 'v2';
 const BASE_URL = 'https://api.0x.org';
 
 /** Phase-1 0x coverage: Base only. Robinhood Chain has no 0x support. */
@@ -39,6 +41,9 @@ const KNOWN_DECIMALS: Record<string, number> = {
 };
 
 const HEX_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+
+/** Canonical 0x representation of the chain-native asset (ETH on Base). */
+export const NATIVE_SENTINEL = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
 
 export interface ZeroExDexAdapterOptions {
   /** 0x API key; without one the adapter is unconfigured and fails closed. */
@@ -58,6 +63,8 @@ interface ZeroExFeeEntry {
 
 interface ZeroExQuoteBody {
   quoteId?: unknown;
+  /** false means 0x has no route; the rest of the body is absent. */
+  liquidityAvailable?: unknown;
   buyAmount?: unknown;
   sellAmount?: unknown;
   fees?: {
@@ -94,7 +101,7 @@ export class ZeroExDexAdapter implements DexAggregatorPort {
     this.quoteTtlMs = options.quoteTtlMs ?? QUOTE_TTL_MS;
   }
 
-  async getQuote(request: QuoteRequest): Promise<SwapQuote> {
+  async getQuote(request: DexQuoteRequest): Promise<SwapQuote> {
     if (!this.apiKey) {
       throw new DomainError(
         'aggregator_unconfigured',
@@ -111,12 +118,20 @@ export class ZeroExDexAdapter implements DexAggregatorPort {
       );
     }
     const slippageBps = request.slippageBps ?? 0;
-    const url = new URL(`${this.baseUrl}/swap/v2/quote`);
+    if (!HEX_ADDRESS.test(request.taker)) {
+      throw new DomainError(
+        'invalid_taker',
+        'taker must be a 0x-prefixed 40-hex address',
+        422,
+      );
+    }
+    const url = new URL(`${this.baseUrl}/swap/allowance-holder/quote`);
     url.searchParams.set('chainId', String(chainId));
     url.searchParams.set('sellToken', this.tokenParam(request.assetIn));
     url.searchParams.set('buyToken', this.tokenParam(request.assetOut));
     url.searchParams.set('sellAmount', request.amount);
     url.searchParams.set('slippageBps', String(slippageBps));
+    url.searchParams.set('taker', request.taker);
 
     let body: ZeroExQuoteBody;
     try {
@@ -187,6 +202,13 @@ export class ZeroExDexAdapter implements DexAggregatorPort {
     body: ZeroExQuoteBody,
     slippageBps: number,
   ): SwapQuote {
+    if (body.liquidityAvailable === false) {
+      throw new DomainError(
+        'no_liquidity',
+        '0x reports no liquidity for this pair/chain right now',
+        422,
+      );
+    }
     const buyAmount = this.rawAmount(body.buyAmount);
     const sellAmount = this.rawAmount(body.sellAmount);
     const tx = body.transaction;
@@ -247,7 +269,8 @@ export class ZeroExDexAdapter implements DexAggregatorPort {
   }
 
   private tokenParam(asset: `0x${string}` | null): string {
-    return asset ?? 'NATIVE';
+    // 0x v2 expects the canonical native sentinel, not a 'NATIVE' string.
+    return asset ?? NATIVE_SENTINEL;
   }
 
   private rawAmount(value: unknown): string | null {

@@ -1,12 +1,16 @@
-import type { QuoteRequest } from '@kryptr/shared-types';
 import { DomainError } from '../../common/domain-error';
-import { ZeroExDexAdapter } from './zero-ex-dex.adapter';
+import type { DexQuoteRequest } from '../domain/dex-aggregator.port';
+import { NATIVE_SENTINEL, ZeroExDexAdapter } from './zero-ex-dex.adapter';
 
 const USDC = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48';
+const TAKER = '0x2222222222222222222222222222222222222222';
 
-function quoteRequest(overrides: Partial<QuoteRequest> = {}): QuoteRequest {
+function quoteRequest(
+  overrides: Partial<DexQuoteRequest> = {},
+): DexQuoteRequest {
   return {
     walletId: 'wallet-1',
+    taker: TAKER,
     chain: 'base',
     assetIn: null,
     assetOut: USDC,
@@ -98,22 +102,43 @@ describe('ZeroExDexAdapter (unit, mocked fetch)', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it('calls /swap/v2/quote on api.0x.org with auth headers and Base chainId', async () => {
+  it('calls /swap/allowance-holder/quote on api.0x.org with auth headers, Base chainId and taker', async () => {
     const fetchImpl = jest.fn().mockResolvedValue(jsonOk(zeroExResponse()));
     const dex = makeAdapter(fetchImpl);
     await dex.getQuote(quoteRequest());
     const [url, init] = fetchImpl.mock.calls[0];
     const parsed = new URL(String(url));
     expect(parsed.origin).toBe('https://api.0x.org');
-    expect(parsed.pathname).toBe('/swap/v2/quote');
+    expect(parsed.pathname).toBe('/swap/allowance-holder/quote');
     expect(parsed.searchParams.get('chainId')).toBe('8453');
-    expect(parsed.searchParams.get('sellToken')).toBe('NATIVE');
+    expect(parsed.searchParams.get('sellToken')).toBe(NATIVE_SENTINEL);
     expect(parsed.searchParams.get('buyToken')).toBe(USDC);
     expect(parsed.searchParams.get('sellAmount')).toBe('1000000000000000000');
     expect(parsed.searchParams.get('slippageBps')).toBe('50');
+    expect(parsed.searchParams.get('taker')).toBe(TAKER);
     expect((init as RequestInit).headers).toMatchObject({
       '0x-api-key': 'test-key',
       '0x-version': expect.any(String),
+    });
+  });
+
+  it('rejects a malformed taker before any network call', async () => {
+    const fetchImpl = jest.fn();
+    const dex = makeAdapter(fetchImpl);
+    await expect(
+      dex.getQuote(quoteRequest({ taker: 'not-an-address' as `0x${string}` })),
+    ).rejects.toMatchObject({ code: 'invalid_taker' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('fails closed with no_liquidity/422 when 0x reports liquidityAvailable:false', async () => {
+    const fetchImpl = jest
+      .fn()
+      .mockResolvedValue(jsonOk({ liquidityAvailable: false, zid: 'z-1' }));
+    const dex = makeAdapter(fetchImpl);
+    await expect(dex.getQuote(quoteRequest())).rejects.toMatchObject({
+      code: 'no_liquidity',
+      httpStatus: 422,
     });
   });
 
@@ -208,7 +233,9 @@ describe('ZeroExDexAdapter (unit, mocked fetch)', () => {
     expect(tx.value).toBe('0');
     const [url] = fetchImpl.mock.calls[0];
     expect(new URL(String(url)).searchParams.get('sellToken')).toBe(USDC);
-    expect(new URL(String(url)).searchParams.get('buyToken')).toBe('NATIVE');
+    expect(new URL(String(url)).searchParams.get('buyToken')).toBe(
+      NATIVE_SENTINEL,
+    );
   });
 
   it('rejects buildSwapTx for quotes it never produced', async () => {

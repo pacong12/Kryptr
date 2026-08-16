@@ -1,13 +1,9 @@
 import { createHash } from 'node:crypto';
-import type {
-  ChainId,
-  FeedHealth,
-  QuoteRequest,
-  SwapQuote,
-} from '@kryptr/shared-types';
+import type { ChainId, FeedHealth, SwapQuote } from '@kryptr/shared-types';
 import { DomainError } from '../../common/domain-error';
 import type {
   DexAggregatorPort,
+  DexQuoteRequest,
   UnsignedSwapTx,
 } from '../domain/dex-aggregator.port';
 
@@ -52,7 +48,7 @@ export class StaticMockDexAdapter implements DexAggregatorPort {
     this.now = options.now ?? Date.now;
   }
 
-  async getQuote(request: QuoteRequest): Promise<SwapQuote> {
+  async getQuote(request: DexQuoteRequest): Promise<SwapQuote> {
     if (!PHASE_ONE_CHAINS.has(request.chain)) {
       throw new DomainError(
         'chain_not_supported',
