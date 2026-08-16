@@ -32,3 +32,23 @@ harness pieces only (coordinate shapes with VaultAPI).
 - test:live demonstrated green once locally (with public RPC, no keys).
 - gitleaks catches a planted dummy secret in a scratch branch test (show
   evidence in PR body, then delete the branch).
+
+## Retro
+
+- Done: env-gate helper (describeKeyed/itKeyed, canonical
+  ZEROX_API_KEY/COINGECKO_API_KEY, logged skip reasons); .env.example wave-3
+  keys; test:live opt-in target (jest.live.cts, runInBand, 60s timeouts,
+  excluded from CI line, README-documented); smoke evolved to 5 blocks
+  (static-pricing golden path, zero-ex keyless 503, fail-closed escalation +
+  health feeds, deploy escalation, stubbed VIEM_CLIENT chain reads — zero
+  network everywhere); gitleaks job on PRs + pushes with job-level
+  permissions (pull-requests:read).
+- Acceptance evidence: gitleaks caught the planted dummy secret
+  (RuleID github-pat, gitleaks-scratch.txt:2, scratch PR #28 closed +
+  branch deleted). test:live demo + blocks 2–5 green land after
+  feat/api-real-integrations merges (vault-first order, same as wave 2).
+- Learned: gitleaks-action v2 PR mode needs pull-requests:read (403
+  without); PR workflows run from the HEAD branch — a scratch branch cut
+  from main won't exercise new jobs until the feature branch is merged in;
+  contract-first IRC locking again meant zero integration drift;
+  jest.ProvidesCallback is the right fn type for keyed-test helpers.
