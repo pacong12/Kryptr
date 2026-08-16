@@ -25,6 +25,17 @@ contract FactoryInvariantTest is Test {
         handler = new FactoryHandler(factory);
         // Bound the fuzzer to the handler only.
         targetContract(address(handler));
+        // FORK-MODE funding (fork-tests round, run 31949753694): local anvil
+        // auto-funds every account, a real RPC funds NOBODY — the invariant
+        // sequence sender would start at balance 0 and the whole campaign
+        // dies in setup with "lack of funds (0) for max fee". Pin an
+        // explicit, funded sender so the campaign runs identically on a
+        // real Base fork.
+        address fuzzerSender = makeAddr("invariantFuzzerSender");
+        vm.deal(fuzzerSender, 1000 ether);
+        vm.deal(address(handler), 1000 ether);
+        vm.deal(address(this), 1000 ether);
+        targetSender(fuzzerSender);
     }
 
     /// INV-BOND-1 + INV-BOND-2: the ledger equals the ghost sum of bonds paid,
@@ -40,7 +51,6 @@ contract FactoryInvariantTest is Test {
         assertEq(handler.bondsPaidByA() + handler.bondsPaidByB(), handler.ghostBondsPaid());
     }
 
-    /// INV-BOND-3: bond parameters never change, regardless of sequence.
     function invariant_bondParams_immutable() public view {
         assertEq(factory.bondAmount(), BOND);
         assertEq(factory.bondSink(), sink);

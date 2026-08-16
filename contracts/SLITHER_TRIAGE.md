@@ -40,4 +40,5 @@ any finding class that could hide a clone bug is non-triageable by policy.
 
 ## Accepted findings
 
-_None yet._ (The scaffolding probe is the only source; it must scan clean.)
+_None yet._ (Factory + template scan clean: zero never-triage findings;
+slither.db.json is empty by construction — PR #76 evidence.)

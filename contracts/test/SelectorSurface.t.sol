@@ -208,6 +208,26 @@ contract SelectorSurfaceTest is LaunchTestBase {
         assertEq(scanned.length, 0);
     }
 
+    /// SecReview76 S1 proof: appending plausible solc CBOR auxdata (map marker
+    /// + trailing 2-byte big-endian length) MUST NOT change the scan result —
+    /// the exact-allowlist gate is deterministic regardless of the metadata
+    /// hash the compiler embeds.
+    function test_selectorScan_auxdataIndependent() public view {
+        bytes memory code = address(template).code;
+        bytes4[] memory base = _scanPush4(code);
+        // synthetic auxdata: CBOR map marker + junk payload, length-suffixed
+        bytes memory fake =
+            hex"a264697066735822deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdead64736f6c6343";
+        bytes memory augmented = bytes.concat(
+            code, fake, bytes1(uint8(fake.length >> 8)), bytes1(uint8(fake.length & 0xff))
+        );
+        bytes4[] memory withAux = _scanPush4(augmented);
+        assertEq(withAux.length, base.length, "auxdata changed scan cardinality");
+        for (uint256 i = 0; i < base.length; i++) {
+            assertEq(bytes32(withAux[i]), bytes32(base[i]), "auxdata changed a scanned PUSH4");
+        }
+    }
+
     // ------------------------------------------------ forbidden (structural)
 
     function test_factory_forbiddenSelectors_absent() public view {
@@ -265,9 +285,14 @@ contract SelectorSurfaceTest is LaunchTestBase {
 
     /// @dev Walks runtime bytecode as an opcode stream (skipping PUSH payloads)
     ///      and collects PUSH4 operands — the dispatcher's selector table plus
-    ///      custom-error revert selectors.
-    function _scanPush4(address target) internal view returns (bytes4[] memory found) {
-        bytes memory code = target.code;
+    ///      custom-error revert selectors. SecReview76 S1: the scan is
+    ///      AUXDATA-INDEPENDENT — solc's trailing CBOR metadata (IPFS hash +
+    ///      version blob) is stripped before walking, so the exact-allowlist
+    ///      gate can never flip green/red because a metadata hash changed.
+    ///      (foundry.toml also pins bytecode_hash="none"; this is the
+    ///      belt-and-braces half.)
+    function _scanPush4(bytes memory code) internal pure returns (bytes4[] memory found) {
+        code = _stripCborAuxdata(code);
         bytes4[] memory tmp = new bytes4[](code.length);
         uint256 n = 0;
         uint256 i = 0;
@@ -289,6 +314,28 @@ contract SelectorSurfaceTest is LaunchTestBase {
         for (uint256 j = 0; j < n; j++) {
             found[j] = tmp[j];
         }
+    }
+
+    function _scanPush4(address target) internal view returns (bytes4[] memory) {
+        return _scanPush4(target.code);
+    }
+
+    /// @dev Removes solc's trailing CBOR auxdata if present. Convention: the
+    ///      final 2 bytes big-endian-encode the auxdata length (excluding
+    ///      themselves); the auxdata itself is a CBOR map (leading byte major
+    ///      type 5, i.e. 0xa0-0xbf). Implausible length → no strip.
+    function _stripCborAuxdata(bytes memory code) internal pure returns (bytes memory) {
+        if (code.length < 4) return code;
+        uint256 metaLen =
+            (uint256(uint8(code[code.length - 2])) << 8) | uint256(uint8(code[code.length - 1]));
+        if (metaLen == 0 || metaLen + 2 > code.length) return code;
+        uint8 marker = uint8(code[code.length - 2 - metaLen]);
+        if (marker < 0xa0 || marker > 0xbf) return code;
+        bytes memory stripped = new bytes(code.length - metaLen - 2);
+        for (uint256 i = 0; i < stripped.length; i++) {
+            stripped[i] = code[i];
+        }
+        return stripped;
     }
 
     function _assertExactSurface(
