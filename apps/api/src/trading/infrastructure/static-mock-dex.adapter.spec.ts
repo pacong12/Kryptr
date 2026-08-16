@@ -26,7 +26,9 @@ describe('StaticMockDexAdapter (adapter-specific)', () => {
   });
 
   it('uses a deterministic fallback price for unknown tokens', async () => {
-    const dex = new StaticMockDexAdapter();
+    const dex = new StaticMockDexAdapter({
+      now: () => Date.parse('2026-05-01T00:00:00.000Z'),
+    });
     const unknownToken = '0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef';
     const request: QuoteRequest = baseQuoteRequest({ assetOut: unknownToken });
     const first = await dex.getQuote(request);
