@@ -80,6 +80,18 @@
       "metadata": {
         "description": "Validate deploy manifests (fail-closed: missing verificationId = invalid)"
       }
+    },
+    "canonicalize": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": ["{projectRoot}/tools/canonicalize.mjs"],
+      "options": {
+        "cwd": "contracts",
+        "command": "node tools/canonicalize.mjs --self-test"
+      },
+      "metadata": {
+        "description": "RFC 8785 (JCS) canonicalizer self-test — the pinned zero-dep tool that produces the G5 artifact contentHash input (runbook §9). Vectors embedded; fail = G5 hashing is broken."
+      }
     }
   }
 }
