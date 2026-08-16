@@ -7,7 +7,10 @@ import {
   DEFAULT_SLIPPAGE_BPS,
   RequestQuoteUseCase,
 } from './request-quote.usecase';
-import { baseQuoteRequest, USDC_BASE } from '../domain/dex-aggregator.contract.spec';
+import {
+  baseQuoteRequest,
+  USDC_BASE,
+} from '../domain/dex-aggregator.contract.spec';
 
 const WALLET: AgentWallet = {
   id: 'wallet-1',

@@ -71,8 +71,7 @@ export class StaticMockDexAdapter implements DexAggregatorPort {
       (amountIn * assetIn.usdMicro) / 10n ** BigInt(assetIn.decimals);
     const amountOut =
       (valueUsdMicro * 10n ** BigInt(assetOut.decimals)) / assetOut.usdMicro;
-    const minAmountOut =
-      (amountOut * BigInt(10_000 - slippageBps)) / 10_000n;
+    const minAmountOut = (amountOut * BigInt(10_000 - slippageBps)) / 10_000n;
 
     const fetchedAtMs = this.now();
     const id = sha256Hex(
