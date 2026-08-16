@@ -1,33 +1,80 @@
-import type { SecurityPolicy, TransactionIntent } from '@kryptr/shared-types';
+import type {
+  ChainId,
+  FeedHealth,
+  SecurityPolicy,
+  TransactionIntent,
+} from '@kryptr/shared-types';
 
 /**
- * Ports for the security gate. The use case depends on these interfaces
- * only; implementations live in infrastructure/ and are wired in the
- * module. Wave 2 swaps the stubs for real adapters without touching the
- * decision logic.
+ * Ports for the security gate (wave 2). The use case depends on these
+ * interfaces only; implementations live in infrastructure/ and are wired
+ * in the module. Shapes are Postgres-ready so the persistence task can
+ * swap implementations without touching the decision logic.
  */
 
-export const PRICE_LOOKUP = 'security.price-lookup';
-export const DAILY_SPEND = 'security.daily-spend';
+export const PRICE_FEED = 'security.price-feed';
+export const SPEND_LEDGER = 'security.spend-ledger';
 export const POLICY_PROVIDER = 'security.policy-provider';
+export const INTENT_STORE = 'security.intent-store';
+export const DECISION_AUDIT = 'security.decision-audit';
 
-/** USD valuation of an intent. Price data sits behind this port. */
-export interface PriceLookup {
-  /**
-   * Total USD value of the intent's amount, or null when the price is
-   * unknown. Null is fail-closed input: the gate escalates to human
-   * approval instead of guessing.
-   */
+/**
+ * USD valuation and spot prices. Fail-closed contract: null means
+ * "unknown" and the gate escalates to human approval — never a silent
+ * pass.
+ */
+export interface PriceFeedPort {
+  /** USD price of one WHOLE unit; null = unknown. */
+  getSpotPrice(
+    chain: ChainId,
+    asset: `0x${string}` | null,
+  ): Promise<number | null>;
+  /** Total USD value of the intent's amount, or null when unknown. */
   getUsdValue(intent: TransactionIntent): Promise<number | null>;
+  /** Freshness for GET /health/feeds. */
+  health(): FeedHealth;
 }
 
-/** How much a wallet already spent today (UTC) in USD. */
-export interface DailySpendReader {
+/** Daily spend per wallet; recorded atomically per intent id. */
+export interface SpendLedger {
   getSpentUsdToday(walletId: string): Promise<number>;
+  /** Idempotent per intentId (re-confirming never double-counts). */
+  record(entry: {
+    intentId: string;
+    walletId: string;
+    usd: number;
+  }): Promise<void>;
 }
 
 /** Where SecurityPolicy objects come from. */
 export interface SecurityPolicyProvider {
   getPolicyForWallet(walletId: string): Promise<SecurityPolicy | null>;
   upsert(policy: SecurityPolicy): Promise<void>;
+}
+
+/** Evaluated intents are stored so timeline/preview can reference them. */
+export interface IntentStore {
+  save(intent: TransactionIntent): Promise<void>;
+  findById(id: string): Promise<TransactionIntent | null>;
+}
+
+/**
+ * Append-only decision log. decisionUsd is fixed at decision time so cap
+ * accounting and forensics never depend on re-pricing.
+ */
+export interface DecisionAuditEntry {
+  id: string;
+  intentId: string;
+  result: 'approved' | 'needs_human_approval' | 'rejected';
+  reason: string;
+  /** ISO-8601. */
+  decidedAt: string;
+  /** USD value used for the decision; null when unknown or rejected early. */
+  decisionUsd: number | null;
+}
+
+export interface DecisionAudit {
+  append(entry: Omit<DecisionAuditEntry, 'id'>): Promise<DecisionAuditEntry>;
+  /** Append-only: entries are immutable once written. */
+  findByIntentId(intentId: string): Promise<DecisionAuditEntry[]>;
 }

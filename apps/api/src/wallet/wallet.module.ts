@@ -22,5 +22,6 @@ import { InMemoryWalletRepository } from './infrastructure/in-memory-wallet.repo
     ListWalletsUseCase,
     GetBalancesUseCase,
   ],
+  exports: [WALLET_REPOSITORY],
 })
 export class WalletModule {}
