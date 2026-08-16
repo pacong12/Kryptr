@@ -6,9 +6,14 @@ import type {
   FeedHealth,
   HealthStatus,
   IntentTimelineStep,
+  KillSwitchMode,
+  KillSwitchState,
+  Order,
+  OrderExecution,
   SecurityDecision,
   SwapQuote,
   WalletBalance,
+  WorkerHealth,
 } from '@kryptr/shared-types';
 
 import {
@@ -16,10 +21,16 @@ import {
   MOCK_CHAINS,
   MOCK_FEEDS,
   MOCK_INTENTS,
+  MOCK_KILL_SWITCH,
+  MOCK_KILL_SWITCH_AUDIT,
+  MOCK_ORDER_EXECUTIONS,
+  MOCK_ORDERS,
   MOCK_QUOTES,
   MOCK_TIMELINES,
   MOCK_WALLETS,
+  MOCK_WORKER_HEALTH,
   type IntentWithStatus,
+  type KillSwitchAuditEntry,
 } from './fixtures';
 
 /**
@@ -249,4 +260,137 @@ export async function getWalletBalances(
     return { data: [], mock: false, apiError: outcome.envelope.error };
   }
   return { data: MOCK_BALANCES[walletId] ?? [], mock: true, apiError: null };
+}
+
+/** Wave 4: all automation orders (GET /api/orders). */
+export async function getOrders(): Promise<DataSource<Order[]>> {
+  const outcome = await fetchEnvelope<Order[]>('/orders');
+  return toDataSource(outcome, MOCK_ORDERS);
+}
+
+/**
+ * Wave 4: claim-store executions of one order (GET /api/orders/:id/executions).
+ * A live envelope error renders as an empty timeline; fixtures only cover an
+ * unreachable API.
+ */
+export async function getOrderExecutions(
+  orderId: string,
+): Promise<DataSource<OrderExecution[]>> {
+  const outcome = await fetchEnvelope<OrderExecution[]>(
+    `/orders/${encodeURIComponent(orderId)}/executions`,
+  );
+  if (outcome.kind === 'envelope') {
+    if (outcome.envelope.ok && outcome.envelope.data !== null) {
+      return { data: outcome.envelope.data, mock: false, apiError: null };
+    }
+    return { data: [], mock: false, apiError: outcome.envelope.error };
+  }
+  return {
+    data: MOCK_ORDER_EXECUTIONS[orderId] ?? [],
+    mock: true,
+    apiError: null,
+  };
+}
+
+/** Wave 4: order-worker health (GET /api/health/worker). */
+export async function getWorkerHealth(): Promise<DataSource<WorkerHealth>> {
+  const outcome = await fetchEnvelope<WorkerHealth>('/health/worker');
+  return toDataSource(outcome, MOCK_WORKER_HEALTH);
+}
+
+/**
+ * Wave 4: current kill-switch state (GET /api/automation/kill-switch).
+ * Safety-critical: a LIVE envelope error is surfaced as `apiError` (never
+ * masked by the 'off' fixture) so the panel renders an honest unavailable
+ * state. Fixtures only cover an unreachable API.
+ */
+export async function getKillSwitchState(): Promise<
+  DataSource<KillSwitchState>
+> {
+  const outcome = await fetchEnvelope<KillSwitchState>(
+    '/automation/kill-switch',
+  );
+  if (outcome.kind === 'envelope') {
+    if (outcome.envelope.ok && outcome.envelope.data !== null) {
+      return { data: outcome.envelope.data, mock: false, apiError: null };
+    }
+    return {
+      data: MOCK_KILL_SWITCH,
+      mock: false,
+      apiError: outcome.envelope.error,
+    };
+  }
+  return { data: MOCK_KILL_SWITCH, mock: true, apiError: null };
+}
+
+/**
+ * Wave 4: audited kill-switch mode changes
+ * (GET /api/automation/kill-switch/audit). Deck-local entry shape until the
+ * worker API ships the endpoint. Like the state getter, a live envelope
+ * error is surfaced rather than masked by fixtures.
+ */
+export async function getKillSwitchAudit(): Promise<
+  DataSource<KillSwitchAuditEntry[]>
+> {
+  const outcome = await fetchEnvelope<KillSwitchAuditEntry[]>(
+    '/automation/kill-switch/audit',
+  );
+  if (outcome.kind === 'envelope') {
+    if (outcome.envelope.ok && outcome.envelope.data !== null) {
+      return { data: outcome.envelope.data, mock: false, apiError: null };
+    }
+    return {
+      data: MOCK_KILL_SWITCH_AUDIT,
+      mock: false,
+      apiError: outcome.envelope.error,
+    };
+  }
+  return { data: MOCK_KILL_SWITCH_AUDIT, mock: true, apiError: null };
+}
+
+/** Outcome of a kill-switch mode change attempt. */
+export interface KillSwitchOutcome {
+  /** New state — only present when the API confirmed the change. */
+  state: KillSwitchState | null;
+  /** Envelope error code from the API, or 'worker_unavailable' when unreachable. */
+  code: string | null;
+  /** True only when the API confirmed the mode change. */
+  applied: boolean;
+}
+
+/**
+ * Wave-4 kill-switch mutation (freeze §3): POST /api/automation/kill-switch
+ * with `{ mode, reason }`, envelope-wrapped KillSwitchState on success.
+ *
+ * Unlike wave-1 decideIntent there is NO fake-success stub here: a kill
+ * switch that cannot reach the worker must report failure honestly — the
+ * mission requires the client stub to throw an envelope error instead.
+ */
+export async function requestKillSwitchMode(
+  mode: KillSwitchMode,
+  reason: string,
+): Promise<KillSwitchOutcome> {
+  const outcome = await fetchEnvelope<KillSwitchState>(
+    '/automation/kill-switch',
+    {
+      method: 'POST',
+      body: JSON.stringify({ mode, reason }),
+      headers: { 'content-type': 'application/json' },
+    },
+  );
+  if (
+    outcome.kind === 'envelope' &&
+    outcome.envelope.ok &&
+    outcome.envelope.data !== null
+  ) {
+    return { state: outcome.envelope.data, code: null, applied: true };
+  }
+  if (outcome.kind === 'envelope') {
+    return {
+      state: null,
+      code: outcome.envelope.error?.code ?? 'worker_unavailable',
+      applied: false,
+    };
+  }
+  return { state: null, code: 'worker_unavailable', applied: false };
 }

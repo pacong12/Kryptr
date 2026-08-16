@@ -13,6 +13,22 @@
  * Usage:
  *   describeKeyed('ZEROX_API_KEY', '0x adapter (keyed)', () => { ... });
  *   itKeyed('COINGECKO_API_KEY', 'fetches spot price', async () => { ... });
+ *
+ * Worker/queue suites (wave 4) use the Redis infra gate below:
+ *   describeRedis('order worker (redis)', () => { ... });
+ *
+ * PERMANENT CONVENTION (ops + vault, wave-4 freeze):
+ * - Worker suite files are named `src/**\/*.workers.ts`; they run via the
+ *   `test-workers` api target (jest.workers.cts, runInBand, cache:false),
+ *   which is on the CI affected line with a redis:7-alpine service
+ *   container (localhost:6379, REDIS_URL set at job level).
+ * - Suites needing Redis wrap in describeRedis/itRedis: gated on REDIS_URL
+ *   presence — CI always has it; machines without local Redis skip with a
+ *   logged reason (skip ≠ failure; CI green never depends on dev machines).
+ * - Connection pattern (see redis-harness.workers.ts): Worker connections
+ *   use { maxRetriesPerRequest: null }; unique queue prefix per suite;
+ *   obliterate/flush between tests; event-driven waits via
+ *   job.waitUntilFinished — never wall-clock sleeps.
  */
 
 export const KEYED_ENV_NAMES = ['ZEROX_API_KEY', 'COINGECKO_API_KEY'] as const;
@@ -47,6 +63,38 @@ export function itKeyed(
   timeoutMs?: number,
 ): void {
   if (hasKey(name)) {
+    it(title, fn, timeoutMs);
+    return;
+  }
+  it.skip(title, fn);
+}
+
+export const REDIS_ENV_NAME = 'REDIS_URL';
+
+function hasRedisUrl(): boolean {
+  const value = process.env[REDIS_ENV_NAME];
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+/** Runs the suite only when REDIS_URL is set; otherwise skips with a logged reason. */
+export function describeRedis(title: string, fn: () => void): void {
+  if (hasRedisUrl()) {
+    describe(title, fn);
+    return;
+  }
+  process.stdout.write(
+    `[env-gate] skipped "${title}": ${REDIS_ENV_NAME} not set (workers test)\n`,
+  );
+  describe.skip(title, fn);
+}
+
+/** Runs one test only when REDIS_URL is set; otherwise skips it. */
+export function itRedis(
+  title: string,
+  fn: jest.ProvidesCallback,
+  timeoutMs?: number,
+): void {
+  if (hasRedisUrl()) {
     it(title, fn, timeoutMs);
     return;
   }
