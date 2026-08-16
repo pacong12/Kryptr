@@ -85,6 +85,11 @@ function triggerLabel(order: Order): string {
               ({{ CHAIN_LABELS[order.chain] }})
             </span>
           </TableCell>
+          <!--
+            TODO(rewire): format with resolveAssetMeta + formatUnits once the
+            real order endpoints land (#47 review follow-up). Unreachable while
+            the fail-closed stub returns no orders.
+          -->
           <TableCell class="font-mono text-xs">{{ order.amount }}</TableCell>
           <TableCell class="font-mono text-xs">{{
             triggerLabel(order)

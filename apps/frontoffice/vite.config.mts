@@ -43,6 +43,10 @@ export default defineConfig(() => ({
     environment: 'jsdom',
     include: ['{src,tests}/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
     reporters: ['default'],
+    // Heavy full-App jsdom mounts (SwapPage/WalletOrdersPage/WalletDetailPage)
+    // exceed vitest's 5s default under full-suite parallel load, causing
+    // timeout flakes in CI. This is a ceiling only — fast tests are unaffected.
+    testTimeout: 15_000,
     coverage: {
       reportsDirectory: './test-output/vitest/coverage',
       provider: 'v8' as const,
