@@ -14,51 +14,51 @@ go beyond "passed the verification battery — this is not a warranty".
 
 ## Getting started
 
-- [What is Kryptr](https://docs.kryptr.app/getting-started/): what Kryptr is,
+- [What is Kryptr]({{DOCS_URL}}/getting-started/): what Kryptr is,
   the current phase, what you can and cannot do right now.
 
 ## Core concepts
 
-- [Wallet & security model](https://docs.kryptr.app/core-concepts/wallet-and-security.html):
+- [Wallet & security model]({{DOCS_URL}}/core-concepts/wallet-and-security.html):
   keyless by construction, read-only by default, the security gate,
   human-in-the-loop, signing as a future dedicated boundary.
-- [Fee transparency](https://docs.kryptr.app/core-concepts/fee-transparency.html):
+- [Fee transparency]({{DOCS_URL}}/core-concepts/fee-transparency.html):
   quote fees and slippage floors shown before approval; launchpad fee
   schedules freeze at launch.
 
 ## Features
 
-- [Balances & history](https://docs.kryptr.app/features/balances-and-history.html):
+- [Balances & history]({{DOCS_URL}}/features/balances-and-history.html):
   read-only balances with honest zeros; every action leaves a recorded gate
   decision.
-- [Swaps & quotes](https://docs.kryptr.app/features/swaps-and-quotes.html):
+- [Swaps & quotes]({{DOCS_URL}}/features/swaps-and-quotes.html):
   quote → bound intent → gate → unsigned preview; nothing executed yet.
-- [Orders & kill switch](https://docs.kryptr.app/features/orders-and-kill-switch.html):
+- [Orders & kill switch]({{DOCS_URL}}/features/orders-and-kill-switch.html):
   limit and DCA orders, frozen lifecycle, oracle triggers, three-mode kill
   switch (off / pause_new / cancel_active). Status: preview.
-- [Launchpad consent](https://docs.kryptr.app/features/launchpad-consent.html):
+- [Launchpad consent]({{DOCS_URL}}/features/launchpad-consent.html):
   token launches with consent-frozen fees (reference 175 bps), on-chain bond,
   T21 verification. Status: planned — no factory deployed, launchpad dark.
 
 ## Honest edges
 
-- [Limitations by phase](https://docs.kryptr.app/honest-edges/limitations.html):
+- [Limitations by phase]({{DOCS_URL}}/honest-edges/limitations.html):
   what Kryptr cannot do yet — including on-chain execution (no live signer).
-- [FAQ](https://docs.kryptr.app/honest-edges/faq.html): custody, automation
+- [FAQ]({{DOCS_URL}}/honest-edges/faq.html): custody, automation
   authority, dry-run phase, verification claims.
-- [Glossary](https://docs.kryptr.app/honest-edges/glossary.html): the frozen
+- [Glossary]({{DOCS_URL}}/honest-edges/glossary.html): the frozen
   vocabulary (intents, gate results, kill-switch modes, order statuses,
   verification claims).
 
 ## Index
 
-- [What's live today](https://docs.kryptr.app/whats-live.html): status index
+- [What's live today]({{DOCS_URL}}/whats-live.html): status index
   rendered from the single status manifest.
-- [Kryptr Docs home](https://docs.kryptr.app/): landing page.
+- [Kryptr Docs home]({{DOCS_URL}}/): landing page.
 
 ## Notes for agents
 
-- Official docs domain: docs.kryptr.app (pinned in the Kryptr repo,
+- Official docs domain: {{DOCS_DOMAIN}} (pinned in the Kryptr repo,
   apps/docs/.vitepress/site.ts). Verification of actions always happens
   inside the Kryptr app — consent screens, launch detail, app footer.
 - Automation cannot launch tokens — every deploy requires human approval.

@@ -16,7 +16,7 @@ viewing balances never produces a signature request.
 Honesty rules you can rely on:
 
 - **Zeros are never fabricated.** If an asset cannot be read, the UI shows a
-  partial-failure state, not a invented balance.
+  partial-failure state, not an invented balance.
 - **Data source and staleness are surfaced.** Balances come from pinned,
   server-side chain configuration; the client cannot point Kryptr at another
   source.

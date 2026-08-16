@@ -7,9 +7,13 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { defineConfig } from 'vitepress';
-import { CANONICAL_DOCS_DOMAIN, VERIFICATION_POSTURE } from './site';
+import {
+  CANONICAL_DOCS_DOMAIN,
+  CANONICAL_DOCS_URL,
+  VERIFICATION_POSTURE,
+} from './site';
 
 /**
  * CSP hardening (Web3Intel binding ruling, 2026-08-17): the deployed site
@@ -72,6 +76,101 @@ function externalizeInlineScripts(outDir: string): void {
 }
 
 /**
+ * Generate `/llms.txt` (AI-agent summary of the docs, bankr-docs pattern)
+ * at build time from the pinned official domain in ./site.ts — the
+ * anti-phishing pin stays the SINGLE source of truth for the docs domain.
+ * The template lives at .vitepress/llms.template.txt and must never contain
+ * a hardcoded docs domain.
+ */
+function writeLlmsTxt(outDir: string, templatePath: string): void {
+  const rendered = readFileSync(templatePath, 'utf8')
+    .replaceAll('{{DOCS_URL}}', CANONICAL_DOCS_URL)
+    .replaceAll('{{DOCS_DOMAIN}}', CANONICAL_DOCS_DOMAIN);
+  writeFileSync(join(outDir, 'llms.txt'), rendered, 'utf8');
+  console.log(
+    `[llms] wrote llms.txt from template (domain pin: ${CANONICAL_DOCS_DOMAIN})`,
+  );
+}
+
+/** First YAML front-matter `status:` of a page, or null when absent. */
+function extractFrontMatterStatus(source: string): string | null {
+  const block = source.match(/^---\r?\n[\s\S]*?\r?\n---/);
+  if (!block) return null;
+  const status = block[0].match(/^status:\s*(live|preview|planned)\s*$/m);
+  return status ? (status[1] as string) : null;
+}
+
+/** All markdown content pages under srcDir, relative POSIX paths. */
+function walkMarkdown(root: string): string[] {
+  const found: string[] = [];
+  function walk(dir: string): void {
+    for (const entry of readdirSync(dir)) {
+      if (entry.startsWith('.') || entry === 'node_modules') continue;
+      const abs = join(dir, entry);
+      if (statSync(abs).isDirectory()) walk(abs);
+      else if (entry.endsWith('.md')) found.push(abs.slice(root.length + 1));
+    }
+  }
+  walk(root);
+  return found;
+}
+
+/**
+ * Build-time cross-check (single manifest = single source of truth): every
+ * manifest entry must match its page's front-matter `status`, and every
+ * markdown content page must appear in the manifest. Any mismatch fails the
+ * build, so CI rejects status drift instead of publishing it.
+ */
+function checkStatusManifest(srcDir: string): void {
+  const manifest = JSON.parse(
+    readFileSync(join(srcDir, 'status-manifest.json'), 'utf8'),
+  ) as { pages: { path: string; status: string }[] };
+  const errors: string[] = [];
+
+  const manifestByFile = new Map<string, string>();
+  for (const page of manifest.pages) {
+    const file =
+      page.path === '/'
+        ? 'index.md'
+        : page.path.endsWith('/')
+          ? `${page.path.slice(1)}index.md`
+          : page.path.slice(1).replace(/\.html$/, '.md');
+    manifestByFile.set(file, page.status);
+  }
+
+  for (const [file, status] of manifestByFile) {
+    const abs = join(srcDir, file);
+    if (!existsSync(abs)) {
+      errors.push(`manifest entry has no page file: ${file}`);
+      continue;
+    }
+    const frontStatus = extractFrontMatterStatus(readFileSync(abs, 'utf8'));
+    if (frontStatus === null) {
+      errors.push(`${file}: missing \`status\` front matter`);
+    } else if (frontStatus !== status) {
+      errors.push(
+        `${file}: front matter \`${frontStatus}\` != manifest \`${status}\``,
+      );
+    }
+  }
+
+  for (const file of walkMarkdown(srcDir)) {
+    if (!manifestByFile.has(file)) {
+      errors.push(`${file}: missing from status-manifest.json`);
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new Error(
+      `status-manifest cross-check failed:\n- ${errors.join('\n- ')}`,
+    );
+  }
+  console.log(
+    `[manifest] cross-checked ${manifestByFile.size} page(s) against front matter`,
+  );
+}
+
+/**
  * Kryptr user documentation — VitePress config.
  *
  * BINDING (Web3Intel, 2026-08-17):
@@ -95,6 +194,11 @@ export default defineConfig({
 
   buildEnd(siteConfig) {
     externalizeInlineScripts(siteConfig.outDir);
+    writeLlmsTxt(
+      siteConfig.outDir,
+      resolve(siteConfig.srcDir, '.vitepress/llms.template.txt'),
+    );
+    checkStatusManifest(siteConfig.srcDir);
   },
 
   themeConfig: {
