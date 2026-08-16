@@ -270,7 +270,7 @@ describeRedis('order-worker bullmq bindings (real redis)', () => {
         await new Promise((resolve) => setTimeout(resolve, 250));
       }
       expect(finalized).toEqual([
-        { orderId: 'ord-exhaust', slotKey: 'slot-0' },
+        { orderId: 'ord-exhaust', slotKey: 'slot-0', reason: 'always down' },
       ]);
       expect(await executions.findById('ord-exhaust:slot-0')).toMatchObject({
         status: 'failed',
