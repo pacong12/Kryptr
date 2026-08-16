@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { SecurityDecision, TransactionIntent } from '@kryptr/shared-types';
 import { inspectIntentPayload } from '../domain/payload-inspection';
+import { KeyedMutex } from '../../common/keyed-mutex';
 import {
   DECISION_AUDIT,
   INTENT_STORE,
@@ -49,6 +50,10 @@ export class EvaluateIntentUseCase {
     @Inject(DECISION_AUDIT) private readonly decisionAudit: DecisionAudit,
     @Inject(QUOTE_STORE) private readonly quoteStore: QuoteStore,
   ) {}
+
+  /** Per-wallet serialization of the cap path (F1). Per-instance by
+   * design — one gate instance, one lock table. */
+  private readonly walletLocks = new KeyedMutex();
 
   async execute(intent: TransactionIntent): Promise<SecurityDecision> {
     await this.intentStore.save(intent);
@@ -137,29 +142,40 @@ export class EvaluateIntentUseCase {
       );
     }
 
-    const spentUsdToday = await this.spendLedger.getSpentUsdToday(
-      intent.walletId,
-    );
-    if (policy.dailyCapUsd <= 0 && valueUsd > 0) {
-      return this.finish(
-        intent,
-        valueUsd,
-        'rejected',
-        'rejected: daily cap is zero; no outbound value allowed',
+    // F1: the read-check-record cap path is serialized per wallet. Two
+    // concurrent intents on one wallet must not both read the same
+    // spent-today and both record — single-instance guard (async mutex);
+    // the Postgres era moves this to an atomic compare-and-reserve.
+    return this.walletLocks.runExclusive(intent.walletId, async () => {
+      const spentUsdToday = await this.spendLedger.getSpentUsdToday(
+        intent.walletId,
       );
-    }
-    if (spentUsdToday + valueUsd > policy.dailyCapUsd) {
-      return this.finish(
-        intent,
-        valueUsd,
-        'rejected',
-        `rejected: daily cap exceeded (spent $${spentUsdToday.toFixed(
-          2,
-        )} + $${valueUsd.toFixed(2)} > cap $${policy.dailyCapUsd.toFixed(2)})`,
-      );
-    }
+      if (policy.dailyCapUsd <= 0 && valueUsd > 0) {
+        return this.finish(
+          intent,
+          valueUsd,
+          'rejected',
+          'rejected: daily cap is zero; no outbound value allowed',
+        );
+      }
+      if (spentUsdToday + valueUsd > policy.dailyCapUsd) {
+        return this.finish(
+          intent,
+          valueUsd,
+          'rejected',
+          `rejected: daily cap exceeded (spent $${spentUsdToday.toFixed(
+            2,
+          )} + $${valueUsd.toFixed(2)} > cap $${policy.dailyCapUsd.toFixed(2)})`,
+        );
+      }
 
-    return this.finish(intent, valueUsd, 'approved', 'approved: within policy');
+      return this.finish(
+        intent,
+        valueUsd,
+        'approved',
+        'approved: within policy',
+      );
+    });
   }
 
   /**
@@ -200,11 +216,16 @@ export class EvaluateIntentUseCase {
   }
 
   /**
-   * Finalize a decision: append the immutable audit entry (USD fixed at
-   * decision time), record approved spend against the daily cap
-   * (delegating dedupe to the SpendLedger port contract — per UTC day,
-   * last decision wins), and — for non-rejected swaps — take the quote's
-   * single-use binding.
+   * Finalize a decision. Ordering is security-critical:
+   *  1. F2 — non-rejected swaps take the quote's single-use binding
+   *     FIRST and honor its result: bind() === false means a concurrent
+   *     intent won the quote, so the decision downgrades to rejected.
+   *  2. F5 — approved spend is recorded BEFORE the audit entry, so a
+   *     failed record aborts the decision (fail-closed); an approved
+   *     intent must never exist without consuming the cap.
+   *  3. The immutable audit entry is appended last (USD fixed at
+   *     decision time; dedupe delegated to the SpendLedger port
+   *     contract — per UTC day, last decision wins).
    */
   private async finish(
     intent: TransactionIntent,
@@ -212,29 +233,35 @@ export class EvaluateIntentUseCase {
     result: SecurityDecision['result'],
     reason: string,
   ): Promise<SecurityDecision> {
-    const decision: SecurityDecision = {
-      intentId: intent.id,
-      result,
-      reason,
-      decidedAt: new Date().toISOString(),
-    };
-    await this.decisionAudit.append({
-      intentId: intent.id,
-      result,
-      reason,
-      decidedAt: decision.decidedAt,
-      decisionUsd,
-    });
-    if (result === 'approved' && decisionUsd !== null) {
+    let finalResult = result;
+    let finalReason = reason;
+    if (intent.kind === 'swap' && intent.swap && finalResult !== 'rejected') {
+      const bound = await this.quoteStore.bind(intent.swap.quoteId, intent.id);
+      if (!bound) {
+        finalResult = 'rejected';
+        finalReason = `rejected: quote "${intent.swap.quoteId}" already bound to another intent`;
+      }
+    }
+    if (finalResult === 'approved' && decisionUsd !== null) {
       await this.spendLedger.record({
         intentId: intent.id,
         walletId: intent.walletId,
         usd: decisionUsd,
       });
     }
-    if (intent.kind === 'swap' && intent.swap && result !== 'rejected') {
-      await this.quoteStore.bind(intent.swap.quoteId, intent.id);
-    }
+    const decision: SecurityDecision = {
+      intentId: intent.id,
+      result: finalResult,
+      reason: finalReason,
+      decidedAt: new Date().toISOString(),
+    };
+    await this.decisionAudit.append({
+      intentId: intent.id,
+      result: finalResult,
+      reason: finalReason,
+      decidedAt: decision.decidedAt,
+      decisionUsd,
+    });
     return decision;
   }
 }

@@ -83,6 +83,16 @@ export class PreviewSwapExecutionUseCase {
         410,
       );
     }
+    // F2: verify the single-use binding actually points at THIS intent.
+    // An approved decision for a quote that another intent bound is a
+    // replay shape — refuse before any calldata is produced.
+    if (stored.boundIntentId !== intent.id) {
+      throw new DomainError(
+        'quote_not_bound',
+        `quote "${stored.quote.id}" is not bound to intent "${intent.id}"`,
+        409,
+      );
+    }
     if (Date.parse(stored.quote.expiresAt) <= Date.now()) {
       throw new DomainError(
         'quote_expired',

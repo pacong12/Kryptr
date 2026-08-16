@@ -563,4 +563,55 @@ describe('EvaluateIntentUseCase', () => {
       expect(decision.result).toBe('approved');
     });
   });
+
+  describe('wave-4 gate hardening (security review entry criteria)', () => {
+    it('F5: a record failure aborts the decision BEFORE the audit', async () => {
+      spendLedger.record.mockRejectedValue(new Error('ledger down'));
+      await expect(useCase.execute(makeIntent({}))).rejects.toThrow(
+        'ledger down',
+      );
+      expect(decisionAudit.append).not.toHaveBeenCalled();
+    });
+
+    it('F2: a lost quote binding (bind=false) rejects the decision', async () => {
+      quoteStore.findById.mockResolvedValue({
+        quote: QUOTE,
+        boundIntentId: null,
+      });
+      quoteStore.bind.mockResolvedValue(false);
+      const decision = await useCase.execute(makeSwapIntent(QUOTE));
+      expect(decision.result).toBe('rejected');
+      expect(decision.reason).toContain('bound');
+      expect(spendLedger.record).not.toHaveBeenCalled();
+    });
+
+    it('F1: concurrent intents on one wallet never overdraw the daily cap', async () => {
+      const realLedger = new InMemorySpendLedger();
+      const uc = new EvaluateIntentUseCase(
+        priceFeed,
+        realLedger,
+        policyProvider,
+        intentStore,
+        decisionAudit,
+        quoteStore,
+      );
+      priceFeed.getUsdValue.mockResolvedValue(200);
+      policyProvider.getPolicyForWallet.mockResolvedValue({
+        ...POLICY,
+        approvalThresholdUsd: 1000,
+        dailyCapUsd: 1000,
+      });
+      const decisions = await Promise.all(
+        Array.from({ length: 10 }, (_, i) =>
+          uc.execute(makeIntent({ id: `intent-c-${i}` })),
+        ),
+      );
+      const approved = decisions.filter((d) => d.result === 'approved');
+      // exactly 5 x $200 fit the $1000 cap — no TOCTOU overdraw
+      expect(approved).toHaveLength(5);
+      await expect(
+        realLedger.getSpentUsdToday('wallet-1'),
+      ).resolves.toBe(1000);
+    });
+  });
 });
