@@ -82,6 +82,14 @@ export function FeedStatusBadge({ status }: { status: FeedStatus }) {
   return <Badge variant={FEED_STATUS_VARIANTS[status]}>{status}</Badge>;
 }
 
+export function ChainReachabilityBadge({ reachable }: { reachable: boolean }) {
+  return (
+    <Badge variant={reachable ? 'default' : 'destructive'}>
+      {reachable ? 'reachable' : 'unreachable'}
+    </Badge>
+  );
+}
+
 /** Marks data served from local fixtures instead of the live API. */
 export function MockDataBadge() {
   return <Badge variant="outline">mock data</Badge>;

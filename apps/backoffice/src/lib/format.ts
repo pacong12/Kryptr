@@ -29,3 +29,18 @@ export function shortenHex(value: string): string {
 export function humanize(slug: string): string {
   return slug.replaceAll('_', ' ');
 }
+
+/**
+ * Raw integer units -> decimal string using BigInt (wei-scale safe):
+ * ('1200000000000000000', 18) -> '1.2'. Trailing zeros are trimmed.
+ */
+export function formatUnits(amount: string, decimals: number): string {
+  const raw = BigInt(amount);
+  const base = 10n ** BigInt(decimals);
+  const whole = raw / base;
+  const frac = (raw % base)
+    .toString()
+    .padStart(decimals, '0')
+    .replace(/0+$/, '');
+  return frac === '' ? whole.toString() : `${whole}.${frac}`;
+}

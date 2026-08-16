@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { AgentWallet } from '@kryptr/shared-types';
 import {
   Card,
@@ -38,7 +39,14 @@ export function WalletsTable({ wallets }: { wallets: AgentWallet[] }) {
       <TableBody>
         {wallets.map((wallet) => (
           <TableRow key={wallet.id}>
-            <TableCell className="font-medium">{wallet.id}</TableCell>
+            <TableCell className="font-medium">
+              <Link
+                href={`/wallets/${wallet.id}`}
+                className="underline-offset-4 hover:underline"
+              >
+                {wallet.id}
+              </Link>
+            </TableCell>
             <TableCell className="font-mono text-muted-foreground">
               {shortenHex(wallet.address)}
             </TableCell>

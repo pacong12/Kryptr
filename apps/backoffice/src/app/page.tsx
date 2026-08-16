@@ -1,5 +1,13 @@
 import { Suspense } from 'react';
 
+import {
+  ChainConnectionsSection,
+  ChainConnectionsSectionSkeleton,
+} from '@/components/chains-section';
+import {
+  DashboardAutoRefresh,
+  RefreshButton,
+} from '@/components/dashboard-refresh';
 import { FeedsSection, FeedsSectionSkeleton } from '@/components/feeds-section';
 import {
   HealthSection,
@@ -16,25 +24,35 @@ import {
 
 /**
  * Dashboard. Each section is its own async server component inside a
- * Suspense boundary, so /health, /wallets and the intents feed are fetched
- * in parallel and stream in independently (no request waterfall).
+ * Suspense boundary, so /health, feeds, chains, /wallets and the intents
+ * feed are fetched in parallel and stream in independently (no request
+ * waterfall). Wave 3 adds a 12s auto-refresh (router.refresh) plus a manual
+ * Refresh button — decision panels on other routes stay untouched.
  */
 export default function DashboardPage() {
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">
-          Fleet health, agent wallets and the latest transaction intents.
-        </p>
+      <DashboardAutoRefresh />
+      <header className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+          <p className="text-sm text-muted-foreground">
+            Fleet health, data feeds, chain connections, agent wallets and the
+            latest transaction intents.
+          </p>
+        </div>
+        <RefreshButton />
       </header>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
         <Suspense fallback={<HealthSectionSkeleton />}>
           <HealthSection />
         </Suspense>
         <Suspense fallback={<FeedsSectionSkeleton />}>
           <FeedsSection />
+        </Suspense>
+        <Suspense fallback={<ChainConnectionsSectionSkeleton />}>
+          <ChainConnectionsSection />
         </Suspense>
       </div>
 
