@@ -4,6 +4,7 @@ import { createMemoryHistory } from 'vue-router';
 import type {
   AgentWallet,
   SecurityDecision,
+  SignRequest,
   SwapQuote,
   WalletBalance,
 } from '@kryptr/shared-types';
@@ -69,6 +70,20 @@ function makeDecision(
   };
 }
 
+const signRequest: SignRequest = {
+  id: 'sign-request-1',
+  intentId: 'intent-1',
+  status: 'dry_run',
+  unsignedTx: {
+    to: '0x1111111111111111111111111111111111111111',
+    data: '0xdeadbeef',
+    value: '0x0',
+  },
+  digest: '0xabc123',
+  note: 'dry-run only — nothing broadcast',
+  createdAt: '2026-08-20T00:00:01.000Z',
+};
+
 function jsonResponse(body: unknown, ok = true, status = 200) {
   return { ok, status, text: async () => JSON.stringify(body) };
 }
@@ -81,8 +96,11 @@ interface FetchOptions {
 
 function fetchMock(options: FetchOptions = {}) {
   const { quote = makeQuote(), decision = makeDecision() } = options;
-  return vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+  return vi.fn(async (input: string | URL | Request, _init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input.toString();
+    if (url.includes('/sign-request')) {
+      return jsonResponse({ ok: true, data: signRequest, error: null });
+    }
     if (url.includes('/security/evaluate')) {
       return jsonResponse({ ok: true, data: decision, error: null });
     }
@@ -249,6 +267,65 @@ describe('SwapPage (quote → review → gate decision)', () => {
     expect(wrapper.text()).toContain('No quote available');
     expect(wrapper.text()).toContain('No aggregator could price this pair.');
     expect(wrapper.text()).not.toContain('You receive (expected)');
+    // Transient failure keeps the retry affordance.
+    expect(buttonByText(wrapper.element, 'Retry quote')).toBeTruthy();
+    wrapper.unmount();
+  });
+
+  it('unconfigured aggregator: informational copy, never a retry tease', async () => {
+    const fetchImpl = fetchMock({
+      quoteEnvelope: {
+        ok: false,
+        error: {
+          code: 'aggregator_unconfigured',
+          message: 'No aggregator configured.',
+        },
+      },
+    });
+    const { wrapper } = await mountSwapPage(fetchImpl);
+
+    await requestQuote(wrapper);
+
+    expect(wrapper.text()).toContain('Live quotes not available');
+    expect(wrapper.text()).toContain('no swap aggregator configured');
+    expect(wrapper.text()).not.toContain('Retry quote');
+    expect(wrapper.text()).not.toContain('You receive (expected)');
+    wrapper.unmount();
+  });
+
+  it('approved swap can prepare a labeled dry-run signature', async () => {
+    const fetchImpl = fetchMock();
+    const { wrapper } = await mountSwapPage(fetchImpl);
+
+    await requestQuote(wrapper);
+    await buttonByText(wrapper.element, 'Review swap')!.dispatchEvent(
+      new MouseEvent('click'),
+    );
+    await flushPromises();
+    buttonByText(
+      document.body,
+      'Confirm — send to security gate',
+    )!.dispatchEvent(new MouseEvent('click'));
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Approved — ready to sign');
+
+    // Dry-run is user-triggered and clearly labeled.
+    buttonByText(wrapper.element, 'Dry-run sign')!.dispatchEvent(
+      new MouseEvent('click'),
+    );
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Dry-run signature — nothing broadcast');
+    expect(wrapper.text()).toContain('status: dry_run');
+    expect(wrapper.text()).toContain('dry-run only — nothing broadcast');
+    expect(wrapper.text()).toContain('0xabc123');
+    const signCall = fetchImpl.mock.calls.find((call) =>
+      String(call[0]).includes('/sign-request'),
+    );
+    expect(String(signCall![0])).toContain(
+      '/security/intents/intent-1/sign-request',
+    );
     wrapper.unmount();
   });
 });

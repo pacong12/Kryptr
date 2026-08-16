@@ -51,17 +51,24 @@ function jsonResponse(body: unknown, ok = true, status = 200) {
   };
 }
 
-function fetchMock() {
+function fetchMock(
+  options: {
+    walletOverride?: AgentWallet;
+    balancesOverride?: WalletBalance[];
+  } = {},
+) {
+  const walletData = options.walletOverride ?? wallet;
+  const balanceData = options.balancesOverride ?? balances;
   return vi.fn(async (input: string | URL | Request) => {
     const url = typeof input === 'string' ? input : input.toString();
     if (url.includes('/security/evaluate')) {
       return jsonResponse({ ok: true, data: decision, error: null });
     }
     if (url.includes(`/wallets/${WALLET_ID}/balances`)) {
-      return jsonResponse({ ok: true, data: balances, error: null });
+      return jsonResponse({ ok: true, data: balanceData, error: null });
     }
     if (url.endsWith('/wallets')) {
-      return jsonResponse({ ok: true, data: [wallet], error: null });
+      return jsonResponse({ ok: true, data: [walletData], error: null });
     }
     return jsonResponse(
       { ok: false, data: null, error: { code: 'not_found', message: 'nope' } },
@@ -139,5 +146,65 @@ describe('Wallet overview tab (transfer through the security gate)', () => {
       globalThis.fetch as ReturnType<typeof vi.fn>
     ).mock.calls.find((call) => String(call[0]).includes('/security/evaluate'));
     expect(evaluateCall).toBeUndefined();
+  });
+});
+
+describe('Wallet overview tab (real-data degradation)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  async function mountPage() {
+    const router = createAppRouter(createMemoryHistory());
+    await router.push({
+      name: 'wallet-detail',
+      params: { walletId: WALLET_ID },
+    });
+    await router.isReady();
+    const wrapper = mount(App, {
+      global: { plugins: [router] },
+    });
+    await flushPromises();
+    return { wrapper, router };
+  }
+
+  it('empty wallet: shows the empty state instead of a fabricated table', async () => {
+    vi.stubGlobal(
+      'fetch',
+      fetchMock({
+        balancesOverride: [
+          {
+            walletId: WALLET_ID,
+            chain: 'base',
+            nativeBalance: '0',
+            tokens: [],
+          },
+        ],
+      }),
+    );
+    const { wrapper } = await mountPage();
+
+    expect(wrapper.text()).toContain('No assets to show');
+    expect(wrapper.text()).toContain("doesn't hold anything");
+    wrapper.unmount();
+  });
+
+  it('partial chain failure: renders present chains plus a note row for the missing one', async () => {
+    vi.stubGlobal(
+      'fetch',
+      fetchMock({
+        walletOverride: { ...wallet, chains: ['base', 'robinhood-chain'] },
+        // balances envelope only carries the base entry — the reader
+        // never answered for robinhood-chain.
+      }),
+    );
+    const { wrapper } = await mountPage();
+
+    // Present chain still renders its rows.
+    expect(wrapper.text()).toContain('USDC');
+    // Missing chain gets a note row — and never fabricated zeros.
+    expect(wrapper.text()).toContain('No balance data for Robinhood Chain');
+    expect(wrapper.text()).toContain('Nothing is fabricated');
+    wrapper.unmount();
   });
 });

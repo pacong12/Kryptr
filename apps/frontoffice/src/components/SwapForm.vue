@@ -67,6 +67,8 @@ const amountModel = computed<string>({
 const chainBalances = computed(() =>
   props.balances.filter((balance) => balance.chain === props.chain),
 );
+/** Balance entry for the selected chain; null when the reader never answered. */
+const chainEntry = computed(() => chainBalances.value[0] ?? null);
 /** Token holdings with a real contract address (native trades as 'native'). */
 const tokenOptions = computed(() =>
   chainBalances.value
@@ -85,15 +87,32 @@ const inMeta = computed(() =>
   resolveAssetMeta(props.chain, toAddress(props.assetIn), props.balances),
 );
 const balanceHint = computed(() => {
+  const entry = chainEntry.value;
+  // Never fabricate zeros: a missing chain entry means "unknown", not 0.
+  if (entry === null) return null;
   if (props.assetIn === NATIVE_ASSET) {
-    const native = chainBalances.value[0]?.nativeBalance ?? '0';
-    return formatUnits(native, NATIVE_DECIMALS);
+    return formatUnits(entry.nativeBalance, NATIVE_DECIMALS);
   }
   const token = tokenOptions.value.find(
     (candidate) => candidate.contractAddress === props.assetIn,
   );
   return token ? formatUnits(token.amount, token.decimals) : null;
 });
+
+/**
+ * Sell-side options with a KNOWN zero balance are shown but disabled —
+ * hiding them would confuse users about what exists. Unknown balances
+ * (missing chain entry) stay selectable; the gate decides, not the form.
+ */
+function sellDisabled(key: string): boolean {
+  const entry = chainEntry.value;
+  if (entry === null) return false;
+  if (key === NATIVE_ASSET) return entry.nativeBalance === '0';
+  const token = tokenOptions.value.find(
+    (candidate) => candidate.contractAddress === key,
+  );
+  return token !== undefined && token.amount === '0';
+}
 
 function itemLabel(key: string): string {
   if (key === NATIVE_ASSET) {
@@ -149,15 +168,28 @@ function itemLabel(key: string): string {
             <SelectValue placeholder="Select asset" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem :value="NATIVE_ASSET">
+            <SelectItem
+              :value="NATIVE_ASSET"
+              :disabled="sellDisabled(NATIVE_ASSET)"
+            >
               {{ itemLabel(NATIVE_ASSET) }}
+              <span
+                v-if="sellDisabled(NATIVE_ASSET)"
+                class="text-muted-foreground"
+              >
+                — No balance
+              </span>
             </SelectItem>
             <SelectItem
               v-for="token in tokenOptions"
               :key="token.contractAddress"
               :value="token.contractAddress"
+              :disabled="token.amount === '0'"
             >
               {{ token.symbol }}
+              <span v-if="token.amount === '0'" class="text-muted-foreground">
+                — No balance
+              </span>
             </SelectItem>
           </SelectContent>
         </Select>

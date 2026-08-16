@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import type { ChainId, QuoteRequest, SwapQuote } from '@kryptr/shared-types';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from '@kryptr/shared-ui/vue/alert';
 import { Badge } from '@kryptr/shared-ui/vue/badge';
 import { Button } from '@kryptr/shared-ui/vue/button';
 import {
@@ -20,7 +25,7 @@ import {
 } from '@kryptr/shared-ui/vue/dialog';
 import { Separator } from '@kryptr/shared-ui/vue/separator';
 import { Skeleton } from '@kryptr/shared-ui/vue/skeleton';
-import { Loader2, ShieldCheck } from '@lucide/vue';
+import { Loader2, ShieldCheck, TriangleAlert } from '@lucide/vue';
 import { toast } from 'vue-sonner';
 import QuoteCard from '@/components/QuoteCard.vue';
 import SwapForm from '@/components/SwapForm.vue';
@@ -28,6 +33,7 @@ import SwapResultPanel from '@/components/SwapResultPanel.vue';
 import { useBalances } from '@/composables/useBalances';
 import { useQuote } from '@/composables/useQuote';
 import { useSwap } from '@/composables/useSwap';
+import { useSignRequest } from '@/composables/useSignRequest';
 import { useWallets } from '@/composables/useWallets';
 import {
   CHAIN_LABELS,
@@ -68,6 +74,13 @@ const {
   evaluate: evaluateSwap,
   reset: resetSwap,
 } = useSwap();
+const {
+  requesting: signRequesting,
+  signRequest,
+  error: signRequestError,
+  request: requestSignature,
+  reset: resetSignRequest,
+} = useSignRequest();
 
 onMounted(() => {
   void refreshWallets();
@@ -138,6 +151,7 @@ onUnmounted(() => {
 // Any form change invalidates a previous gate decision (it is quote-bound).
 watch([chain, assetIn, assetOut, amount], () => {
   resetSwap();
+  resetSignRequest();
 });
 
 function flip(): void {
@@ -181,8 +195,14 @@ async function submitSwap(activeQuote: SwapQuote, activeChain: ChainId) {
 
 function adjust(): void {
   resetSwap();
+  resetSignRequest();
   clearQuote();
   amount.value = '';
+}
+
+function handleSignRequest(): void {
+  const intentId = swapDecision.value?.intentId;
+  if (intentId) void requestSignature(intentId);
 }
 </script>
 
@@ -201,9 +221,13 @@ function adjust(): void {
       class="h-80 w-full"
     />
 
-    <p v-else-if="!wallet" role="alert" class="text-destructive text-sm">
-      Wallet {{ walletId }} was not found.
-    </p>
+    <Alert v-else-if="!wallet" variant="destructive">
+      <TriangleAlert aria-hidden="true" />
+      <AlertTitle>Wallet not found</AlertTitle>
+      <AlertDescription>
+        Wallet {{ walletId }} was not found.
+      </AlertDescription>
+    </Alert>
 
     <template v-else>
       <Card>
@@ -270,22 +294,25 @@ function adjust(): void {
           v-else-if="swapDecision"
           :decision="swapDecision"
           :preview="swapPreview"
+          :sign-request="signRequest"
+          :sign-requesting="signRequesting"
+          :sign-request-error="signRequestError"
           @adjust="adjust"
+          @sign="handleSignRequest"
         />
-        <div
-          v-else-if="gateUnreachable"
-          role="alert"
-          class="text-destructive space-y-1 text-sm"
-        >
-          <p class="font-medium">Security gate unreachable — swap blocked.</p>
-          <p>
+        <Alert v-else-if="gateUnreachable" variant="destructive">
+          <TriangleAlert aria-hidden="true" />
+          <AlertTitle>Security gate unreachable — swap blocked.</AlertTitle>
+          <AlertDescription>
             Kryptr never lets an intent bypass the gate. Retry when the API is
             available.
-          </p>
-        </div>
-        <p v-else-if="swapError" role="alert" class="text-destructive text-sm">
-          {{ swapError.message }}
-        </p>
+          </AlertDescription>
+        </Alert>
+        <Alert v-else-if="swapError" variant="destructive">
+          <TriangleAlert aria-hidden="true" />
+          <AlertTitle>Swap failed</AlertTitle>
+          <AlertDescription>{{ swapError.message }}</AlertDescription>
+        </Alert>
       </div>
 
       <Dialog v-model:open="reviewOpen">

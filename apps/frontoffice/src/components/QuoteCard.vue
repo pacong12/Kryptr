@@ -1,14 +1,20 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import type {
   ApiError,
   ChainId,
   SwapQuote,
   WalletBalance,
 } from '@kryptr/shared-types';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from '@kryptr/shared-ui/vue/alert';
 import { Badge } from '@kryptr/shared-ui/vue/badge';
 import { Button } from '@kryptr/shared-ui/vue/button';
 import { Skeleton } from '@kryptr/shared-ui/vue/skeleton';
-import { RefreshCw, TriangleAlert } from '@lucide/vue';
+import { Info, RefreshCw, TriangleAlert } from '@lucide/vue';
 import type { QuoteState } from '@/composables/useQuote';
 import { formatUnits, resolveAssetMeta } from '@/lib/format';
 
@@ -25,6 +31,11 @@ const props = defineProps<{
 const emit = defineEmits<{
   (event: 'refresh'): void;
 }>();
+
+/** A missing aggregator key never succeeds on retry — say so, don't tease. */
+const unconfigured = computed(
+  () => props.error?.code === 'aggregator_unconfigured',
+);
 
 function formatAmount(raw: string, address: `0x${string}` | null): string {
   const meta = resolveAssetMeta(props.chain, address, props.balances);
@@ -49,29 +60,37 @@ function formatPrice(quote: SwapQuote): string {
       <p class="text-muted-foreground text-sm">Fetching a live quote…</p>
     </div>
 
-    <div
-      v-else-if="state === 'error'"
-      role="alert"
-      class="bg-destructive/10 text-destructive flex items-start gap-3 rounded-lg border p-4 text-sm"
-    >
-      <TriangleAlert class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-      <div class="space-y-2">
-        <p class="font-medium">No quote available</p>
-        <p>{{ error?.message ?? 'The quoting service did not respond.' }}</p>
-        <p class="text-muted-foreground">
+    <template v-else-if="state === 'error'">
+      <!-- Unconfigured = deployment gap; retry can never succeed. -->
+      <Alert v-if="unconfigured" data-testid="quote-unconfigured">
+        <Info aria-hidden="true" />
+        <AlertTitle>Live quotes not available</AlertTitle>
+        <AlertDescription>
+          This deployment has no swap aggregator configured, so we can't fetch a
+          real quote. Kryptr never fabricates quotes, so swap is paused.
+        </AlertDescription>
+      </Alert>
+
+      <!-- Transient failure = the service may recover; offer a retry. -->
+      <Alert v-else variant="destructive" data-testid="quote-error">
+        <TriangleAlert aria-hidden="true" />
+        <AlertTitle>No quote available</AlertTitle>
+        <AlertDescription>
+          {{ error?.message ?? 'The quoting service did not respond.' }}
           Kryptr never fabricates quotes — retry when the service is reachable.
-        </p>
+        </AlertDescription>
         <Button
           variant="outline"
           size="sm"
           type="button"
+          class="mt-2 w-fit"
           @click="emit('refresh')"
         >
           <RefreshCw data-icon="inline-start" aria-hidden="true" />
           Retry quote
         </Button>
-      </div>
-    </div>
+      </Alert>
+    </template>
 
     <template v-else-if="quote">
       <div class="flex flex-wrap items-center gap-2">
