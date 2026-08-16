@@ -71,7 +71,14 @@ describe('InMemoryOrderStore — terminal guard', () => {
     };
   }
 
-  it.each(['filled', 'partially_filled', 'cancelled', 'expired', 'failed', 'rejected'] as const)(
+  it.each([
+    'filled',
+    'partially_filled',
+    'cancelled',
+    'expired',
+    'failed',
+    'rejected',
+  ] as const)(
     'refuses any status write once %s (worker never touches terminal orders)',
     async (status) => {
       const store = new InMemoryOrderStore();

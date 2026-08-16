@@ -38,11 +38,7 @@ export class InMemoryOrderStore implements OrderStore {
     return [...this.orders.values()].map((order) => ({ ...order }));
   }
 
-  async setStatus(
-    id: string,
-    status: OrderStatus,
-    at: string,
-  ): Promise<Order> {
+  async setStatus(id: string, status: OrderStatus, at: string): Promise<Order> {
     const order = this.orders.get(id);
     if (!order) {
       throw new DomainError('order_not_found', `order "${id}" not found`, 404);

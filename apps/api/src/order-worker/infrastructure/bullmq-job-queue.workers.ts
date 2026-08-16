@@ -16,10 +16,7 @@ import { Queue as RawQueue, QueueEvents } from 'bullmq';
 import { DomainError } from '../../common/domain-error';
 import { describeRedis } from '../../test/env-gate';
 import type { ExecuteOrderSlotUseCase } from '../application/execute-order-slot.usecase';
-import {
-  BullMqJobQueue,
-  EXECUTE_QUEUE_NAME,
-} from './bullmq-job-queue';
+import { BullMqJobQueue, EXECUTE_QUEUE_NAME } from './bullmq-job-queue';
 import { createExecutionWorker } from './bullmq-execution-worker';
 
 const PREFIX = 'vault-order-worker';
@@ -34,7 +31,10 @@ function redisConnection() {
 
 function stubUseCase(
   behavior: (input: { orderId: string; slotKey: string }) => Promise<string>,
-): { calls: Array<{ orderId: string; slotKey: string }>; usecase: ExecuteOrderSlotUseCase } {
+): {
+  calls: Array<{ orderId: string; slotKey: string }>;
+  usecase: ExecuteOrderSlotUseCase;
+} {
   const calls: Array<{ orderId: string; slotKey: string }> = [];
   const usecase = {
     execute: async (input: { orderId: string; slotKey: string }) => {
@@ -49,7 +49,10 @@ describeRedis('order-worker bullmq bindings (real redis)', () => {
   let queue: BullMqJobQueue;
 
   beforeEach(() => {
-    queue = new BullMqJobQueue({ connection: redisConnection(), prefix: PREFIX });
+    queue = new BullMqJobQueue({
+      connection: redisConnection(),
+      prefix: PREFIX,
+    });
   });
 
   afterEach(async () => {
@@ -63,11 +66,17 @@ describeRedis('order-worker bullmq bindings (real redis)', () => {
   });
 
   it('projects jobIds without colons and dedupes via deduplication.id', async () => {
-    const first = await queue.enqueueExecution('ord-1', '2026-05-01T00:00:00.000Z');
+    const first = await queue.enqueueExecution(
+      'ord-1',
+      '2026-05-01T00:00:00.000Z',
+    );
     expect(first.jobId).toBe('ord-1.2026-05-01T00.00.00.000Z');
     expect(first.deduplicated).toBe(false);
 
-    const again = await queue.enqueueExecution('ord-1', '2026-05-01T00:00:00.000Z');
+    const again = await queue.enqueueExecution(
+      'ord-1',
+      '2026-05-01T00:00:00.000Z',
+    );
     expect(again).toEqual({ jobId: first.jobId, deduplicated: true });
   });
 
@@ -83,7 +92,10 @@ describeRedis('order-worker bullmq bindings (real redis)', () => {
 
     const { calls, usecase } = stubUseCase(async () => 'submitted');
     const finished = new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('wait timed out')), 15_000);
+      const timer = setTimeout(
+        () => reject(new Error('wait timed out')),
+        15_000,
+      );
       events.once('completed', ({ jobId }) => {
         clearTimeout(timer);
         expect(jobId).toBe('ord-1.slot-0');
@@ -138,7 +150,10 @@ describeRedis('order-worker bullmq bindings (real redis)', () => {
     });
     try {
       await new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error('wait timed out')), 30_000);
+        const timer = setTimeout(
+          () => reject(new Error('wait timed out')),
+          30_000,
+        );
         events.on('completed', () => {
           if (completedIds.length >= 2) {
             clearTimeout(timer);
@@ -146,7 +161,10 @@ describeRedis('order-worker bullmq bindings (real redis)', () => {
           }
         });
       });
-      expect(completedIds.sort()).toEqual(['ord-dup.slot-0', 'ord-retry.slot-0']);
+      expect(completedIds.sort()).toEqual([
+        'ord-dup.slot-0',
+        'ord-retry.slot-0',
+      ]);
       // dup: exactly ONE attempt (acked); retry: exactly TWO.
       expect(calls.filter((c) => c.orderId === 'ord-dup')).toHaveLength(1);
       expect(calls.filter((c) => c.orderId === 'ord-retry')).toHaveLength(2);
@@ -175,7 +193,10 @@ describeRedis('order-worker bullmq bindings (real redis)', () => {
       });
       await events.waitUntilReady();
       const finished = new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error('wait timed out')), 15_000);
+        const timer = setTimeout(
+          () => reject(new Error('wait timed out')),
+          15_000,
+        );
         events.once('completed', () => {
           clearTimeout(timer);
           resolve();

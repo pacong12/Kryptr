@@ -35,10 +35,7 @@ describe('SchedulerTickUseCase', () => {
   let queue: JobQueuePort;
   let usecase: SchedulerTickUseCase;
 
-  function build(
-    primary: StaticTriggerPrice,
-    hint: StaticTriggerPrice,
-  ): void {
+  function build(primary: StaticTriggerPrice, hint: StaticTriggerPrice): void {
     usecase = new SchedulerTickUseCase(
       orders,
       executions,
@@ -69,7 +66,10 @@ describe('SchedulerTickUseCase', () => {
         checkedAt: nowIso,
       }),
     };
-    build(new StaticTriggerPrice({ priceUsd: '3000' }), new StaticTriggerPrice({ priceUsd: '3000' }));
+    build(
+      new StaticTriggerPrice({ priceUsd: '3000' }),
+      new StaticTriggerPrice({ priceUsd: '3000' }),
+    );
   });
 
   afterEach(() => jest.useRealTimers());
@@ -84,7 +84,11 @@ describe('SchedulerTickUseCase', () => {
     expect(evaluations[0].outcome).toBe('triggered');
     // The claim was created by the execution, not the scheduler; the
     // scheduler's own guard is the execution-store lookup.
-    await executions.claim('ord-1', '2026-05-01T12:00:00.000Z', new Date(NOW).toISOString());
+    await executions.claim(
+      'ord-1',
+      '2026-05-01T12:00:00.000Z',
+      new Date(NOW).toISOString(),
+    );
     enqueued.length = 0;
     await usecase.execute();
     expect(enqueued).toEqual([]);

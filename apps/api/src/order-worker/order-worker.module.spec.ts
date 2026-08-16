@@ -85,7 +85,9 @@ describe('OrderWorkerModule wiring — AUTOMATION_MODE=disabled (default)', () =
     await expect(orders.findAll()).rejects.toMatchObject({
       code: 'worker_unavailable',
     });
-    await expect(app.get(KillSwitchController).getState()).rejects.toMatchObject({
+    await expect(
+      app.get(KillSwitchController).getState(),
+    ).rejects.toMatchObject({
       code: 'worker_unavailable',
     });
   });

@@ -32,7 +32,10 @@ describe('GetWorkerHealthUseCase', () => {
       reason: 'halt',
       at: new Date(NOW).toISOString(),
     });
-    const usecase = new GetWorkerHealthUseCase(new InMemoryJobQueue(), killSwitch);
+    const usecase = new GetWorkerHealthUseCase(
+      new InMemoryJobQueue(),
+      killSwitch,
+    );
     const health = await usecase.execute();
     expect(health.ok).toBe(false);
     expect(health.detail).toBe('kill_switch_active:pause_new');

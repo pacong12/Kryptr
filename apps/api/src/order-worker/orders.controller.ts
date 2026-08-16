@@ -32,7 +32,9 @@ export class OrdersController {
 
   @Post()
   async create(@Body() body: CreateOrderDto): Promise<ApiEnvelope<Order>> {
-    return ok(await this.createOrder.execute({ ...body, id: `ord-${randomUUID()}` }));
+    return ok(
+      await this.createOrder.execute({ ...body, id: `ord-${randomUUID()}` }),
+    );
   }
 
   @Get()

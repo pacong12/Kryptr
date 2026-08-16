@@ -1,4 +1,8 @@
-import type { ChainId, FeedHealth, TriggerPricePrint } from '@kryptr/shared-types';
+import type {
+  ChainId,
+  FeedHealth,
+  TriggerPricePrint,
+} from '@kryptr/shared-types';
 import type { TriggerPricePort } from '../domain/trigger-price.port';
 
 /**
@@ -10,11 +14,13 @@ export class StaticTriggerPrice implements TriggerPricePort {
   private readonly print: TriggerPricePrint | null;
   private readonly now: () => Date;
 
-  constructor(options: {
-    print?: TriggerPricePrint | null;
-    priceUsd?: string;
-    now?: () => Date;
-  } = {}) {
+  constructor(
+    options: {
+      print?: TriggerPricePrint | null;
+      priceUsd?: string;
+      now?: () => Date;
+    } = {},
+  ) {
     this.now = options.now ?? (() => new Date());
     this.print =
       options.print !== undefined
@@ -43,7 +49,9 @@ export class StaticTriggerPrice implements TriggerPricePort {
       priceAgeSec: this.print
         ? Math.max(
             0,
-            Math.round((this.now().getTime() - Date.parse(this.print.observedAt)) / 1000),
+            Math.round(
+              (this.now().getTime() - Date.parse(this.print.observedAt)) / 1000,
+            ),
           )
         : null,
     };

@@ -9,15 +9,17 @@ import type { JobQueuePort } from '../domain/job-queue.port';
  */
 export class InMemoryJobQueue implements JobQueuePort {
   private paused = false;
-  private dispatcher: ((input: {
-    orderId: string;
-    slotKey: string;
-  }) => Promise<unknown>) | null = null;
+  private dispatcher:
+    ((input: { orderId: string; slotKey: string }) => Promise<unknown>) | null =
+    null;
   private readonly pending: Array<{ orderId: string; slotKey: string }> = [];
   private readonly inflight = new Set<Promise<unknown>>();
 
   setDispatcher(
-    dispatcher: (input: { orderId: string; slotKey: string }) => Promise<unknown>,
+    dispatcher: (input: {
+      orderId: string;
+      slotKey: string;
+    }) => Promise<unknown>,
   ): void {
     this.dispatcher = dispatcher;
     const drained = this.pending.splice(0);

@@ -58,8 +58,6 @@ describe('KeyedMutex', () => {
         throw new Error('boom');
       }),
     ).rejects.toThrow('boom');
-    await expect(mutex.runExclusive('w', async () => 'ok')).resolves.toBe(
-      'ok',
-    );
+    await expect(mutex.runExclusive('w', async () => 'ok')).resolves.toBe('ok');
   });
 });

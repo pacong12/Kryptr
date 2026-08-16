@@ -1,4 +1,8 @@
-import type { ChainId, FeedHealth, TriggerPricePrint } from '@kryptr/shared-types';
+import type {
+  ChainId,
+  FeedHealth,
+  TriggerPricePrint,
+} from '@kryptr/shared-types';
 import type { TriggerPricePort } from '../domain/trigger-price.port';
 
 /**

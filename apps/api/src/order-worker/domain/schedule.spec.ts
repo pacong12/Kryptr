@@ -13,12 +13,9 @@ describe('isoDurationToMs', () => {
     expect(isoDurationToMs(iso)).toBe(ms);
   });
 
-  it.each(['P', 'PT', '', '1D', 'P1Y', 'p1d', 'P1DT'])(
-    'rejects %j',
-    (iso) => {
-      expect(isoDurationToMs(iso)).toBeNull();
-    },
-  );
+  it.each(['P', 'PT', '', '1D', 'P1Y', 'p1d', 'P1DT'])('rejects %j', (iso) => {
+    expect(isoDurationToMs(iso)).toBeNull();
+  });
 });
 
 describe('dcaSlotFor', () => {
@@ -36,19 +33,35 @@ describe('dcaSlotFor', () => {
   });
 
   it('the first slot starts at the anchor (immediately eligible)', () => {
-    const slot = dcaSlotFor({ createdAtMs: anchor, intervalMs: hour, nowMs: anchor });
+    const slot = dcaSlotFor({
+      createdAtMs: anchor,
+      intervalMs: hour,
+      nowMs: anchor,
+    });
     expect(slot.slotStartMs).toBe(anchor);
     expect(slot.slotKey).toBe('2026-05-01T10:00:00.000Z');
   });
 
   it('is deterministic: same inputs, same key (restart-safe)', () => {
-    const a = dcaSlotFor({ createdAtMs: anchor, intervalMs: hour, nowMs: anchor + 5 * hour + 7 });
-    const b = dcaSlotFor({ createdAtMs: anchor, intervalMs: hour, nowMs: anchor + 5 * hour + 999 });
+    const a = dcaSlotFor({
+      createdAtMs: anchor,
+      intervalMs: hour,
+      nowMs: anchor + 5 * hour + 7,
+    });
+    const b = dcaSlotFor({
+      createdAtMs: anchor,
+      intervalMs: hour,
+      nowMs: anchor + 5 * hour + 999,
+    });
     expect(a.slotKey).toBe(b.slotKey);
   });
 
   it('never goes negative before the anchor', () => {
-    const slot = dcaSlotFor({ createdAtMs: anchor, intervalMs: hour, nowMs: anchor - 10 });
+    const slot = dcaSlotFor({
+      createdAtMs: anchor,
+      intervalMs: hour,
+      nowMs: anchor - 10,
+    });
     expect(slot.slotStartMs).toBe(anchor);
   });
 });

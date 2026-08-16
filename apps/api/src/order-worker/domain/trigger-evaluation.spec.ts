@@ -73,16 +73,19 @@ describe('evaluateLimitTrigger (fail-closed outcome matrix)', () => {
   it.each([
     ['primary', null as unknown as TriggerPricePrint, print('3000')],
     ['hint', print('3000'), null as unknown as TriggerPricePrint],
-  ])('needs_human_approval when the %s source is missing', (_label, primary, hint) => {
-    const evaluation = evaluateLimitTrigger({
-      order: limitOrder(),
-      primary: primary as TriggerPricePrint | null,
-      hint: hint as TriggerPricePrint | null,
-      nowMs: NOW,
-    });
-    expect(evaluation.outcome).toBe('needs_human_approval');
-    expect(evaluation.detail).toContain('trigger_price_unknown');
-  });
+  ])(
+    'needs_human_approval when the %s source is missing',
+    (_label, primary, hint) => {
+      const evaluation = evaluateLimitTrigger({
+        order: limitOrder(),
+        primary: primary as TriggerPricePrint | null,
+        hint: hint as TriggerPricePrint | null,
+        nowMs: NOW,
+      });
+      expect(evaluation.outcome).toBe('needs_human_approval');
+      expect(evaluation.detail).toContain('trigger_price_unknown');
+    },
+  );
 
   it('needs_human_approval when both sources are missing', () => {
     const evaluation = evaluateLimitTrigger({
@@ -177,7 +180,11 @@ describe('evaluateLimitTrigger (fail-closed outcome matrix)', () => {
 
 describe('evaluateDcaSlot', () => {
   it('is time-triggered: slot due regardless of print availability', () => {
-    const order = limitOrder({ type: 'dca', interval: 'P1D', limitPrice: null });
+    const order = limitOrder({
+      type: 'dca',
+      interval: 'P1D',
+      limitPrice: null,
+    });
     const withPrints = evaluateDcaSlot({
       order,
       slotKey: '2026-05-01T00:00:00.000Z',

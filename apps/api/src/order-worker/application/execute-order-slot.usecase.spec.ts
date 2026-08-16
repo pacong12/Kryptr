@@ -155,7 +155,10 @@ describe('ExecuteOrderSlotUseCase (stage-2 core)', () => {
     await usecase.execute({ orderId: 'ord-1', slotKey: 'slot-0' });
     // Order became filled (terminal) — the next slot is order_not_live,
     // NOT a duplicate: slots are independent claims.
-    const second = await usecase.execute({ orderId: 'ord-1', slotKey: 'slot-1' });
+    const second = await usecase.execute({
+      orderId: 'ord-1',
+      slotKey: 'slot-1',
+    });
     expect(second.status).toBe('failed');
     expect(second.detail).toContain('order_not_live');
   });
@@ -255,7 +258,10 @@ describe('ExecuteOrderSlotUseCase (stage-2 core)', () => {
 
     // Redelivery after liquidity returns completes the same slot.
     dex.getQuote.mockResolvedValue(quote({ id: 'quote-2' }));
-    const retry = await usecase.execute({ orderId: 'ord-1', slotKey: 'slot-0' });
+    const retry = await usecase.execute({
+      orderId: 'ord-1',
+      slotKey: 'slot-0',
+    });
     expect(retry.status).toBe('submitted');
     expect(evaluate.execute).toHaveBeenCalledTimes(1);
   });
@@ -275,7 +281,10 @@ describe('ExecuteOrderSlotUseCase (stage-2 core)', () => {
       interval: 'P1D',
       createdAt: new Date(NOW).toISOString(),
     });
-    const execution = await usecase.execute({ orderId: 'ord-2', slotKey: 'slot-0' });
+    const execution = await usecase.execute({
+      orderId: 'ord-2',
+      slotKey: 'slot-0',
+    });
     expect(execution.status).toBe('failed');
     expect(execution.detail).toBe('wallet_not_found');
   });

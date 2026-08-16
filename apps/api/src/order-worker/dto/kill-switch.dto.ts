@@ -1,8 +1,5 @@
 import { IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
-import {
-  KILL_SWITCH_MODES,
-  type KillSwitchMode,
-} from '@kryptr/shared-types';
+import { KILL_SWITCH_MODES, type KillSwitchMode } from '@kryptr/shared-types';
 
 /**
  * Wire shape of POST /automation/kill-switch. DeckUI backoffice sends

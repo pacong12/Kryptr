@@ -1,4 +1,8 @@
-import type { ChainId, FeedHealth, TriggerPricePrint } from '@kryptr/shared-types';
+import type {
+  ChainId,
+  FeedHealth,
+  TriggerPricePrint,
+} from '@kryptr/shared-types';
 
 /**
  * Trigger price sources (wave 4, freeze §4). PRIMARY = Chainlink Data

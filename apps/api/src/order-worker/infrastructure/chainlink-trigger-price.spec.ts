@@ -55,8 +55,14 @@ describe('ChainlinkTriggerPrice (stubbed viem seam)', () => {
   it('asset lookup is case-insensitive on the address', async () => {
     const feeds = CHAINLINK_FEEDS;
     const reader = stubReader({
-      [feeds['base:native'].proxy]: { answer: 300_000_000_000n, updatedAt: UPDATED },
-      [feeds[`base:${USDC}`].proxy]: { answer: 100_000_000n, updatedAt: UPDATED },
+      [feeds['base:native'].proxy]: {
+        answer: 300_000_000_000n,
+        updatedAt: UPDATED,
+      },
+      [feeds[`base:${USDC}`].proxy]: {
+        answer: 100_000_000n,
+        updatedAt: UPDATED,
+      },
     });
     const trigger = new ChainlinkTriggerPrice(reader, {
       now: () => new Date(NOW),
@@ -108,7 +114,10 @@ describe('ChainlinkTriggerPrice (stubbed viem seam)', () => {
     const feeds = CHAINLINK_FEEDS;
     const reader = stubReader({
       [feeds['base:native'].proxy]: { answer: 0n, updatedAt: UPDATED },
-      [feeds[`base:${USDC}`].proxy]: { answer: 100_000_000n, updatedAt: UPDATED },
+      [feeds[`base:${USDC}`].proxy]: {
+        answer: 100_000_000n,
+        updatedAt: UPDATED,
+      },
     });
     const trigger = new ChainlinkTriggerPrice(reader, {
       now: () => new Date(NOW),
@@ -124,14 +133,24 @@ describe('ChainlinkTriggerPrice (stubbed viem seam)', () => {
   it('health reports down before any print and healthy after (pinned clock)', async () => {
     const feeds = CHAINLINK_FEEDS;
     const reader = stubReader({
-      [feeds['base:native'].proxy]: { answer: 300_000_000_000n, updatedAt: UPDATED },
-      [feeds[`base:${USDC}`].proxy]: { answer: 100_000_000n, updatedAt: UPDATED },
+      [feeds['base:native'].proxy]: {
+        answer: 300_000_000_000n,
+        updatedAt: UPDATED,
+      },
+      [feeds[`base:${USDC}`].proxy]: {
+        answer: 100_000_000n,
+        updatedAt: UPDATED,
+      },
     });
     const trigger = new ChainlinkTriggerPrice(reader, {
       now: () => new Date(NOW),
     });
     expect(trigger.health().status).toBe('down');
-    await trigger.getPrint({ chain: 'base', baseAsset: null, quoteAsset: USDC });
+    await trigger.getPrint({
+      chain: 'base',
+      baseAsset: null,
+      quoteAsset: USDC,
+    });
     const health = trigger.health();
     expect(health.status).toBe('healthy');
     expect(health.priceAgeSec).toBe(120);

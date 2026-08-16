@@ -32,9 +32,7 @@ import { makeUnavailable } from './infrastructure/unavailable-stub';
 import { BullMqJobQueue } from './infrastructure/bullmq-job-queue';
 import { createExecutionWorker } from './infrastructure/bullmq-execution-worker';
 import { StaticTriggerPrice } from './infrastructure/static-trigger-price';
-import {
-  ChainlinkTriggerPrice,
-} from './infrastructure/chainlink-trigger-price';
+import { ChainlinkTriggerPrice } from './infrastructure/chainlink-trigger-price';
 import { ViemChainlinkReader } from './infrastructure/viem-chainlink-reader';
 import { PriceFeedTriggerHint } from './infrastructure/price-feed-trigger-hint';
 import { CreateOrderUseCase } from './application/create-order.usecase';
@@ -157,9 +155,11 @@ export class OrderWorkerModule implements OnModuleInit, OnModuleDestroy {
         this.executeOrderSlot.execute(input).then(() => undefined),
       );
       this.timer = setInterval(() => {
-        void this.schedulerTick.execute().catch((error) =>
-          this.logger.error(`scheduler tick failed: ${String(error)}`),
-        );
+        void this.schedulerTick
+          .execute()
+          .catch((error) =>
+            this.logger.error(`scheduler tick failed: ${String(error)}`),
+          );
       }, pollMs);
       this.timer.unref?.();
       this.logger.log(`automation in-memory (scheduler every ${pollMs}ms)`);

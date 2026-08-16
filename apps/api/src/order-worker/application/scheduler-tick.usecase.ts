@@ -1,14 +1,18 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Order, TriggerEvaluation } from '@kryptr/shared-types';
 import { ORDER_STORE, type OrderStore } from '../domain/order-store.port';
-import { EXECUTION_STORE, type ExecutionStore } from '../domain/execution-store.port';
-import { TRIGGER_HINT, TRIGGER_PRICE, type TriggerPricePort } from '../domain/trigger-price.port';
+import {
+  EXECUTION_STORE,
+  type ExecutionStore,
+} from '../domain/execution-store.port';
+import {
+  TRIGGER_HINT,
+  TRIGGER_PRICE,
+  type TriggerPricePort,
+} from '../domain/trigger-price.port';
 import { KILL_SWITCH, type KillSwitchPort } from '../domain/kill-switch.port';
 import { JOB_QUEUE, type JobQueuePort } from '../domain/job-queue.port';
-import {
-  dcaSlotFor,
-  isoDurationToMs,
-} from '../domain/schedule';
+import { dcaSlotFor, isoDurationToMs } from '../domain/schedule';
 import {
   evaluateDcaSlot,
   evaluateLimitTrigger,
@@ -82,8 +86,16 @@ export class SchedulerTickUseCase {
     const evaluation = evaluateDcaSlot({
       order,
       slotKey: slot.slotKey,
-      primary: await this.primary.getPrint({ chain: order.chain, baseAsset: order.baseAsset, quoteAsset: order.quoteAsset }),
-      hint: await this.hint.getPrint({ chain: order.chain, baseAsset: order.baseAsset, quoteAsset: order.quoteAsset }),
+      primary: await this.primary.getPrint({
+        chain: order.chain,
+        baseAsset: order.baseAsset,
+        quoteAsset: order.quoteAsset,
+      }),
+      hint: await this.hint.getPrint({
+        chain: order.chain,
+        baseAsset: order.baseAsset,
+        quoteAsset: order.quoteAsset,
+      }),
       nowMs,
     });
     await this.jobQueue.enqueueExecution(order.id, slot.slotKey);
@@ -96,8 +108,16 @@ export class SchedulerTickUseCase {
   ): Promise<TriggerEvaluation> {
     const evaluation = evaluateLimitTrigger({
       order,
-      primary: await this.primary.getPrint({ chain: order.chain, baseAsset: order.baseAsset, quoteAsset: order.quoteAsset }),
-      hint: await this.hint.getPrint({ chain: order.chain, baseAsset: order.baseAsset, quoteAsset: order.quoteAsset }),
+      primary: await this.primary.getPrint({
+        chain: order.chain,
+        baseAsset: order.baseAsset,
+        quoteAsset: order.quoteAsset,
+      }),
+      hint: await this.hint.getPrint({
+        chain: order.chain,
+        baseAsset: order.baseAsset,
+        quoteAsset: order.quoteAsset,
+      }),
       nowMs,
     });
     // Limit orders fire at most once: any prior execution (claimed or

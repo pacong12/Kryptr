@@ -55,7 +55,11 @@ describe('SetKillSwitchUseCase', () => {
   });
 
   it('records every transition in the shared audit shape', async () => {
-    await usecase.execute({ mode: 'cancel_active', actor: 'deck', reason: 'halt' });
+    await usecase.execute({
+      mode: 'cancel_active',
+      actor: 'deck',
+      reason: 'halt',
+    });
     await usecase.execute({ mode: 'off', actor: 'deck', reason: 'restored' });
     const audit = await usecase.getAudit();
     expect(audit).toEqual([
@@ -87,7 +91,11 @@ describe('SetKillSwitchUseCase', () => {
   it('cancel_active fan-out cancels open orders and skips terminal ones', async () => {
     await orders.save(order('ord-open', 'open'));
     await orders.save(order('ord-filled', 'filled'));
-    await usecase.execute({ mode: 'cancel_active', actor: 'deck', reason: 'x' });
+    await usecase.execute({
+      mode: 'cancel_active',
+      actor: 'deck',
+      reason: 'x',
+    });
     const cancelled = await usecase.cancelOpenOrders();
     expect(cancelled).toEqual(['ord-open']);
     expect((await orders.findById('ord-open'))?.status).toBe('cancelled');

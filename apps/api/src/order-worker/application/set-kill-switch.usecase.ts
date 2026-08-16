@@ -8,7 +8,6 @@ import { ORDER_STORE, type OrderStore } from '../domain/order-store.port';
 import { KILL_SWITCH, type KillSwitchPort } from '../domain/kill-switch.port';
 import { JOB_QUEUE, type JobQueuePort } from '../domain/job-queue.port';
 
-
 /**
  * Kill switch transitions (freeze §3) — audited server action.
  *

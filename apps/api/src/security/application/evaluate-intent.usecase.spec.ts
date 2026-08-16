@@ -609,9 +609,7 @@ describe('EvaluateIntentUseCase', () => {
       const approved = decisions.filter((d) => d.result === 'approved');
       // exactly 5 x $200 fit the $1000 cap — no TOCTOU overdraw
       expect(approved).toHaveLength(5);
-      await expect(
-        realLedger.getSpentUsdToday('wallet-1'),
-      ).resolves.toBe(1000);
+      await expect(realLedger.getSpentUsdToday('wallet-1')).resolves.toBe(1000);
     });
   });
 });

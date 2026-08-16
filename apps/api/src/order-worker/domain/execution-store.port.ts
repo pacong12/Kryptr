@@ -15,12 +15,18 @@ export interface ExecutionStore {
    * null when the slot was ALREADY claimed (duplicate/redelivery — the
    * caller must stop without side effects). Idempotent by identity.
    */
-  claim(orderId: string, slotKey: string, at: string): Promise<OrderExecution | null>;
+  claim(
+    orderId: string,
+    slotKey: string,
+    at: string,
+  ): Promise<OrderExecution | null>;
   findById(id: string): Promise<OrderExecution | null>;
   findByOrderId(orderId: string): Promise<OrderExecution[]>;
   /** Patch status/intentId/finishedAt/detail; append-only history is NOT required — the audit timeline owns forensics. */
   update(
     id: string,
-    patch: Partial<Pick<OrderExecution, 'status' | 'intentId' | 'finishedAt' | 'detail'>>,
+    patch: Partial<
+      Pick<OrderExecution, 'status' | 'intentId' | 'finishedAt' | 'detail'>
+    >,
   ): Promise<OrderExecution>;
 }

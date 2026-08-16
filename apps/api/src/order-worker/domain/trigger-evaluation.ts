@@ -111,7 +111,9 @@ export function evaluateLimitTrigger(input: {
     };
   }
   const triggered =
-    order.side === 'buy' ? primaryPrice <= limitPrice : primaryPrice >= limitPrice;
+    order.side === 'buy'
+      ? primaryPrice <= limitPrice
+      : primaryPrice >= limitPrice;
   return {
     ...base,
     outcome: triggered ? 'triggered' : 'armed',

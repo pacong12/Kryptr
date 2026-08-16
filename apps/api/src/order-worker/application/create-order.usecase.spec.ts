@@ -87,7 +87,10 @@ describe('CreateOrderUseCase', () => {
 
   it.each([
     ['dca without interval', { type: 'dca', limitPrice: null, interval: null }],
-    ['dca with invalid interval', { type: 'dca', limitPrice: null, interval: 'P1Y' }],
+    [
+      'dca with invalid interval',
+      { type: 'dca', limitPrice: null, interval: 'P1Y' },
+    ],
   ])('rejects %s', async (_label, overrides) => {
     await expect(usecase.execute(input(overrides))).rejects.toMatchObject({
       code: 'order_type_unsupported',

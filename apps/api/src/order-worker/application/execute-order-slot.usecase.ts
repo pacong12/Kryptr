@@ -2,11 +2,23 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { OrderExecution, TransactionIntent } from '@kryptr/shared-types';
 import { DomainError } from '../../common/domain-error';
 import { ORDER_STORE, type OrderStore } from '../domain/order-store.port';
-import { EXECUTION_STORE, type ExecutionStore } from '../domain/execution-store.port';
+import {
+  EXECUTION_STORE,
+  type ExecutionStore,
+} from '../domain/execution-store.port';
 import { KILL_SWITCH, type KillSwitchPort } from '../domain/kill-switch.port';
-import { WALLET_REPOSITORY, type WalletRepository } from '../../wallet/domain/wallet-repository.port';
-import { DEX_AGGREGATOR, type DexAggregatorPort } from '../../trading/domain/dex-aggregator.port';
-import { QUOTE_STORE, type QuoteStore } from '../../trading/domain/quote-store.port';
+import {
+  WALLET_REPOSITORY,
+  type WalletRepository,
+} from '../../wallet/domain/wallet-repository.port';
+import {
+  DEX_AGGREGATOR,
+  type DexAggregatorPort,
+} from '../../trading/domain/dex-aggregator.port';
+import {
+  QUOTE_STORE,
+  type QuoteStore,
+} from '../../trading/domain/quote-store.port';
 import { EvaluateIntentUseCase } from '../../security/application/evaluate-intent.usecase';
 
 /** Origin allow-listed by the gate for automation (stage A prep). */
@@ -171,7 +183,9 @@ export class ExecuteOrderSlotUseCase {
         finishedAt: new Date().toISOString(),
         detail: 'gate approved; unsigned execution ready (dry-run boundary)',
       });
-      await this.orderStore.setStatus(order.id, 'filled', at).catch(() => undefined);
+      await this.orderStore
+        .setStatus(order.id, 'filled', at)
+        .catch(() => undefined);
       return execution;
     }
     execution = await this.executionStore.update(execution.id, {
@@ -179,7 +193,9 @@ export class ExecuteOrderSlotUseCase {
       finishedAt: new Date().toISOString(),
       detail: `gate ${decision.result}: ${decision.reason}`,
     });
-    await this.orderStore.setStatus(order.id, 'failed', at).catch(() => undefined);
+    await this.orderStore
+      .setStatus(order.id, 'failed', at)
+      .catch(() => undefined);
     return execution;
   }
 
