@@ -1,9 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type {
-  Order,
-  OrderExecution,
-  TransactionIntent,
-} from '@kryptr/shared-types';
+import type { Order, OrderExecution } from '@kryptr/shared-types';
 import { DomainError } from '../../common/domain-error';
 import { KeyedMutex } from '../../common/keyed-mutex';
 import { ORDER_STORE, type OrderStore } from '../domain/order-store.port';
@@ -38,8 +34,10 @@ import {
   oneShotUnspent,
 } from '../domain/execution-rules';
 
-/** Origin allow-listed by the gate for automation (stage A prep). */
-export const AUTOMATION_ORIGIN = 'automation:order-worker';
+// Wave-5 firewall L0: intent construction lives in the swap-only builder;
+// the origin constant is re-exported here for existing import sites.
+import { buildAutomationSwapIntent } from '../domain/swap-intent.builder';
+export { AUTOMATION_ORIGIN } from '../domain/swap-intent.builder';
 
 /** Execution statuses that mean "this slot is done — never re-run". */
 const TERMINAL_EXECUTIONS = new Set([
@@ -247,24 +245,23 @@ export class ExecuteOrderSlotUseCase {
     // intent, never a pre-approved execution. minBuyAmount stays the
     // quote's slippage floor (gate-consistent, M2 ruling); the limit
     // bound is enforced by the re-check above, not by minBuyAmount.
-    const intent: TransactionIntent = {
-      id: `intent:${order.id}:${input.slotKey}`,
+    const intent = buildAutomationSwapIntent({
+      orderId: order.id,
+      slotKey: input.slotKey,
       walletId: order.walletId,
       chain: order.chain,
-      kind: 'swap',
       to: wallet.address,
-      asset: assetIn,
+      assetIn,
+      assetOut,
       amount: quote.amountIn,
-      origin: AUTOMATION_ORIGIN,
       createdAt: at,
-      swap: {
-        quoteId: quote.id,
-        buyAsset: assetOut,
-        minBuyAmount: quote.minAmountOut,
-        maxSlippageBps: quote.slippageBps,
-        quoteExpiresAt: quote.expiresAt,
+      quote: {
+        id: quote.id,
+        minAmountOut: quote.minAmountOut,
+        slippageBps: quote.slippageBps,
+        expiresAt: quote.expiresAt,
       },
-    };
+    });
     execution = await this.executionStore.update(execution.id, {
       intentId: intent.id,
     });

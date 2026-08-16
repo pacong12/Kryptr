@@ -257,7 +257,7 @@ describe('api smoke 3: fail-closed default — keyless price feed escalates', ()
   });
 });
 
-describe('api smoke 4: deploy intents always escalate', () => {
+describe('api smoke 4: deploy intents fail closed without frozen context', () => {
   let app: INestApplication;
   let restoreEnv: () => void;
 
@@ -271,7 +271,7 @@ describe('api smoke 4: deploy intents always escalate', () => {
     restoreEnv();
   });
 
-  it('evaluate(kind=deploy) → needs_human_approval', async () => {
+  it('evaluate(kind=deploy, no deploy context) → rejected deploy_context_invalid', async () => {
     const server = app.getHttpServer();
     const walletId = await createWallet(server);
 
@@ -291,8 +291,8 @@ describe('api smoke 4: deploy intents always escalate', () => {
       .expect(201);
     expect(res.body.ok).toBe(true);
     const decision: SecurityDecision = res.body.data;
-    expect(decision.result).toBe('needs_human_approval');
-    expect(String(decision.reason).length).toBeGreaterThan(0);
+    expect(decision.result).toBe('rejected');
+    expect(decision.reason).toBe('deploy_context_invalid');
   });
 });
 

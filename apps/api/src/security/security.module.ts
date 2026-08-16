@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { ChainModule } from '../chain/chain.module';
 import { TradingModule } from '../trading/trading.module';
 import { SigningModule } from '../signing/signing.module';
+import { LaunchpadModule } from '../launchpad/launchpad.module';
 import { SecurityController } from './security.controller';
 import { HealthController } from './health.controller';
 import { EvaluateIntentUseCase } from './application/evaluate-intent.usecase';
@@ -10,6 +11,7 @@ import { GetFeedHealthUseCase } from './application/get-feed-health.usecase';
 import { RequestSignatureUseCase } from './application/request-sign.usecase';
 import {
   DECISION_AUDIT,
+  DEPLOY_ALLOWLIST,
   INTENT_STORE,
   POLICY_PROVIDER,
   PRICE_FEED,
@@ -21,6 +23,7 @@ import { InMemorySpendLedger } from './infrastructure/in-memory-spend-ledger';
 import { InMemorySecurityPolicyProvider } from './infrastructure/in-memory-policy-provider';
 import { InMemoryIntentStore } from './infrastructure/in-memory-intent-store';
 import { InMemoryDecisionAudit } from './infrastructure/in-memory-decision-audit';
+import { ManifestDeployAllowlist } from './infrastructure/manifest-deploy-allowlist';
 
 /**
  * Composition root for the security gate. Wave-2 ports bind in-memory
@@ -33,7 +36,12 @@ import { InMemoryDecisionAudit } from './infrastructure/in-memory-decision-audit
  * unconfigured price feed escalates every valuation to human approval.
  */
 @Module({
-  imports: [forwardRef(() => TradingModule), ChainModule, SigningModule],
+  imports: [
+    forwardRef(() => TradingModule),
+    ChainModule,
+    SigningModule,
+    LaunchpadModule,
+  ],
   controllers: [SecurityController, HealthController],
   providers: [
     EvaluateIntentUseCase,
@@ -55,6 +63,16 @@ import { InMemoryDecisionAudit } from './infrastructure/in-memory-decision-audit
     { provide: POLICY_PROVIDER, useClass: InMemorySecurityPolicyProvider },
     { provide: INTENT_STORE, useClass: InMemoryIntentStore },
     { provide: DECISION_AUDIT, useClass: InMemoryDecisionAudit },
+    {
+      // Wave-5 layer-2 factory allowlist: pinned from the ops deploy
+      // manifests at wiring time, fail-closed (empty ⇒ launchpad dark).
+      // DEPLOY_MANIFESTS_DIR overrides the repo-relative default.
+      provide: DEPLOY_ALLOWLIST,
+      useFactory: () =>
+        ManifestDeployAllowlist.fromDir(
+          process.env.DEPLOY_MANIFESTS_DIR ?? 'contracts/deployments',
+        ),
+    },
   ],
   exports: [
     POLICY_PROVIDER,
@@ -62,6 +80,7 @@ import { InMemoryDecisionAudit } from './infrastructure/in-memory-decision-audit
     SPEND_LEDGER,
     INTENT_STORE,
     DECISION_AUDIT,
+    DEPLOY_ALLOWLIST,
     // Wave 4: the order worker sends every scheduled execution through
     // the FULL gate — it needs the gate use case itself, not a bypass.
     EvaluateIntentUseCase,

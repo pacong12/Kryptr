@@ -17,6 +17,7 @@ export const SPEND_LEDGER = 'security.spend-ledger';
 export const POLICY_PROVIDER = 'security.policy-provider';
 export const INTENT_STORE = 'security.intent-store';
 export const DECISION_AUDIT = 'security.decision-audit';
+export const DEPLOY_ALLOWLIST = 'security.deploy-allowlist';
 
 /**
  * USD valuation and spot prices. Fail-closed contract: null means
@@ -102,4 +103,16 @@ export interface DecisionAudit {
   findByIntentId(intentId: string): Promise<DecisionAuditEntry[]>;
   appendSignEvent(entry: Omit<SignEventEntry, 'id'>): Promise<SignEventEntry>;
   findSignEventsByIntentId(intentId: string): Promise<SignEventEntry[]>;
+}
+
+/**
+ * Wave-5 layer-2 factory allowlist (launchpad-decision.md condition 3).
+ * Config surface by design — but it can only RESTRICT interactive
+ * deploys, never enable automation ones (the layer-1 firewall rejects
+ * automation deploys below every policy/allowlist read). Fail-closed
+ * contract: false means "not allowlisted"; empty manifests keep the
+ * launchpad dark.
+ */
+export interface DeployAllowlistPort {
+  isAllowed(chain: ChainId, factory: `0x${string}`): boolean;
 }
