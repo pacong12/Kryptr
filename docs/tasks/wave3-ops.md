@@ -45,10 +45,18 @@ harness pieces only (coordinate shapes with VaultAPI).
   permissions (pull-requests:read).
 - Acceptance evidence: gitleaks caught the planted dummy secret
   (RuleID github-pat, gitleaks-scratch.txt:2, scratch PR #28 closed +
-  branch deleted). test:live demo + blocks 2–5 green land after
-  feat/api-real-integrations merges (vault-first order, same as wave 2).
+  branch deleted). After feat/api-real-integrations merged: smoke 6/6 green
+  (incl. feeds_degraded envelope), test:live 2/2 green against real public
+  Base RPC (no keys), keyed suites skip with logged reason
+  ('[env-gate] skipped "ZeroExDexAdapter (live 0x API)": missing
+  ZEROX_API_KEY'). Rebase kept MY smoke rewrite over vault's one-liner per
+  conductor ruling; env-gate converged cleanly.
 - Learned: gitleaks-action v2 PR mode needs pull-requests:read (403
   without); PR workflows run from the HEAD branch — a scratch branch cut
   from main won't exercise new jobs until the feature branch is merged in;
   contract-first IRC locking again meant zero integration drift;
-  jest.ProvidesCallback is the right fn type for keyed-test helpers.
+  jest.ProvidesCallback is the right fn type for keyed-test helpers;
+  health degradation surfaces as ok:false 'feeds_degraded' (never silent),
+  not a status field inside ok:true; a colon in a target name forces the
+  'nx <target> <project>' invocation form ('nx run api:test:live' silently
+  runs target=test config=live).

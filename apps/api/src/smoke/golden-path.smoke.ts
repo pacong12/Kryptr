@@ -245,17 +245,15 @@ describe('api smoke 3: fail-closed default — keyless price feed escalates', ()
     expect(String(decision.reason).toLowerCase()).toContain('price');
   });
 
-  it('GET /api/health/feeds reports the price feed degraded', async () => {
+  it('GET /api/health/feeds degrades loudly when the price feed is down', async () => {
     const server = app.getHttpServer();
+    // Degradation is never silent: when a feed is stale/down/unconfigured
+    // the feeds envelope itself flips to ok:false with code 'feeds_degraded'
+    // and lists the stale feed ids (the keyless price feed among them).
     const res = await request(server).get('/api/health/feeds').expect(200);
-    expect(res.body.ok).toBe(true);
-    const feeds = res.body.data.feeds ?? res.body.data;
-    expect(Array.isArray(feeds)).toBe(true);
-    const priceFeed = feeds.find((f: { feedId?: string }) =>
-      String(f.feedId ?? '').startsWith('price'),
-    );
-    expect(priceFeed).toBeTruthy();
-    expect(['down', 'unconfigured']).toContain(priceFeed.status);
+    expect(res.body.ok).toBe(false);
+    expect(res.body.error.code).toBe('feeds_degraded');
+    expect(String(res.body.error.message).toLowerCase()).toContain('price');
   });
 });
 

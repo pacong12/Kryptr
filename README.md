@@ -70,10 +70,11 @@ logged reason — CI runs keyless and green. Canonical key names live in
 `.env.example` (`ZEROX_API_KEY`, `COINGECKO_API_KEY`).
 
 `test:live` reads real Base RPC (public endpoint, no keys) and is OPT-IN —
-it is excluded from default CI because public RPCs flake:
+it is excluded from default CI because public RPCs flake. Note the target
+name contains a colon, so use the `nx <target> <project>` form:
 
 ```bash
-npx nx run api:test:live
+npx nx test:live api
 ```
 
 The api smoke suite never touches the network or keys; degradation paths
