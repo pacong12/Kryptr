@@ -202,8 +202,8 @@ export class EvaluateIntentUseCase {
   /**
    * Finalize a decision: append the immutable audit entry (USD fixed at
    * decision time), record approved spend against the daily cap
-   * (idempotent per intentId — re-evaluating the same intent never
-   * double-counts), and — for non-rejected swaps — take the quote's
+   * (delegating dedupe to the SpendLedger port contract — per UTC day,
+   * last decision wins), and — for non-rejected swaps — take the quote's
    * single-use binding.
    */
   private async finish(

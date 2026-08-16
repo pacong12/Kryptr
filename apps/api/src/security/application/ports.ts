@@ -35,10 +35,18 @@ export interface PriceFeedPort {
   health(): FeedHealth;
 }
 
-/** Daily spend per wallet; recorded atomically per intent id. */
+/**
+ * Daily spend per wallet. Entries are keyed by (walletId, UTC day,
+ * intentId); re-confirmation within the same UTC day never
+ * double-counts, and the LAST recorded value wins per intentId.
+ */
 export interface SpendLedger {
   getSpentUsdToday(walletId: string): Promise<number>;
-  /** Idempotent per intentId (re-confirming never double-counts). */
+  /**
+   * Idempotent per (walletId, UTC day, intentId) — NOT globally: a
+   * re-approval on a LATER day records again for that day. Over-counting
+   * across days is the accepted fail-safe direction (never under-count).
+   */
   record(entry: {
     intentId: string;
     walletId: string;
