@@ -106,7 +106,7 @@ Kryptr's launchpad should combine the two proven patterns from the research:
 
 ---
 
-## 3. Convergence and open questions
+## 3. Convergence and conductor rulings
 
 **Converged without disagreement (all four):**
 
@@ -120,19 +120,22 @@ Kryptr's launchpad should combine the two proven patterns from the research:
 - Robinhood Chain launches deferred until vault confirms chain support (RPC/keys); Base first.
 - Deploy manifests as the single source of truth for vault's allowlists (ops → vault handoff).
 
-**Open questions for the conductor:**
+**Conductor rulings (2026-08-16, Main — recorded per request; NO build until user approves):**
 
-1. **Option A vs C:** is the Uniswap v4 fee hook (Option C) desirable for the fee-collection
-   mechanics, or is a simpler factory-internal fee ledger acceptable for Phase 1? (Hook = venue
-   alignment on both chains, but newest attack class `[wave2 §4 T14]`.)
-2. **Bond mechanics:** on-chain deploy bond — amount, asset (ETH?), and refund conditions are
-   a factory-contract decision needing an owner.
-3. **Scope:** vault offered the deploy-escalation gate branch for wave 3 — approve/deny.
-4. **Naming:** face proposed `kind:'deploy_token'` with launch context; vault notes
-   `kind='deploy'` already exists in shared-types — reconcile in the shared-types change
-   (extend `TransactionIntent` context vs new kind value).
-5. **Fee defaults:** adopt Bankr's 1.75% split as the Kryptr default schedule, or parameterize
-   per launch within bounds (gate validates bps bounds either way)?
+1. **Option A ENDORSED** — immutable EIP-1167 clones; no upgrade path in Phase 1. Simplicity +
+   narrow surface beat v4-hook cleverness (Clanker lesson). Option C closed for Phase 1.
+2. **Bond mechanics — split ownership along the signing boundary:** the bond PARAMETER lives in
+   the factory contract (on-chain anchor; future forge agent's domain); the gate validates
+   bond-paid as a deploy-intent precondition (vault's domain).
+3. **Deploy HITL branch: ALREADY scoped into wave 3** (vault confirmed ordering: after
+   allowlists, before valuation).
+4. **Deploy-context naming:** `deploy?: DeployContext` on `TransactionIntent`, mirroring
+   `SwapContext` — contract-first in shared-types when (if) the launchpad wave starts; not now.
+5. **Fee defaults:** parameterized at launch, **IMMUTABLE after** — Bankr's fixed-at-launch
+   rule is a security property, not a preference; 1.75% as the reference default.
+
+T17–T21 slots (§4) accepted for the threat model when the doc lands. Status: discussion
+complete, awaiting user go/no-go.
 
 ## 4. Proposed T-series additions (for the next threat-model revision)
 
