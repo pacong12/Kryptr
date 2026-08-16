@@ -191,4 +191,16 @@ describe('PreviewSwapExecutionUseCase', () => {
     });
     expect(dex.buildSwapTx).not.toHaveBeenCalled();
   });
+
+  it('F2: refuses when the quote is bound to a DIFFERENT intent', async () => {
+    quoteStore.findById.mockResolvedValue({
+      quote: QUOTE,
+      boundIntentId: 'intent-OTHER',
+    });
+    await expect(useCase.execute('intent-1')).rejects.toMatchObject({
+      code: 'quote_not_bound',
+      httpStatus: 409,
+    });
+    expect(dex.buildSwapTx).not.toHaveBeenCalled();
+  });
 });

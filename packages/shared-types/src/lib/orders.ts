@@ -52,6 +52,20 @@ export interface KillSwitchState {
 }
 
 /**
+ * One audited kill-switch mode change (freeze §3). Shared contract for
+ * every surface that renders the audit trail (backoffice deck, face);
+ * moved here from the deck-local shape per wave-4 stage-B ruling.
+ */
+export interface KillSwitchAuditEntry {
+  actor: string;
+  /** ISO-8601. */
+  at: string;
+  from: KillSwitchMode;
+  to: KillSwitchMode;
+  reason: string | null;
+}
+
+/**
  * Envelope error codes produced by the order worker (wave 4), mirroring the
  * wave-3 fail-closed pattern (e.g. 'aggregator_unconfigured'). UI maps these
  * to human messages; never raw stack traces.

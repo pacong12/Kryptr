@@ -81,10 +81,21 @@ intervalMs)` from the order's immutable anchor — the same slot always
   `exec:<orderId>:trig-<triggerPrintId>` (limit — one execution per
   confirmed trigger event).
 
-BullMQ rejects adding a job whose `jobId` already exists in the queue
-(waiting/delayed/active). That dedupes SCHEDULING but is NOT the
-fill-guard: once a completed job leaves retention, the id is reusable.
-The fill-guard is the claim ledger below.
+**BullMQ v6 correction (OpsCI, proven in harness)**: `jobId` alone does
+NOT dedupe in v6 — a duplicate add with the same `jobId` is not
+rejected by itself. Scheduling dedupe requires the `deduplication:
+{ id, ttl?, extend?, replace?, keepLastIfActive? }` job option; a
+duplicate add returns the ORIGINAL job id without a second queue entry.
+Queue-level dedupe protects against double-ENQUEUE only; the
+already-EXECUTED guard remains the claim ledger below.
+
+> BullMQ v6: queue jobId adalah proyeksi tanpa colon dari id
+> deterministik (':' → '.', mis. '<orderId>.<slotKey>'); id domain/gate
+> tetap 'intent:<orderId>:<slotKey>'. Dedup v6 bukan lewat jobId —
+> pakai opsi deduplication: { id, ttl?, extend?, replace?,
+> keepLastIfActive? }; add duplikat mengembalikan jobId asli tanpa
+> entri queue kedua. Proteksi already-executed tetap milik claim store.
+> — OpsCI, stage-B entry criteria
 
 ### ExecutionClaimStore — the SpendLedger pattern
 
@@ -375,3 +386,116 @@ cancelled`; time-based `expired` (order-level TTL, e.g. limit orders
 | DeckUI    | Kill switch confirmation UX + pause-new vs cancel-active display; order timeline steps.                                                                                                                                              |
 | VaultAPI  | Gate decision dedupe by intent id vs duplicate-entry forensics (§10).                                                                                                                                                                |
 | VaultAPI  | `TRIGGER_DEVIATION_BPS` / `TRIGGER_MAX_AGE_MS` defaults pending oracle choice.                                                                                                                                                       |
+
+## 16. Review54 fixes (stage-B review ruling, post-PR #54)
+
+Implemented in one batch on `feat/order-worker`
+(`fix(api): address wave-4 worker review findings`):
+
+- **H1 — DCA is recurring.** A successful mid-cycle DCA slot transitions
+  the order `triggered → open` so the next slot schedules; only the final
+  slot fills. The current `Order` contract carries NO DCA end condition
+  (no occurrences/end date field), so today every successful DCA slot is
+  mid-cycle. Freeze §1 amendment records the new transition; a DCA end
+  condition is an explicit follow-up (see deferrals below). Limit orders
+  stay one-shot: success → `filled`.
+- **M1 — retry-exhaustion finalizer.** `createExecutionWorker` now wires
+  BullMQ's `failed` event: when `attemptsMade >= attempts`,
+  `FinalizeFailedExecutionUseCase` finalizes the execution record
+  (`failed`, `retry_exhausted: <reason>`), fails the order (only while
+  live), and appends a forensic `DecisionAudit` entry under the
+  deterministic intent id with reason prefix
+  `retry_exhausted (worker, not gate)` — the gate never decided.
+  Idempotent: terminal records/orders are never overwritten. Proven
+  against real Redis in the workers suite (attempt matrix 3 /
+  exponential backoff).
+- **OW-1 — post-gate re-check.** After an `approved` decision the
+  executor RE-READS kill state and order liveness before marking
+  `submitted`. Kill flip → execution `failed: kill_switch_active`
+  (+order cancelled for `cancel_active`); concurrent cancellation →
+  `failed: order_not_live:<status>`. The decision is not a latch.
+- **OW-2 — ownership continuation.** Three layers: (a) scheduler
+  tick-overlap guard (a running tick skips the next), (b) per-slot
+  enqueue dedupe (in-memory `activeSlots`; BullMQ `deduplication.id`),
+  (c) the continuation branch must win the `ExecutionStore.reclaim`
+  compare-and-set (only non-terminal records are resumable), and the
+  whole executor body runs under a per-slot `KeyedMutex`. Test: double
+  dispatch of one slot → exactly ONE approved decision.
+- **M2 — limit bound re-check.** `minBuyAmount` stays the quote's
+  slippage floor (gate-consistent, per ruling). BEFORE building the
+  intent, limit orders re-verify the execution-time price (primary
+  trigger source, same staleness ladder as the trigger) against
+  `limitPrice`, side-aware. Violation/unknown/stale → execution
+  rejected fail-closed (`limit_price_violation: ...`), order returns to
+  `open`, the one-shot is NOT spent (scheduler suppression and the
+  deterministic claim slot both re-arm; predicate
+  `isLimitRejection` in `domain/execution-rules.ts`).
+- **M3 — fan-out `findLive()`.** `cancel_active` cancels `open` AND
+  `paused` orders (`OrderStore.findLive()`), per freeze §3.
+- **L4 — fan-out logging.** Per-order cancellation errors and the
+  controller-level fan-out rejection are `logger.error`'d, never
+  swallowed silently.
+- **L6 — REDIS_URL validation.** `parseRedisUrl()` turns missing or
+  malformed `REDIS_URL` under `AUTOMATION_MODE=bullmq` into actionable
+  wiring-time errors instead of an opaque `new URL('')` crash;
+  protocol must be `redis://`/`rediss://`.
+
+### Review54 delta fixes (second ruling round, same branch)
+
+- **D1 — BullMQ re-arm transport.** A completed/failed job record keeps
+  its custom `jobId` in Redis; re-adding with the same id was a SILENT
+  NO-OP (`handleDuplicatedJob` returns the old id, no queue entry), so
+  an M2-rejected or kill-stopped limit order would sleep forever in
+  bullmq mode. `enqueueExecution` now removes the finished record
+  before re-adding. Proven against real Redis: workers test
+  "re-enqueueing a completed slot is processed again".
+- **D2 — recovery from `triggered` after a kill stop.** A kill-switch
+  stop (pause_new) left the order in `triggered`, which nothing scans
+  (scheduler: `findOpen`; fan-out: `findLive`; cancel: rejected) —
+  permanent dormancy after the switch lifts, violating freeze §3
+  resume intent. Fixed on BOTH fronts:
+  - the executor reverts `triggered → open` on every kill-stop path
+    (claim-time AND post-gate OW-1), safe precisely because the
+    post-gate re-check exists;
+  - `CancelOrderUseCase` now accepts `triggered` (an in-flight
+    execution fails its OW-1 liveness re-check with `order_not_live`).
+    Additionally, a `kill_switch_active` execution failure does NOT spend
+    the limit one-shot (`oneShotUnspent` in `domain/execution-rules.ts`
+    subsumes `isLimitRejection`): scheduler suppression and the claim
+    slot both re-arm, so a limit order genuinely re-fires after the lift.
+- **D4 — env-overridable trigger config.** `TRIGGER_MAX_AGE_MS` /
+  `TRIGGER_DEVIATION_BPS` are now parsed once at wiring time
+  (`triggerConfigFromEnv`, injected via the `TRIGGER_CONFIG` token)
+  and consulted by BOTH the limit trigger evaluation and the
+  execution-time bound check; malformed/missing values fall back to the
+  frozen defaults.
+- **D3/R2 — documented, not fixed (single-replica era).**
+  `ExecutionStore.update()` has no compare-and-set on terminal
+  statuses; safety currently comes from single replica + per-slot
+  KeyedMutex + BullMQ's single-delivery. When Postgres/multi-replica
+  lands, `update()` must become conditional (`UPDATE ... WHERE status
+NOT IN terminal`) — tracked in `docs/tasks/followups.md`.
+
+### Deferred (documented per ruling, not implemented)
+
+- **L1 — `expired` TTL for limit orders.** The `open → expired`
+  transition (freeze §1) has no TTL field in the `Order` contract yet.
+  Follow-up: add an order TTL/end condition (pairs naturally with the
+  H1 DCA end condition) BEFORE real-money automation.
+- **L5 — in-memory retry.** `InMemoryJobQueue` dispatch does not retry
+  thrown executions. Accepted: in-memory mode is dev/demo only; retry
+  semantics belong to the BullMQ transport (proven in the workers
+  suite).
+- **L2/L3 — i18n error maps.** Worker error codes render via local i18n
+  maps owned by FaceUI/DeckUI; the API side stays code-only. Note for
+  the UI agents: `limit_price_violation` and `retry_exhausted` details
+  are new human-facing strings to map.
+
+### Post-merge operational conditions (conductor-owned follow-ups)
+
+- **C1**: single-replica API until persistence lands (in-memory stores
+  are instance-local).
+- **C2**: automation origins stay default-deny until policy grant is an
+  authenticated HITL action.
+- **C3**: OW-1/OW-2 (implemented here) are mandatory before a real
+  signer is attached.

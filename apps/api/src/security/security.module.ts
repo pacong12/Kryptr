@@ -62,6 +62,9 @@ import { InMemoryDecisionAudit } from './infrastructure/in-memory-decision-audit
     SPEND_LEDGER,
     INTENT_STORE,
     DECISION_AUDIT,
+    // Wave 4: the order worker sends every scheduled execution through
+    // the FULL gate — it needs the gate use case itself, not a bypass.
+    EvaluateIntentUseCase,
   ],
 })
 export class SecurityModule {}

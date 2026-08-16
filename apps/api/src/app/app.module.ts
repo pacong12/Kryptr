@@ -6,6 +6,7 @@ import { resolveEnvFilePaths } from './env-file-paths';
 import { WalletModule } from '../wallet/wallet.module';
 import { SecurityModule } from '../security/security.module';
 import { TradingModule } from '../trading/trading.module';
+import { OrderWorkerModule } from '../order-worker/order-worker.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { TradingModule } from '../trading/trading.module';
     WalletModule,
     SecurityModule,
     TradingModule,
+    OrderWorkerModule,
   ],
   controllers: [AppController],
   providers: [AppService],

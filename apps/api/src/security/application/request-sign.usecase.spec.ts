@@ -172,6 +172,32 @@ describe('RequestSignatureUseCase (approved-only sign requests)', () => {
     });
   });
 
+  it('F2: refuses when the quote is bound to a DIFFERENT intent', async () => {
+    quoteStore.findById.mockResolvedValue({
+      quote: {
+        id: 'quote-1',
+        source: 'static-mock',
+        chain: 'base',
+        assetIn: null,
+        assetOut: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+        amountIn: '1000000000000000000',
+        amountOut: '3000000000',
+        price: 3000,
+        minAmountOut: '2985000000',
+        slippageBps: 50,
+        route: [],
+        fetchedAt: '2026-05-01T00:00:00.000Z',
+        expiresAt: '2026-05-01T01:00:00.000Z',
+      },
+      boundIntentId: 'intent-OTHER',
+    });
+    await expect(useCase.execute('intent-1')).rejects.toMatchObject({
+      code: 'quote_not_bound',
+      httpStatus: 409,
+    });
+    expect(signer.requestSignature).not.toHaveBeenCalled();
+  });
+
   it('appends sign_requested then dry_run_signed audit events', async () => {
     await useCase.execute('intent-1');
     const calls = decisionAudit.appendSignEvent.mock.calls.map(
