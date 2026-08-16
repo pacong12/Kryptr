@@ -81,10 +81,21 @@ intervalMs)` from the order's immutable anchor — the same slot always
   `exec:<orderId>:trig-<triggerPrintId>` (limit — one execution per
   confirmed trigger event).
 
-BullMQ rejects adding a job whose `jobId` already exists in the queue
-(waiting/delayed/active). That dedupes SCHEDULING but is NOT the
-fill-guard: once a completed job leaves retention, the id is reusable.
-The fill-guard is the claim ledger below.
+**BullMQ v6 correction (OpsCI, proven in harness)**: `jobId` alone does
+NOT dedupe in v6 — a duplicate add with the same `jobId` is not
+rejected by itself. Scheduling dedupe requires the `deduplication:
+{ id, ttl?, extend?, replace?, keepLastIfActive? }` job option; a
+duplicate add returns the ORIGINAL job id without a second queue entry.
+Queue-level dedupe protects against double-ENQUEUE only; the
+already-EXECUTED guard remains the claim ledger below.
+
+> BullMQ v6: queue jobId adalah proyeksi tanpa colon dari id
+> deterministik (':' → '.', mis. '<orderId>.<slotKey>'); id domain/gate
+> tetap 'intent:<orderId>:<slotKey>'. Dedup v6 bukan lewat jobId —
+> pakai opsi deduplication: { id, ttl?, extend?, replace?,
+> keepLastIfActive? }; add duplikat mengembalikan jobId asli tanpa
+> entri queue kedua. Proteksi already-executed tetap milik claim store.
+> — OpsCI, stage-B entry criteria
 
 ### ExecutionClaimStore — the SpendLedger pattern
 

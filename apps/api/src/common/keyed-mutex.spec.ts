@@ -1,3 +1,15 @@
+// Node 22 ships Promise.withResolvers; the project lib (es2022)
+// predates its types, so declare the slice this spec uses.
+declare global {
+  interface PromiseConstructor {
+    withResolvers<T>(): {
+      promise: Promise<T>;
+      resolve: (value: T) => void;
+      reject: (reason?: unknown) => void;
+    };
+  }
+}
+
 import { KeyedMutex } from './keyed-mutex';
 
 function sleep(ms: number): Promise<void> {
