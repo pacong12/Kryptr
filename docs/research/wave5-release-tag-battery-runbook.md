@@ -26,7 +26,7 @@ factory, but a "full battery including venue" would make the factory wait for ve
 - **Tier F — factory-release battery** (passable now): factory-phase G1 subset (INV-FEE-1/3,
   INV-BOND-1/2/3, INV-SUP-1 fee-free conservation, INV-CLONE-1, INV-INIT-1) + G2 + G3
   FK-1/3/4/5/6 + G4 P-1…P-6 + G5 artifact, with the carve-out boundary asserted explicitly
-  (carve-out assertion appendix authored by the contracts lead). Tier F PASS freezes the factory
+  (Appendix A, authored by the contracts lead). Tier F PASS freezes the factory
   and releases it for venue-phase work on the rehearsal chain.
 - **Tier V — launch battery:** Tier F + INV-FEE-2/4 + FK-2 venue-accrual ghost + §9.1
   rounding/dust decision. If venue work changes template/factory, Tier V runs against a NEW
@@ -173,3 +173,54 @@ wave-3/4 registries (`[V#]`/`[O#]`).
 selector set as synced in #77, §8 artifact shape); `wave5-token-factory-design.md` (factory
 architecture, merged in #76); `launchpad-decision.md` (gate #1); wave-4 registry `[O21]`/`[O22]`
 (keyless verification method); wave-3 registry `[V5]`/`[V9]`/`[V10]`.
+
+## Appendix A — Venue carve-out assertion list (Tier F boundary)
+
+**[design]** Authored by VaultAPI (contracts lead) per #80 rev 2. Tier F must not merely OMIT
+INV-FEE-2/4 — it must AFFIRM the carve-out boundary, so the deferral is a reviewed, frozen
+statement, never an oversight. Tier V closes the deferred items; the carve-out is deferred, not
+waived.
+
+### A.1 What the template is, fee-wise, in the factory era
+
+1. **Fee schedule = frozen data, not behavior.** The template stores exactly eight fee fields
+   (four bps shares + four recipients). Nothing consumes them in any factory-era code path
+   beyond view getters; no path diverts, accrues, or redistributes any fraction of any transfer.
+2. **RATE never exists in template storage.** `initialize()` validates Σ(shares) == rateBps
+   against the factory-supplied anchor and discards it. RATE lives solely in the factory's
+   constructor-immutable `totalFeeBps` — certified 175, parity-tested against the gate constant
+   `LAUNCH_TOTAL_FEE_BPS`.
+
+### A.2 Tier F assertions (each MUST be green in the Tier F battery)
+
+| #   | Assertion                                                                                                                                                                                             | Evidence locus                                                                         |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| C-1 | INV-FEE-1 validity both ways: Σ==rateBps accepted; Σ≠rateBps, zero recipient, or malformed schedule ⇒ revert (fail-closed)                                                                            | `TokenTemplate.t.sol` init-rejection + `TokenFactory.t.sol` schedule-rejection suites  |
+| C-2 | INV-FEE-3 full-schedule immutability: keccak(4 shares ‖ 4 recipients) at deploy == live at arbitrary invariant depth; selector surface proves no mutator exists                                       | `FactoryInvariant.t.sol` schedule-hash ghost + `SelectorSurface.t.sol` exact allowlist |
+| C-3 | Fee-free conservation, asserted POSITIVELY: `transfer(x)` / `transferFrom(x)` moves exactly x for all fuzzed values; no balance delta beyond sender −x / recipient +x                                 | `TokenTemplate.t.sol` INV-SUP-1 tests + invariant-campaign `shuffle` action            |
+| C-4 | Supply conservation: Σ balances == totalSupply at all depths; mint/burn paths absent (exact selector set contains neither)                                                                            | `FactoryInvariant.t.sol` supply invariant + `SelectorSurface.t.sol`                    |
+| C-5 | RATE anchor: `factory.totalFeeBps() == 175` == gate constant; template storage holds no RATE word (exactly eight fee slots, no more)                                                                  | `TokenFactory.t.sol` parity test + G4 P-2 slot accounting                              |
+| C-6 | No fee-accrual state exists: zero accumulator slots in template storage (slot accounting), so INV-FEE-2/4 are VACUOUSLY satisfied in the factory era — venue must introduce accrual before fee-taking | G4 P-2 slot assertions + storage-layout accounting                                     |
+| C-7 | Boundary recorded in the artifact: G5 metadata carries A.3's deferred list + this appendix's commit sha — as EVIDENCE METADATA, not a new consent claim; the vocabulary stays the four frozen claims  | G5 assembly (§7)                                                                       |
+
+### A.3 Deferred to Tier V (deferred, NOT waived)
+
+| Item                                                                       | Must land with                                |
+| -------------------------------------------------------------------------- | --------------------------------------------- |
+| INV-FEE-2 fee conservation across venue operations                         | Venue-phase PR, before any release            |
+| INV-FEE-4 fee accrual accounting reconciliation + FK-2 venue-accrual ghost | Venue-phase PR                                |
+| §9.1 rounding/dust decision                                                | Venue-phase PR, before any user-facing launch |
+| Venue live-exercise testnet signing (open question 3)                      | Conductor ruling                              |
+
+**Tier V trigger rule:** if venue work changes template/factory ⇒ NEW factory release tag; Tier F
+re-runs on that tag FIRST, then Tier V. Consent vocabulary is unchanged; Tier V deepens
+`fee_split_invariant` evidence (runbook §1).
+
+### A.4 Provenance
+
+- Scoping confirmation: Web3Intel criteria sign-off on #76 — carve-out explicit, deferred-not-waived,
+  fee-free conservation asserted positively.
+- Design sources: `wave5-token-factory-design.md` §2/§9; `wave5-t21-verification-design.md`
+  INV-FEE-1..4 + §4.3 ghost wording.
+- C-1…C-7 tests exist in-tree as of the factory merge (#76 / `4f96df3`); the Tier F battery
+  re-runs them at the release tag, not from branch head.
