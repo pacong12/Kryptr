@@ -38,3 +38,16 @@ Accepted risks (recorded, do not fix now):
 
 Source: independent one-shot `reviewer` + `security-reviewer` audits of PR #42
 (wave-4 prep A), both verdicts GO / safe-to-merge-with-conditions.
+
+### Wave 4 worker — Review54 delta follow-up (PR #54)
+
+Owner: VaultAPI, before multi-replica/Postgres goes live:
+
+- **D3/R2 — `ExecutionStore.update()` has no CAS on terminal statuses.**
+  Today this is safe: single replica (condition C1) + per-slot KeyedMutex
+  - BullMQ single-delivery. In the Postgres/multi-replica era, terminal
+    writes must become conditional (`UPDATE ... WHERE status NOT IN
+('submitted','failed','gate_rejected')`) so two executors can never
+    finalize one slot twice. Same hardening family as F1/F5.
+
+Source: Review54 delta ruling (D3/R2 = follow-up only), PR #54.

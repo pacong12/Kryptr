@@ -8,6 +8,7 @@ import { InMemoryQuoteStore } from '../../trading/infrastructure/in-memory-quote
 import type { DexAggregatorPort } from '../../trading/domain/dex-aggregator.port';
 import type { EvaluateIntentUseCase } from '../../security/application/evaluate-intent.usecase';
 import type { TriggerPricePort } from '../domain/trigger-price.port';
+import { DEFAULT_TRIGGER_CONFIG } from '../domain/trigger-evaluation';
 import type { TriggerPricePrint } from '@kryptr/shared-types';
 import {
   AUTOMATION_ORIGIN,
@@ -66,6 +67,7 @@ describe('ExecuteOrderSlotUseCase (stage-2 core)', () => {
   let quoteStore: InMemoryQuoteStore;
   let dex: jest.Mocked<Pick<DexAggregatorPort, 'getQuote'>> & DexAggregatorPort;
   let triggerPrice: { getPrint: jest.Mock };
+  let triggerConfig: { maxAgeMs: number; deviationBps: number };
   let evaluate: { execute: jest.Mock };
   let usecase: ExecuteOrderSlotUseCase;
 
@@ -107,6 +109,7 @@ describe('ExecuteOrderSlotUseCase (stage-2 core)', () => {
     triggerPrice = {
       getPrint: jest.fn().mockResolvedValue(print('3000')),
     };
+    triggerConfig = { ...DEFAULT_TRIGGER_CONFIG };
     evaluate = { execute: jest.fn().mockResolvedValue(decision('approved')) };
     usecase = new ExecuteOrderSlotUseCase(
       executions,
@@ -116,6 +119,7 @@ describe('ExecuteOrderSlotUseCase (stage-2 core)', () => {
       dex,
       quoteStore,
       triggerPrice as unknown as TriggerPricePort,
+      triggerConfig,
       evaluate as unknown as EvaluateIntentUseCase,
     );
   });
@@ -327,9 +331,11 @@ describe('ExecuteOrderSlotUseCase (stage-2 core)', () => {
       });
       expect(execution.status).toBe('failed');
       expect(execution.detail).toBe('kill_switch_active');
-      // pause_new: the order is NOT cancelled, and it must not be
-      // finalized as filled either — it stays where the worker left it.
-      expect((await orders.findById('ord-1'))?.status).toBe('triggered');
+      // pause_new + D2: the order is NOT cancelled and must NOT be
+      // stranded in 'triggered' (the scheduler only scans 'open', so a
+      // triggered order would never resume after the switch lifts).
+      // Revert to open; the post-gate re-check keeps re-execution safe.
+      expect((await orders.findById('ord-1'))?.status).toBe('open');
     });
 
     it('OW-1: cancel_active flipped after approval fails the execution AND cancels the order', async () => {
@@ -489,6 +495,115 @@ describe('ExecuteOrderSlotUseCase (stage-2 core)', () => {
       expect(execution.status).toBe('submitted');
       expect((await orders.findById('ord-limit'))?.status).toBe('filled');
       expect(evaluate.execute).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('delta fixes (D2 resume, D4 config)', () => {
+    it('D2: kill stop at claim time reverts a triggered (redelivered) order back to open', async () => {
+      // Redelivery shape: a prior attempt already marked the order
+      // 'triggered' before failing; now the kill switch is up.
+      await orders.setStatus('ord-1', 'triggered', new Date(NOW).toISOString());
+      await killSwitch.setMode('pause_new', {
+        actor: 'deck',
+        reason: 'up before redelivery',
+        at: new Date(NOW).toISOString(),
+      });
+      const execution = await usecase.execute({
+        orderId: 'ord-1',
+        slotKey: 'slot-0',
+      });
+      expect(execution.status).toBe('failed');
+      expect(execution.detail).toBe('kill_switch_active');
+      expect((await orders.findById('ord-1'))?.status).toBe('open');
+      expect(evaluate.execute).not.toHaveBeenCalled();
+    });
+
+    it('D2: kill stop at claim time leaves an open order open', async () => {
+      await killSwitch.setMode('pause_new', {
+        actor: 'deck',
+        reason: 'up before claim',
+        at: new Date(NOW).toISOString(),
+      });
+      const execution = await usecase.execute({
+        orderId: 'ord-1',
+        slotKey: 'slot-0',
+      });
+      expect(execution.status).toBe('failed');
+      expect(execution.detail).toBe('kill_switch_active');
+      expect((await orders.findById('ord-1'))?.status).toBe('open');
+    });
+
+    it('D2: a kill-stopped limit order does NOT spend the one-shot — it re-arms after the switch lifts', async () => {
+      await orders.save({
+        id: 'ord-limit',
+        walletId: 'w-1',
+        type: 'limit',
+        status: 'open',
+        chain: 'base',
+        baseAsset: null,
+        quoteAsset: USDC,
+        side: 'buy',
+        amount: '3000000000',
+        limitPrice: '3000',
+        interval: null,
+        createdAt: new Date(NOW).toISOString(),
+      });
+      await killSwitch.setMode('pause_new', {
+        actor: 'deck',
+        reason: 'flip at trigger',
+        at: new Date(NOW).toISOString(),
+      });
+      const stopped = await usecase.execute({
+        orderId: 'ord-limit',
+        slotKey: 'once',
+      });
+      expect(stopped.status).toBe('failed');
+      expect(stopped.detail).toBe('kill_switch_active');
+      expect((await orders.findById('ord-limit'))?.status).toBe('open');
+
+      // Switch lifted: the deterministic slot re-arms (kill stop did
+      // not spend the one-shot) and executes to completion.
+      await killSwitch.setMode('off', {
+        actor: 'deck',
+        reason: 'lift',
+        at: new Date(NOW + 1000).toISOString(),
+      });
+      const resumed = await usecase.execute({
+        orderId: 'ord-limit',
+        slotKey: 'once',
+      });
+      expect(resumed.status).toBe('submitted');
+      expect((await orders.findById('ord-limit'))?.status).toBe('filled');
+      expect(evaluate.execute).toHaveBeenCalledTimes(1);
+    });
+
+    it('D4: the execution-time staleness check honors the wired TriggerConfig', async () => {
+      await orders.save({
+        id: 'ord-limit',
+        walletId: 'w-1',
+        type: 'limit',
+        status: 'open',
+        chain: 'base',
+        baseAsset: null,
+        quoteAsset: USDC,
+        side: 'sell',
+        amount: '3000000000',
+        limitPrice: '3000',
+        interval: null,
+        createdAt: new Date(NOW).toISOString(),
+      });
+      // 2 minutes old: fresh under the 45m frozen default, stale under
+      // a 60s override — proving the injected config is consulted.
+      triggerConfig.maxAgeMs = 60_000;
+      triggerPrice.getPrint.mockResolvedValue(print('3000', NOW - 120_000));
+      const execution = await usecase.execute({
+        orderId: 'ord-limit',
+        slotKey: 'once',
+      });
+      expect(execution.status).toBe('failed');
+      expect(execution.detail).toContain('trigger_price_stale');
+      expect((await orders.findById('ord-limit'))?.status).toBe('open');
+      expect(evaluate.execute).not.toHaveBeenCalled();
     });
   });
 

@@ -23,6 +23,35 @@ export const DEFAULT_TRIGGER_CONFIG: TriggerConfig = {
   deviationBps: 50,
 };
 
+/** DI token — the module reads the env once at wiring time (freeze §4). */
+export const TRIGGER_CONFIG = 'order-worker.trigger-config';
+
+/**
+ * Freeze §4: the frozen defaults are env-overridable. Parsed once at
+ * wiring time; a missing/malformed/non-positive value falls back to the
+ * frozen default (fail-safe: never widen staleness or deviation from a
+ * typo — tighten or keep, decided per field by the default itself).
+ */
+export function triggerConfigFromEnv(env: {
+  TRIGGER_MAX_AGE_MS?: string;
+  TRIGGER_DEVIATION_BPS?: string;
+}): TriggerConfig {
+  const rawMaxAge = env.TRIGGER_MAX_AGE_MS ?? '';
+  const rawDeviation = env.TRIGGER_DEVIATION_BPS ?? '';
+  const maxAgeMs = Number(rawMaxAge);
+  const deviationBps = Number(rawDeviation);
+  return {
+    maxAgeMs:
+      rawMaxAge !== '' && Number.isFinite(maxAgeMs) && maxAgeMs > 0
+        ? maxAgeMs
+        : DEFAULT_TRIGGER_CONFIG.maxAgeMs,
+    deviationBps:
+      rawDeviation !== '' && Number.isFinite(deviationBps) && deviationBps >= 0
+        ? deviationBps
+        : DEFAULT_TRIGGER_CONFIG.deviationBps,
+  };
+}
+
 /** Limit orders fire at most once. */
 export const LIMIT_SLOT_KEY = 'once';
 

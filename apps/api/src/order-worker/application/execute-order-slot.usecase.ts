@@ -29,10 +29,13 @@ import {
   type QuoteStore,
 } from '../../trading/domain/quote-store.port';
 import { EvaluateIntentUseCase } from '../../security/application/evaluate-intent.usecase';
-import { DEFAULT_TRIGGER_CONFIG } from '../domain/trigger-evaluation';
+import {
+  TRIGGER_CONFIG,
+  type TriggerConfig,
+} from '../domain/trigger-evaluation';
 import {
   LIMIT_REJECTION_PREFIX,
-  isLimitRejection,
+  oneShotUnspent,
 } from '../domain/execution-rules';
 
 /** Origin allow-listed by the gate for automation (stage A prep). */
@@ -87,6 +90,7 @@ export class ExecuteOrderSlotUseCase {
     @Inject(DEX_AGGREGATOR) private readonly dex: DexAggregatorPort,
     @Inject(QUOTE_STORE) private readonly quoteStore: QuoteStore,
     @Inject(TRIGGER_PRICE) private readonly triggerPrice: TriggerPricePort,
+    @Inject(TRIGGER_CONFIG) private readonly triggerConfig: TriggerConfig,
     private readonly evaluateIntent: EvaluateIntentUseCase,
   ) {}
 
@@ -125,10 +129,11 @@ export class ExecuteOrderSlotUseCase {
         );
       }
       if (TERMINAL_EXECUTIONS.has(existing.status)) {
-        if (isLimitRejection(existing)) {
-          // M2 re-arm: the previous attempt refused to violate the
-          // limit bound, so the one-shot was never spent. Reset the
-          // deterministic slot record and run the fresh trigger.
+        if (oneShotUnspent(existing)) {
+          // M2/D2 re-arm: the previous attempt refused to violate the
+          // limit bound OR was stopped by the kill switch — the
+          // one-shot was never spent. Reset the deterministic slot
+          // record and run the fresh trigger.
           execution = await this.executionStore.update(existing.id, {
             status: 'claimed',
             intentId: null,
@@ -167,6 +172,13 @@ export class ExecuteOrderSlotUseCase {
         await this.orderStore
           .setStatus(input.orderId, 'cancelled', at)
           .catch(() => undefined);
+      } else {
+        // D2 (freeze §3 resume intent): pause_new must not strand the
+        // order in 'triggered' — the scheduler only scans 'open', so a
+        // triggered order would be permanently dormant after the kill
+        // switch lifts. Revert; the post-gate re-check keeps the next
+        // attempt safe.
+        await this.revertTriggeredToOpen(input.orderId, at);
       }
       return execution;
     }
@@ -276,6 +288,9 @@ export class ExecuteOrderSlotUseCase {
           await this.orderStore
             .setStatus(order.id, 'cancelled', new Date().toISOString())
             .catch(() => undefined);
+        } else {
+          // D2: same resume-intent revert as the claim-time kill path.
+          await this.revertTriggeredToOpen(order.id, new Date().toISOString());
         }
         return execution;
       }
@@ -320,10 +335,31 @@ export class ExecuteOrderSlotUseCase {
   }
 
   /**
+   * D2 recovery: a kill-switch stop (pause_new) must not strand the
+   * order in 'triggered' — the scheduler only scans 'open' and the
+   * kill-switch fan-out only sees open+paused, so a triggered order
+   * would never run again even after the switch lifts (freeze §3
+   * resume intent). Reverting to 'open' is safe BECAUSE the post-gate
+   * re-check exists: a still-active switch stops the next attempt too.
+   */
+  private async revertTriggeredToOpen(
+    orderId: string,
+    at: string,
+  ): Promise<void> {
+    const current = await this.orderStore.findById(orderId);
+    if (current?.status === 'triggered') {
+      await this.orderStore
+        .setStatus(orderId, 'open', at)
+        .catch(() => undefined);
+    }
+  }
+
+  /**
    * M2 execution-time bound check. Returns null when the limit is
    * still satisfied; otherwise a fail-closed reason string. Same
    * side-aware comparison and staleness ladder as the trigger itself —
    * an unknown or stale print at execution time rejects, never trades.
+   * Staleness uses the wired TriggerConfig (env-overridable, D4).
    */
   private async checkLimitBound(order: Order): Promise<string | null> {
     const print = await this.triggerPrice.getPrint({
@@ -336,7 +372,7 @@ export class ExecuteOrderSlotUseCase {
       return 'trigger_price_unknown at execution time';
     }
     const ageMs = Date.now() - Date.parse(print.observedAt);
-    if (ageMs > DEFAULT_TRIGGER_CONFIG.maxAgeMs) {
+    if (ageMs > this.triggerConfig.maxAgeMs) {
       return 'trigger_price_stale at execution time';
     }
     const limitPrice = Number(order.limitPrice);

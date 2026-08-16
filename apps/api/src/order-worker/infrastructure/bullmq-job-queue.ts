@@ -77,6 +77,12 @@ export class BullMqJobQueue implements JobQueuePort {
       if (state !== 'completed' && state !== 'failed') {
         return { jobId, deduplicated: true };
       }
+      // D1 (Review54 delta): a completed/failed job record still owns the
+      // custom jobId in Redis — re-adding would be a SILENT NO-OP
+      // (handleDuplicatedJob returns the old id with no queue entry),
+      // leaving re-armable slots (M2 limit rejection, kill-failure
+      // recovery) dormant forever. Remove the finished record first.
+      await existing.remove();
     }
     await this.queue.add(
       'execute-slot',

@@ -17,8 +17,10 @@ import {
   evaluateDcaSlot,
   evaluateLimitTrigger,
   LIMIT_SLOT_KEY,
+  TRIGGER_CONFIG,
+  type TriggerConfig,
 } from '../domain/trigger-evaluation';
-import { isLimitRejection } from '../domain/execution-rules';
+import { oneShotUnspent } from '../domain/execution-rules';
 
 /**
  * One scheduler pass over every OPEN order (freeze §4). Runs inside a
@@ -42,6 +44,7 @@ export class SchedulerTickUseCase {
     @Inject(TRIGGER_HINT) private readonly hint: TriggerPricePort,
     @Inject(KILL_SWITCH) private readonly killSwitch: KillSwitchPort,
     @Inject(JOB_QUEUE) private readonly jobQueue: JobQueuePort,
+    @Inject(TRIGGER_CONFIG) private readonly triggerConfig: TriggerConfig,
   ) {}
 
   async execute(): Promise<TriggerEvaluation[]> {
@@ -131,6 +134,7 @@ export class SchedulerTickUseCase {
         quoteAsset: order.quoteAsset,
       }),
       nowMs,
+      config: this.triggerConfig,
     });
     // Limit orders fire at most once: any prior execution (claimed or
     // terminal) means the one-shot was already spent.
@@ -138,9 +142,9 @@ export class SchedulerTickUseCase {
       return evaluation;
     }
     const prior = await this.executionStore.findByOrderId(order.id);
-    // M2 re-arm: an execution-time limit rejection (order left open)
-    // did NOT spend the one-shot; every other prior record did.
-    if (prior.some((record) => !isLimitRejection(record))) {
+    // M2/D2 re-arm: limit-bound rejections and kill-switch stops did
+    // NOT spend the one-shot; every other prior record did.
+    if (prior.some((record) => !oneShotUnspent(record))) {
       return {
         ...evaluation,
         outcome: 'armed',

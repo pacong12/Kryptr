@@ -23,6 +23,10 @@ import {
   type TriggerPricePort,
 } from './domain/trigger-price.port';
 import { JOB_QUEUE, type JobQueuePort } from './domain/job-queue.port';
+import {
+  TRIGGER_CONFIG,
+  triggerConfigFromEnv,
+} from './domain/trigger-evaluation';
 import { InMemoryOrderStore } from './infrastructure/in-memory-order.store';
 import { InMemoryExecutionStore } from './infrastructure/in-memory-execution.store';
 import { InMemoryKillSwitch } from './infrastructure/in-memory-kill-switch';
@@ -128,6 +132,12 @@ export const TRIGGER_QUEUE_NAME = 'automation.trigger';
         }
         return new UnavailableJobQueue();
       },
+    },
+    // D4 (freeze §4): TRIGGER_MAX_AGE_MS / TRIGGER_DEVIATION_BPS are
+    // env-overridable; parsed once at wiring time, frozen defaults apply.
+    {
+      provide: TRIGGER_CONFIG,
+      useFactory: () => triggerConfigFromEnv(process.env),
     },
     CreateOrderUseCase,
     CancelOrderUseCase,

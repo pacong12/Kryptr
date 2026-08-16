@@ -36,11 +36,14 @@ describe('CancelOrderUseCase', () => {
 
   afterEach(() => jest.useRealTimers());
 
-  it.each(['open', 'paused'] as const)('cancels a %s order', async (status) => {
-    await orders.save(order({ status }));
-    const cancelled = await usecase.execute('ord-1');
-    expect(cancelled.status).toBe('cancelled');
-  });
+  it.each(['open', 'paused', 'triggered'] as const)(
+    'cancels a %s order',
+    async (status) => {
+      await orders.save(order({ status }));
+      const cancelled = await usecase.execute('ord-1');
+      expect(cancelled.status).toBe('cancelled');
+    },
+  );
 
   it.each(['filled', 'cancelled', 'failed', 'expired'] as const)(
     'refuses a terminal %s order',

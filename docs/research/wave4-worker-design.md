@@ -440,6 +440,42 @@ Implemented in one batch on `feat/order-worker`
   wiring-time errors instead of an opaque `new URL('')` crash;
   protocol must be `redis://`/`rediss://`.
 
+### Review54 delta fixes (second ruling round, same branch)
+
+- **D1 — BullMQ re-arm transport.** A completed/failed job record keeps
+  its custom `jobId` in Redis; re-adding with the same id was a SILENT
+  NO-OP (`handleDuplicatedJob` returns the old id, no queue entry), so
+  an M2-rejected or kill-stopped limit order would sleep forever in
+  bullmq mode. `enqueueExecution` now removes the finished record
+  before re-adding. Proven against real Redis: workers test
+  "re-enqueueing a completed slot is processed again".
+- **D2 — recovery from `triggered` after a kill stop.** A kill-switch
+  stop (pause_new) left the order in `triggered`, which nothing scans
+  (scheduler: `findOpen`; fan-out: `findLive`; cancel: rejected) —
+  permanent dormancy after the switch lifts, violating freeze §3
+  resume intent. Fixed on BOTH fronts:
+  - the executor reverts `triggered → open` on every kill-stop path
+    (claim-time AND post-gate OW-1), safe precisely because the
+    post-gate re-check exists;
+  - `CancelOrderUseCase` now accepts `triggered` (an in-flight
+    execution fails its OW-1 liveness re-check with `order_not_live`).
+    Additionally, a `kill_switch_active` execution failure does NOT spend
+    the limit one-shot (`oneShotUnspent` in `domain/execution-rules.ts`
+    subsumes `isLimitRejection`): scheduler suppression and the claim
+    slot both re-arm, so a limit order genuinely re-fires after the lift.
+- **D4 — env-overridable trigger config.** `TRIGGER_MAX_AGE_MS` /
+  `TRIGGER_DEVIATION_BPS` are now parsed once at wiring time
+  (`triggerConfigFromEnv`, injected via the `TRIGGER_CONFIG` token)
+  and consulted by BOTH the limit trigger evaluation and the
+  execution-time bound check; malformed/missing values fall back to the
+  frozen defaults.
+- **D3/R2 — documented, not fixed (single-replica era).**
+  `ExecutionStore.update()` has no compare-and-set on terminal
+  statuses; safety currently comes from single replica + per-slot
+  KeyedMutex + BullMQ's single-delivery. When Postgres/multi-replica
+  lands, `update()` must become conditional (`UPDATE ... WHERE status
+NOT IN terminal`) — tracked in `docs/tasks/followups.md`.
+
 ### Deferred (documented per ruling, not implemented)
 
 - **L1 — `expired` TTL for limit orders.** The `open → expired`

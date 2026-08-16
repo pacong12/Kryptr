@@ -5,6 +5,7 @@ import { InMemoryExecutionStore } from '../infrastructure/in-memory-execution.st
 import { InMemoryKillSwitch } from '../infrastructure/in-memory-kill-switch';
 import { StaticTriggerPrice } from '../infrastructure/static-trigger-price';
 import { SchedulerTickUseCase } from './scheduler-tick.usecase';
+import { DEFAULT_TRIGGER_CONFIG } from '../domain/trigger-evaluation';
 
 const NOW = Date.parse('2026-05-01T12:00:00.000Z');
 const USDC = '0x833589fcd6edb6e08f4c7c32d4f71b54bfa02913' as const;
@@ -35,7 +36,11 @@ describe('SchedulerTickUseCase', () => {
   let queue: JobQueuePort;
   let usecase: SchedulerTickUseCase;
 
-  function build(primary: StaticTriggerPrice, hint: StaticTriggerPrice): void {
+  function build(
+    primary: StaticTriggerPrice,
+    hint: StaticTriggerPrice,
+    config = DEFAULT_TRIGGER_CONFIG,
+  ): void {
     usecase = new SchedulerTickUseCase(
       orders,
       executions,
@@ -43,6 +48,7 @@ describe('SchedulerTickUseCase', () => {
       hint,
       killSwitch,
       queue,
+      config,
     );
   }
 
@@ -238,5 +244,65 @@ describe('SchedulerTickUseCase', () => {
     expect(evaluations[0].outcome).toBe('armed');
     expect(evaluations[0].detail).toContain('one-shot already spent');
     expect(enqueued).toEqual([]);
+  });
+
+  it('D2: a kill-stopped execution does NOT spend the one-shot — re-triggers after the switch lifts', async () => {
+    const limit = order({
+      id: 'ord-limit',
+      type: 'limit',
+      limitPrice: '3000',
+      interval: null,
+      createdAt: new Date(NOW).toISOString(),
+    });
+    await orders.save(limit);
+    // Prior execution = stopped by the kill switch (order left open by
+    // the executor's D2 revert).
+    await executions.claim('ord-limit', 'once', new Date(NOW).toISOString());
+    await executions.update('ord-limit:once', {
+      status: 'failed',
+      finishedAt: new Date(NOW).toISOString(),
+      detail: 'kill_switch_active',
+    });
+    build(
+      new StaticTriggerPrice({ priceUsd: '2900' }),
+      new StaticTriggerPrice({ priceUsd: '2900' }),
+    );
+    const evaluations = await usecase.execute();
+    expect(evaluations[0].outcome).toBe('triggered');
+    expect(enqueued).toEqual([{ orderId: 'ord-limit', slotKey: 'once' }]);
+  });
+
+  it('D4: the wired TriggerConfig reaches the trigger evaluation (env-overridable staleness)', async () => {
+    const limit = order({
+      id: 'ord-limit',
+      type: 'limit',
+      limitPrice: '3000',
+      interval: null,
+      createdAt: new Date(NOW).toISOString(),
+    });
+    await orders.save(limit);
+    // Primary print is 50 minutes old: unknown under the 45m frozen
+    // default, but fresh under a 60m override.
+    const stalePrimary = new StaticTriggerPrice({
+      print: {
+        source: 'static',
+        priceUsd: '2900',
+        observedAt: new Date(NOW - 50 * 60_000).toISOString(),
+      },
+    });
+    const hint = new StaticTriggerPrice({ priceUsd: '2900' });
+
+    build(stalePrimary, hint);
+    const withDefault = await usecase.execute();
+    expect(withDefault[0].outcome).toBe('skip_stale');
+    expect(enqueued).toEqual([]);
+
+    build(stalePrimary, hint, {
+      ...DEFAULT_TRIGGER_CONFIG,
+      maxAgeMs: 3_600_000,
+    });
+    const withOverride = await usecase.execute();
+    expect(withOverride[0].outcome).toBe('triggered');
+    expect(enqueued).toEqual([{ orderId: 'ord-limit', slotKey: 'once' }]);
   });
 });

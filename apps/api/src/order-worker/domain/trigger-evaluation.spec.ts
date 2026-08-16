@@ -4,6 +4,7 @@ import {
   evaluateDcaSlot,
   evaluateLimitTrigger,
   LIMIT_SLOT_KEY,
+  triggerConfigFromEnv,
 } from './trigger-evaluation';
 
 const NOW = Date.parse('2026-05-01T12:00:00.000Z');
@@ -202,5 +203,38 @@ describe('evaluateDcaSlot', () => {
     expect(withPrints.outcome).toBe('triggered');
     expect(withoutPrints.outcome).toBe('triggered');
     expect(withoutPrints.detail).toContain('fail-closed');
+  });
+});
+
+describe('triggerConfigFromEnv (D4)', () => {
+  it('returns the frozen defaults when nothing is set', () => {
+    expect(triggerConfigFromEnv({})).toEqual(DEFAULT_TRIGGER_CONFIG);
+  });
+
+  it('honors well-formed overrides', () => {
+    expect(
+      triggerConfigFromEnv({
+        TRIGGER_MAX_AGE_MS: '120000',
+        TRIGGER_DEVIATION_BPS: '25',
+      }),
+    ).toEqual({ maxAgeMs: 120_000, deviationBps: 25 });
+  });
+
+  it('allows deviation 0 (exact match) as a valid tightening', () => {
+    expect(triggerConfigFromEnv({ TRIGGER_DEVIATION_BPS: '0' })).toEqual({
+      ...DEFAULT_TRIGGER_CONFIG,
+      deviationBps: 0,
+    });
+  });
+
+  it.each([
+    { TRIGGER_MAX_AGE_MS: '' },
+    { TRIGGER_MAX_AGE_MS: 'abc' },
+    { TRIGGER_MAX_AGE_MS: '-5' },
+    { TRIGGER_MAX_AGE_MS: '0' },
+    { TRIGGER_DEVIATION_BPS: 'NaN' },
+    { TRIGGER_DEVIATION_BPS: '-1' },
+  ])('falls back to defaults on malformed input %#', (env) => {
+    expect(triggerConfigFromEnv(env)).toEqual(DEFAULT_TRIGGER_CONFIG);
   });
 });

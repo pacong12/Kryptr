@@ -180,6 +180,57 @@ describeRedis('order-worker bullmq bindings (real redis)', () => {
     }
   }, 40_000);
 
+  it('D1: re-enqueueing a completed slot is processed again (M2 re-arm transport)', async () => {
+    // A completed 'once' job keeps its custom jobId in Redis. If the
+    // queue re-adds without removing the finished record, BullMQ's
+    // handleDuplicatedJob turns the add into a SILENT NO-OP (returns
+    // the old id, no queue entry) and a re-armed limit slot sleeps
+    // forever. This test pins the fix: the re-enqueued slot must be
+    // processed a second time.
+    const until = async (predicate: () => boolean): Promise<void> => {
+      const deadline = Date.now() + 15_000;
+      while (!predicate()) {
+        if (Date.now() > deadline) {
+          throw new Error('wait timed out');
+        }
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    };
+
+    const { calls, usecase } = stubUseCase(async () => 'submitted');
+    const events = new QueueEvents(EXECUTE_QUEUE_NAME, {
+      connection: { ...redisConnection(), maxRetriesPerRequest: null },
+      prefix: PREFIX,
+    });
+    await events.waitUntilReady();
+    const completions: string[] = [];
+    events.on('completed', ({ jobId }) => completions.push(jobId));
+
+    const worker = createExecutionWorker({
+      connection: redisConnection(),
+      prefix: PREFIX,
+      executeOrderSlot: usecase,
+    });
+    try {
+      const first = await queue.enqueueExecution('ord-rearm', 'once');
+      expect(first.deduplicated).toBe(false);
+      await until(() => completions.length >= 1);
+      expect(calls).toHaveLength(1);
+
+      // Re-arm path (M2 limit rejection / D2 kill recovery): the
+      // scheduler enqueues the same slotKey again.
+      const second = await queue.enqueueExecution('ord-rearm', 'once');
+      expect(second.deduplicated).toBe(false);
+      await until(() => completions.length >= 2);
+      expect(completions).toEqual(['ord-rearm.once', 'ord-rearm.once']);
+      expect(calls).toHaveLength(2);
+      expect(calls[1]).toEqual({ orderId: 'ord-rearm', slotKey: 'once' });
+    } finally {
+      await worker.close();
+      await events.close();
+    }
+  }, 40_000);
+
   it('kill-switch pause holds queued executions; resume releases them', async () => {
     const { calls, usecase } = stubUseCase(async () => 'submitted');
     const worker = createExecutionWorker({
