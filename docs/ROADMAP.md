@@ -5,12 +5,12 @@ requirements — never bolted on afterwards.
 
 ## Goals — what "done" means per phase
 
-| Phase | Goal (measurable) | Exit criteria |
-|---|---|---|
-| 1 | User connects wallet, sees balances, sends a transfer that passes the security gate; backoffice monitors it live | E2E happy path demo + all gates green |
-| 2 | Agent schedules DCA/limit orders that execute on time without human touch | 24h soak test, zero missed executions |
-| 3 | Agent launches a token; fees accrue to its wallet per the fixed schedule | On-chain fee split verified in Blockscout |
-| 4 | Natural-language request becomes a gated intent; Grok/Bankr attack replay is blocked | Red-team report, 0 unauthorized transfers |
+| Phase | Goal (measurable)                                                                                                | Exit criteria                             |
+| ----- | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| 1     | User connects wallet, sees balances, sends a transfer that passes the security gate; backoffice monitors it live | E2E happy path demo + all gates green     |
+| 2     | Agent schedules DCA/limit orders that execute on time without human touch                                        | 24h soak test, zero missed executions     |
+| 3     | Agent launches a token; fees accrue to its wallet per the fixed schedule                                         | On-chain fee split verified in Blockscout |
+| 4     | Natural-language request becomes a gated intent; Grok/Bankr attack replay is blocked                             | Red-team report, 0 unauthorized transfers |
 
 ## When agents disagree or are confused
 
@@ -21,8 +21,14 @@ ambiguities are bugs — report them, don't guess.
 ## Phase 1 — Wallet & basic trading (MVP)
 
 - [ ] Wallet service: create/list agent wallets (`AgentWallet`)
-- [ ] Non-custodial signing boundary (WalletConnect / Privy / ERC-4337 —
-      decide before implementation; app itself never stores seed phrases)
+- Signing boundary (DECIDED 2026, wave 2 — see docs/research/wave2-trading-research.md):
+  Phase 1 ships Privy-style embedded wallets with a policy engine ON by
+  default, with Kryptr's security gate as a mandatory second layer.
+  Agent wallets migrate to ERC-4337 session keys (on-chain-enforced spend
+  policy) in a later wave — hybrid Privy-signer + 4337 account is the
+  target. WalletConnect remains an optional self-custody connect mode;
+  it is not viable for autonomous server agents. Until signing lands,
+  the API only ever produces UNSIGNED calldata behind an approved intent.
 - [ ] Balance reads via viem + Blockscout (Base, Robinhood Chain)
 - [ ] Transfers + swaps through a DEX aggregator
 - [ ] Security gate v1: origin allowlist + approval threshold
