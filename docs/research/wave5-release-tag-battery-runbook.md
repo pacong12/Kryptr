@@ -1,12 +1,11 @@
 # Wave 5 Release-Tag Battery Runbook — executing G2–G5 against the deployed factory
 
 > **Author:** `web3` (Kryptr crew) · **Date:** 2026-08-16 · **Status:** operational runbook;
-> operationalizes G2–G5 of `wave5-t21-verification-design.md` (doc #60, merged) at release-tag
-> time. G1 full-invariant completion (venue phase: INV-FEE-2/4 + FK-2 + §9.1 rounding) remains
-> VaultAPI's domain; the factory-phase G1 subset merged in #76. Rehearsal chain candidate:
-> **Base Sepolia**. `[fact]` = sourced; **[inference]** = derived here; **[design]** = proposed
-> requirement. Tags `[R#]` resolve in §10; `[F#]`/`[V#]`/`[O#]` in the T21 doc and wave-3/4
-> registries.
+> **revised 2026-08-16** per vault/ops review (two battery tiers, template-before-factory
+> ordering, artifact identity tuple, dual-rehearsal framing). Operationalizes G2–G5 of
+> `wave5-t21-verification-design.md` (doc #60, merged) at release-tag time. `[fact]` = sourced;
+> **[inference]** = derived here; **[design]** = proposed requirement. Tags `[R#]` resolve in
+> §10; `[F#]`/`[V#]`/`[O#]` in the T21 doc and wave-3/4 registries.
 
 ---
 
@@ -21,34 +20,55 @@ criteria, and the producing/consuming agent.
 **Battery PASS ≠ allowlist entry.** The artifact produced here is the _input_ to vault's gate #3
 deploy-HITL decision; entry remains a separate human decision.
 
+**Two battery tiers [design]** (resolves the gate-#1 deadlock: venue work needs a frozen
+factory, but a "full battery including venue" would make the factory wait for venue):
+
+- **Tier F — factory-release battery** (passable now): factory-phase G1 subset (INV-FEE-1/3,
+  INV-BOND-1/2/3, INV-SUP-1 fee-free conservation, INV-CLONE-1, INV-INIT-1) + G2 + G3
+  FK-1/3/4/5/6 + G4 P-1…P-6 + G5 artifact, with the carve-out boundary asserted explicitly
+  (carve-out assertion appendix authored by the contracts lead). Tier F PASS freezes the factory
+  and releases it for venue-phase work on the rehearsal chain.
+- **Tier V — launch battery:** Tier F + INV-FEE-2/4 + FK-2 venue-accrual ghost + §9.1
+  rounding/dust decision. If venue work changes template/factory, Tier V runs against a NEW
+  factory release tag (Tier F re-runs on that tag first). Tier V PASS is required before any
+  user-facing launch.
+- The consent vocabulary is unchanged: the four frozen claims derive at Tier F; Tier V deepens
+  `fee_split_invariant` evidence with INV-FEE-2/4.
+
 **Deploy is an external input.** The factory DEPLOY mechanism is under ruling (keyless policy;
 the signer phase does not exist yet). This runbook deliberately does NOT assume any deploy
-automation: it consumes `(releaseTag, commitSha, factoryAddress, templateAddress, deployTx,
-deployBlock)` as inputs, whatever mechanism produces them.
+automation: it consumes `(releaseTag, commitSha)` plus TWO deploy tuples — template
+`(address, tx, block)` first, factory `(address, tx, block)` second — whatever mechanism
+produces them.
 
 ## 2. Inputs and owners
 
-| Input                                                                                             | Owner     | Blocking?               |
-| ------------------------------------------------------------------------------------------------- | --------- | ----------------------- |
-| Factory deploy mechanism ruling (keyless policy)                                                  | Main/user | YES — deploy itself     |
-| Release tag + commit sha of the exact deployed source                                             | VaultAPI  | YES                     |
-| Deployed factory/template addresses + deploy tx + deploy block                                    | VaultAPI  | YES (post-deploy steps) |
-| Constructor-param confirmation (`totalFeeBps=175`, `bondAmount`, `bondSink`)                      | VaultAPI  | YES                     |
-| Pinned Slither version (0.11.6 per #76 CI pin) + `slither.config.json` + never-triage guard (#78) | OpsCI     | YES (G2)                |
-| Fork-test runner with retry/backoff against rehearsal RPC `[F5]` + fork label gates               | OpsCI     | YES (G3)                |
-| RFC 8785 canonicalizer, pinned, with test vectors (G5 `contentHash`)                              | OpsCI     | YES (G5)                |
-| Artifact commit path + manifest schema-validation job                                             | OpsCI     | YES (G5)                |
-| Venue-phase G1 completion timing (INV-FEE-2/4, FK-2, rounding)                                    | VaultAPI  | YES for FULL battery    |
-| Testnet faucet ETH for live-exercise scenarios                                                    | OpsCI     | venue phase only        |
+| Input                                                                                                                                                                                                                                     | Owner     | Blocking?               |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ----------------------- |
+| Factory deploy mechanism ruling (keyless policy)                                                                                                                                                                                          | Main/user | YES — deploy itself     |
+| Release tag + commit sha of the exact deployed source — tag MUST include this runbook + T21 criteria doc (battery scopes against in-tree criteria); proposed `contracts-v0.1.0`                                                           | VaultAPI  | YES                     |
+| Deployed **template** tuple `(address, tx, block)` — deployed FIRST                                                                                                                                                                       | VaultAPI  | YES (post-deploy steps) |
+| Deployed **factory** tuple `(address, tx, block)` — deployed SECOND (constructor takes the live template address)                                                                                                                         | VaultAPI  | YES (post-deploy steps) |
+| Constructor params: `totalFeeBps=175` CERTIFIED (in-tree parity test vs gate constant); `bondAmount` + `bondSink` UNRULED (Main/user owes); confirmation = kit output + on-chain immutable readback transcript recorded into the artifact | VaultAPI  | YES                     |
+| Pinned Slither version (0.11.6 per #76 CI pin) + `slither.config.json` + never-triage guard (#78)                                                                                                                                         | OpsCI     | YES (G2)                |
+| Fork-test runner with retry/backoff against rehearsal RPC `[F5]` + fork label gates                                                                                                                                                       | OpsCI     | YES (G3)                |
+| RFC 8785 canonicalizer, pinned, with test vectors (G5 `contentHash`)                                                                                                                                                                      | OpsCI     | YES (G5)                |
+| Artifact commit path + manifest schema-validation job                                                                                                                                                                                     | OpsCI     | YES (G5)                |
+| Venue-phase G1 completion timing (INV-FEE-2/4, FK-2, rounding)                                                                                                                                                                            | VaultAPI  | YES for Tier V          |
+| Testnet faucet ETH for live-exercise scenarios                                                                                                                                                                                            | OpsCI     | venue phase only        |
+| Release-tag workflow (tag/dispatch trigger → battery → G5 artifact upload); awaits vault naming battery entry points                                                                                                                      | OpsCI     | YES (G5 automation)     |
 
 ## 3. Rehearsal chain **[design + fact]**
 
-**Recommendation: Base Sepolia** — chainId `84532`, public RPC `https://sepolia.base.org`
-(rate-limited public endpoint) `[R1]`, Blockscout instance `https://base-sepolia.blockscout.com`
-with API base `…/api` `[R2]`, so G4 P-5 (source verification, public re-derivability) is
-executable on the rehearsal. Robinhood testnet (chainId 46630 `[R1]`-family) stays deferred until
-the vault confirms chain support (memo ruling). Public-RPC pacing lessons from wave 4 apply
-(User-Agent, retry/backoff; `updatedAt`-style staleness discipline for any feed reads) `[O21][O22]`.
+**Dual rehearsal, pending ruling.** Stage 1: **Base Sepolia** — chainId `84532`, public RPC
+`https://sepolia.base.org` (rate-limited public endpoint) `[R1]`, Blockscout instance
+`https://base-sepolia.blockscout.com` `[R2]`, so G4 P-5 (source verification, public
+re-derivability) stays executable and keyless; endorsed by ops. Stage 2: the SAME kit against
+**Robinhood Chain** (conductor-named; testnet 46630 / production 4663 pending vault
+chain-support confirmation; Robinhood Blockscout per wave-3 `[V12]` — P-5 executability to
+confirm). The FK/G4 sections below name `84532` explicitly for env wiring
+(`RPC_URL_BASE_SEPOLIA`); chain switches happen only by ruling. Public-RPC pacing lessons from
+wave 4 apply (User-Agent, retry/backoff; staleness discipline for any feed reads) `[O21][O22]`.
 
 ## 4. G2 at the release tag — static + selector surface **[design]**
 
@@ -66,10 +86,12 @@ dbHash}`; `selectorAudit.{factorySelectors, templateSelectors, forbiddenMatches:
 
 ## 5. G3 at the release tag — fork scenarios, pinned block **[design]**
 
-**Block pin (closes T21 §9.4):** `B_pin` = the deploy block (first block where factory code
-exists on the rehearsal chain). The release gate runs FK-\* at exactly `B_pin` `[F5]`. Nightly
-suites may refresh to newer blocks, but **the artifact is only valid at its recorded block**: a
-re-run at any other block = new `contentHash` = new artifact — no silent drift.
+**Block pin (closes T21 §9.4; signed off by ops, endorsed by vault):** `B_pin` = the **factory
+deploy block** (template deploys earlier; both contracts are readable at `B_pin`). The release
+gate runs FK-\* at exactly `B_pin` `[F5]`. Nightly suites may refresh to newer blocks, but **the
+artifact is only valid at its recorded block**: a re-run at any other block = new `contentHash`
+= new `verificationId` = new release pin — no silent drift. The manifest pin change IS the
+release event (consent references `verificationId`).
 
 Factory-phase scenarios (keyless — fork tests never send real transactions):
 
@@ -86,43 +108,56 @@ Factory-phase scenarios (keyless — fork tests never send real transactions):
 
 ## 6. G4 at the release tag — live proofs, keyless **[design]**
 
-P-1…P-6 run against the rehearsal chain at `B_pin` via read-only RPC (wave-4 method discipline
-`[O21][O22]`): clone runtime shape (P-1), EIP-1967 slots zero (P-2), selector audit vs the §7.1
-set (P-3), bytecode-hash pinning + op-scan (P-4), Blockscout verification (P-5), factory
-impotence (P-6, from P-3 + INV-CLONE-1). Every proof is third-party re-runnable; the pinned block
-
-- recorded hashes make RPC lies detectable offline against the artifact. Cross-check critical
-  reads via a second RPC where available (T24 discipline).
+P-1…P-6 run against BOTH deployed contracts (template, then factory, plus a sample clone) on the
+rehearsal chain at `B_pin` via read-only RPC (wave-4 method discipline `[O21][O22]`): clone
+runtime shape (P-1), EIP-1967 slots zero (P-2), selector audit vs the §7.1 set (P-3),
+bytecode-hash pinning + op-scan (P-4), Blockscout verification (P-5), factory impotence (P-6,
+from P-3 + INV-CLONE-1). Every proof is third-party re-runnable; the pinned block + recorded
+hashes make RPC lies detectable offline against the artifact. Cross-check critical reads via a
+second RPC where available (T24 discipline).
 
 **Pass:** all six proofs at `B_pin`; P-5 requires prior source verification (§7 owner).
 
 ## 7. G5 at the release tag — artifact assembly **[design]**
 
 CI (producer) assembles `contracts/deployments/{chain}.verification.json` per T21 §8: stable
-`id` (`t21:base-sepolia:<releaseTag>` for the rehearsal), `claims` CI-derived from battery
-results with the frozen four-string vocabulary, `contentHash` = sha256 of the RFC 8785 canonical
-form (field excluded) using the OpsCI-pinned canonicalizer `[F9]`. The artifact is committed
-alongside the manifest and schema-validated in CI; `DeployContext.verification.hash` must equal
-`contentHash` at consent time.
+`id` (`t21:base-sepolia:<releaseTag>` for the stage-1 rehearsal), `claims` CI-derived from
+battery results with the frozen four-string vocabulary, `contentHash` = sha256 of the RFC 8785
+canonical form (field excluded) using the in-repo pinned canonicalizer `[F9]`. The artifact is
+committed alongside the manifest and schema-validated in CI; `DeployContext.verification.hash`
+must equal `contentHash` at consent time.
+
+**Artifact identity hardening [design]:** the artifact carries BOTH deploy tuples
+(template first, factory second) and per-contract identity = `(codeHash, deployBlock,
+constructorArgsHash)`; it embeds `constructorArgsHash` (factory: template, totalFeeBps,
+bondAmount, bondSink; template: none) plus the **immutable-readback transcript** (on-chain reads
+of `template()`, `totalFeeBps()`, `bondAmount()`, `bondSink()` with provenance), so
+"bytecode matches" can never be satisfied by right-code-wrong-params.
 
 **Pass:** artifact committed, schema-valid, hash reproducible by an independent re-canonicalization.
 
 ## 8. Pass/fail semantics **[design]**
 
-All of G1 (as scoped for the phase), G2, G3, G4, G5 green at the **same tag / commit / `B_pin`**
-→ battery PASS → artifact recorded → eligible for the gate #3 allowlist decision. Any single
-failure → no artifact, no allowlist entry, factory stays dark; fail-closed throughout.
-**Testnet PASS ≠ mainnet PASS:** mainnet requires a fresh run of this runbook (new chain slug
-`t21:base:<tag>`, new `B_pin`, own artifact) AND full G1 completion (venue phase).
+**Tier F PASS:** factory-phase G1 subset + G2 + G3 (FK-1/3/4/5/6) + G4 P-1…P-6 + G5 all green
+at the same tag / commit / `B_pin`, carve-out boundary asserted → artifact recorded → factory
+frozen and eligible for the gate #3 allowlist decision for venue-phase work. **Tier V PASS:**
+Tier F evidence + INV-FEE-2/4 + FK-2 ghost + rounding decision, on the tag that ships venue
+(new tag if template/factory changed) → required before any user-facing launch. Any single
+failure at either tier → no artifact for that tier, no entry, fail-closed throughout.
+**Testnet PASS ≠ mainnet PASS:** mainnet requires a fresh run of this runbook (new chain slug,
+new `B_pin`, own artifact).
 
 ## 9. Open questions (need rulings/confirmations)
 
 1. **Deploy mechanism** — keyless-policy ruling pending; runbook treats deploy as external input.
-2. **Testnet signing for venue-phase live exercises** (FK-2) — the keyless question returns in
+2. **`bondAmount` + `bondSink` values** for the rehearsal deploy — Main/user ruling owed
+   (totalFeeBps=175 already certified in-tree).
+3. **Testnet signing for venue-phase live exercises** (FK-2) — the keyless question returns in
    testnet form; needs its own ruling.
-3. **Rehearsal chain confirmation** — Base Sepolia recommended (§3).
-4. **Fork-block drift policy** — proposed in §5; needs OpsCI sign-off.
-5. **Blockscout verification submission owner** for the rehearsal chain (OpsCI or VaultAPI).
+4. **Rehearsal chain confirmation** — dual rehearsal proposed (§3): Base Sepolia stage 1
+   (endorsed by ops), Robinhood stage 2 same kit; conductor to rule.
+5. **Fork-block drift policy** — CLOSED: signed off by ops, endorsed by vault (§5).
+6. **Blockscout verification submission owner** for each rehearsal chain (OpsCI or VaultAPI).
 
 ## 10. Source registry
 
