@@ -142,6 +142,9 @@ jobs:
         run: npx nx run @kryptr/contracts:fork-test
         env:
           RPC_URL_BASE: https://mainnet.base.org
+          # Label-gated PR runs intentionally use the LATEST block (fresh
+          # signal); the release-gate B_pin pinning (runbook §5) happens in
+          # the nightly dispatch / release-tag flow via FORK_BLOCK_BASE.
 
   # Secret scanning: fail if anything that looks like a real key lands in
   # the repo. GitGuardian alone does not cover pushes from this repo, so
