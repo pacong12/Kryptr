@@ -2,14 +2,18 @@ import type {
   AgentWallet,
   ApiEnvelope,
   ApiError,
+  ChainReaderHealth,
   FeedHealth,
   HealthStatus,
   IntentTimelineStep,
   SecurityDecision,
   SwapQuote,
+  WalletBalance,
 } from '@kryptr/shared-types';
 
 import {
+  MOCK_BALANCES,
+  MOCK_CHAINS,
   MOCK_FEEDS,
   MOCK_INTENTS,
   MOCK_QUOTES,
@@ -219,4 +223,30 @@ export async function getIntentTimeline(
 export async function getFeeds(): Promise<DataSource<FeedHealth[]>> {
   const outcome = await fetchEnvelope<FeedHealth[]>('/health/feeds');
   return toDataSource(outcome, MOCK_FEEDS);
+}
+
+/** Wave 3: chain-reader health (GET /api/health/chains). */
+export async function getChains(): Promise<DataSource<ChainReaderHealth[]>> {
+  const outcome = await fetchEnvelope<ChainReaderHealth[]>('/health/chains');
+  return toDataSource(outcome, MOCK_CHAINS);
+}
+
+/**
+ * Wave 3: per-chain balances for one wallet (GET /api/wallets/:id/balances).
+ * A live envelope error (e.g. unknown wallet) renders as an honest error
+ * state; fixtures only cover an unreachable API.
+ */
+export async function getWalletBalances(
+  walletId: string,
+): Promise<DataSource<WalletBalance[]>> {
+  const outcome = await fetchEnvelope<WalletBalance[]>(
+    `/wallets/${encodeURIComponent(walletId)}/balances`,
+  );
+  if (outcome.kind === 'envelope') {
+    if (outcome.envelope.ok && outcome.envelope.data !== null) {
+      return { data: outcome.envelope.data, mock: false, apiError: null };
+    }
+    return { data: [], mock: false, apiError: outcome.envelope.error };
+  }
+  return { data: MOCK_BALANCES[walletId] ?? [], mock: true, apiError: null };
 }

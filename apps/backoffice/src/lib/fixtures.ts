@@ -1,11 +1,13 @@
 import type {
   AgentWallet,
+  ChainReaderHealth,
   FeedHealth,
   IntentTimelineStep,
   SecurityDecision,
   SwapQuote,
   TransactionIntent,
   TransactionStatus,
+  WalletBalance,
 } from '@kryptr/shared-types';
 
 /**
@@ -267,7 +269,10 @@ export const MOCK_TIMELINES: Record<string, IntentTimelineStep[]> = {
   ],
 };
 
-/** Data-feed health fixtures — one per status (healthy / stale / down). */
+/**
+ * Data-feed health fixtures — one per status
+ * (healthy / stale / down / unconfigured).
+ */
 export const MOCK_FEEDS: FeedHealth[] = [
   {
     feedId: 'price:static',
@@ -290,4 +295,81 @@ export const MOCK_FEEDS: FeedHealth[] = [
     lastUpdateAt: null,
     priceAgeSec: null,
   },
+  {
+    feedId: 'dex:0x',
+    source: '0x',
+    status: 'unconfigured',
+    lastUpdateAt: null,
+    priceAgeSec: null,
+  },
 ];
+
+/** Chain-reader health fixtures — one reachable, one unreachable. */
+export const MOCK_CHAINS: ChainReaderHealth[] = [
+  {
+    chainId: 'base',
+    provider: 'viem:mainnet.base.org',
+    reachable: true,
+    blockHeight: 8841203,
+    latencyMs: 46,
+    lastBlockAt: '2026-02-19T11:41:58.000Z',
+  },
+  {
+    chainId: 'robinhood-chain',
+    provider: 'static-mock',
+    reachable: false,
+    blockHeight: null,
+    latencyMs: null,
+    lastBlockAt: null,
+  },
+];
+
+/**
+ * Per-wallet balances (mock mode for the wallet detail page).
+ * wal_robinhood_settlement holds nothing -> empty-state demo.
+ */
+export const MOCK_BALANCES: Record<string, WalletBalance[]> = {
+  wal_base_treasury: [
+    {
+      walletId: 'wal_base_treasury',
+      chain: 'base',
+      nativeBalance: '1200000000000000000',
+      tokens: [
+        {
+          contractAddress: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+          symbol: 'USDC',
+          decimals: 6,
+          amount: '2449000000',
+        },
+        {
+          contractAddress: '0x4200000000000000000000000000000000000006',
+          symbol: 'WETH',
+          decimals: 18,
+          amount: '350000000000000000',
+        },
+      ],
+    },
+  ],
+  wal_robinhood_settlement: [
+    {
+      walletId: 'wal_robinhood_settlement',
+      chain: 'robinhood-chain',
+      nativeBalance: '0',
+      tokens: [],
+    },
+  ],
+  wal_ops_gas_reserve: [
+    {
+      walletId: 'wal_ops_gas_reserve',
+      chain: 'base',
+      nativeBalance: '75000000000000000',
+      tokens: [],
+    },
+    {
+      walletId: 'wal_ops_gas_reserve',
+      chain: 'robinhood-chain',
+      nativeBalance: '0',
+      tokens: [],
+    },
+  ],
+};

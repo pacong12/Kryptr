@@ -38,10 +38,18 @@ export async function FeedsSection() {
             <div className="flex min-w-0 flex-col">
               <span className="font-mono text-sm">{feed.feedId}</span>
               <span className="text-xs text-muted-foreground">
-                source {feed.source} · price age{' '}
-                {feed.priceAgeSec === null
-                  ? 'unavailable'
-                  : formatUptime(feed.priceAgeSec)}
+                {feed.status === 'unconfigured' ? (
+                  <>
+                    source {feed.source} · no API key configured · price age —
+                  </>
+                ) : (
+                  <>
+                    source {feed.source} · price age{' '}
+                    {feed.priceAgeSec === null
+                      ? 'unavailable'
+                      : formatUptime(feed.priceAgeSec)}
+                  </>
+                )}
               </span>
             </div>
             <FeedStatusBadge status={feed.status} />
