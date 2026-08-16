@@ -39,14 +39,16 @@ S2/S4 may progress in parallel once S0/S1 land; live venue funds only flow after
 
 ## 4. Entry gates (all must hold before their stage, fail-closed)
 
-- **G-A (custody):** design doc reviewed and ruled. Keys never in env (extension of the env-policy ruling); MPC/KMS non-exportable; signer is a separate service that never evaluates policy; caps per-intent.
-- **G-B (decision-binding):** the signer may only execute intents carrying a gate decision `approved`, with an anti-replay intent-id bound to the transaction.
+- **G-A (custody):** design doc reviewed and ruled. Keys never in env (extension of the env-policy ruling); MPC/KMS non-exportable; signer is a separate service that never evaluates policy; caps per-intent. Signer keys create NO on-chain admin surface: the T21 `admin_key_free` claim stays intact because the signer executes via the gate, never via an on-chain role.
+- **G-B (decision-binding):** the signer may only execute intents whose decision-chain outcome authorizes execution, per path: `approved` (policy-authorized swap), or `needs_human_approval` plus a recorded HITL confirmation bound to the same anti-replay intent-id (deploy is HITL-only — the chain never yields `approved` for it). The intent-id is bound to the transaction; no decision, no signature.
 - **G-C (persistence before money):** idempotent execution + atomic compare-and-reserve live before any multi-replica or real-value path; worker in-memory stores never hold real orders.
 - **G-D (venue verification):** T21 battery extended to the venue contracts (manifest + artifact of their own) and green on the release tag before consent/deploy may target venue.
 - **G-E (halt proven):** kill switch proven to stop the real signing path (today it gates the worker only); kill-switch + drain procedure tested on forks; incident runbook reviewed.
 - **G-F (observability floor):** structured logs + alerts on order/deploy failures before the first live action.
 - **G-G (testnet-first):** real-key execution never in CI; signer soak on testnet with mini limits; mainnet is a separate release gate with staged exposure.
 - **G-H (UX honesty):** sign-request UI renders exact intent fields; tx status visible to confirmation; all real-sign paths default HITL; automation stays dry-run.
+
+Relation to wave-4 conditions: G-C closes C1 (single-replica until persistence); G-H is a strict superset of C2 (automation origins stay dry-run entirely, not just default-deny); C3 (OW-1/OW-2 before any real signer) is already satisfied in wave 4 and is a met S2 precondition.
 
 ## 5. Open decisions (need rulings before S2/S4 build)
 
