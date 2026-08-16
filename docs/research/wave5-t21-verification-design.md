@@ -274,9 +274,19 @@ EIP-1967 slots zero (P-2).
 - **Template:** ERC-20 standard (`name()`, `symbol()`, `decimals()`, `totalSupply()`,
   `balanceOf(address)`, `transfer(address,uint256)`, `approve(address,uint256)`,
   `allowance(address,address)`, `transferFrom(address,address,uint256)`), exactly-once
-  `initialize(…)`, and schedule getters (`feeShares()`, `feeRecipients()`).
-- **Custom-error selectors** appear as PUSH4 in deployed bytecode; the fixture enumerates and
-  allowlists them alongside function selectors (errors carry no state-control surface).
+  `initialize(…)`, and the eight schedule getters `creatorFeeBps()`, `lpFeeBps()`,
+  `protocolFeeBps()`, `buybackFeeBps()`, `creatorRecipient()`, `lpRecipient()`,
+  `protocolRecipient()`, `buybackRecipient()` (individual-getter surface approved in #76;
+  supersedes the earlier `feeShares()`/`feeRecipients()` sketch).
+- **Custom-error selectors** are enumerated and allowlisted in the fixture alongside function
+  selectors (errors carry no state-control surface); presence in the PUSH4 scan is NOT required
+  — the optimizer may encode reverts without a standalone PUSH4 — error correctness is proven
+  at ABI level + exact-selector revert tests (#76 deviation accepted).
+- **Compiler-artifact PUSH4s** (panic selector, integer-cleaning masks, optimizer synthesis
+  immediates, cross-call targets) may appear in a bytecode PUSH4 scan; they are classified with
+  provenance in the fixture and MUST be proven non-dispatchable by the behavioral probe (calling
+  them reverts) — the classification alone never carries the safety burden (#76 deviation
+  accepted).
 - `predictTokenAddress` is the on-chain oracle for consent-address derivation (consent freezes
   all salt inputs incl. nonce); circularity is broken by FK-1, which asserts prediction ==
   actually-deployed address inside the battery.
