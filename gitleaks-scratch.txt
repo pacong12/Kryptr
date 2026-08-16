@@ -1,0 +1,2 @@
+demo scratch file for gitleaks acceptance test
+DUMMY_GITHUB_TOKEN=ghp_xK9mQ2vL7nB4cR8tW1yU6iO3pA5sD0fGhJkE
