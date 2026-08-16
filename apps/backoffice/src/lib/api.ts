@@ -6,6 +6,7 @@ import type {
   FeedHealth,
   HealthStatus,
   IntentTimelineStep,
+  KillSwitchAuditEntry,
   KillSwitchMode,
   KillSwitchState,
   Order,
@@ -30,7 +31,6 @@ import {
   MOCK_WALLETS,
   MOCK_WORKER_HEALTH,
   type IntentWithStatus,
-  type KillSwitchAuditEntry,
 } from './fixtures';
 
 /**
@@ -57,6 +57,14 @@ const API_PREFIX = '/api';
 /** Bound so an unreachable API never hangs a dashboard render. */
 const REQUEST_TIMEOUT_MS = 2500;
 
+/**
+ * Mutations get their own, longer budget (rewire follow-up #1): the kill
+ * switch POST must not abort while the worker is still applying the mode
+ * change — a timed-out mutation can flip state server-side while the UI
+ * reports "NOT changed". Reads keep the tight 2.5s budget.
+ */
+const MUTATION_TIMEOUT_MS = 10000;
+
 /** Data plus provenance: was it served by the API or by local fixtures? */
 export interface DataSource<T> {
   data: T;
@@ -72,12 +80,13 @@ type FetchOutcome<T> =
 async function fetchEnvelope<T>(
   path: string,
   init?: RequestInit,
+  timeoutMs: number = REQUEST_TIMEOUT_MS,
 ): Promise<FetchOutcome<T>> {
   let response: Response;
   try {
     response = await fetch(`${getApiBaseUrl()}${API_PREFIX}${path}`, {
       cache: 'no-store',
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
       ...init,
       headers: {
         accept: 'application/json',
@@ -168,6 +177,7 @@ export async function decideIntent(
       body: JSON.stringify({ result, decidedBy }),
       headers: { 'content-type': 'application/json' },
     },
+    MUTATION_TIMEOUT_MS,
   );
   if (
     outcome.kind === 'envelope' &&
@@ -269,9 +279,35 @@ export async function getOrders(): Promise<DataSource<Order[]>> {
 }
 
 /**
- * Wave 4: claim-store executions of one order (GET /api/orders/:id/executions).
- * A live envelope error renders as an empty timeline; fixtures only cover an
+ * Wave 4, rewire: one order by id (GET /api/orders/:id). A live envelope
+ * error surfaces as `apiError` (the detail page maps `order_not_found` to
+ * its 404 and renders every other code honestly); fixtures only cover an
  * unreachable API.
+ */
+export async function getOrder(
+  orderId: string,
+): Promise<DataSource<Order | null>> {
+  const outcome = await fetchEnvelope<Order>(
+    `/orders/${encodeURIComponent(orderId)}`,
+  );
+  if (outcome.kind === 'envelope') {
+    if (outcome.envelope.ok && outcome.envelope.data !== null) {
+      return { data: outcome.envelope.data, mock: false, apiError: null };
+    }
+    return { data: null, mock: false, apiError: outcome.envelope.error };
+  }
+  return {
+    data: MOCK_ORDERS.find((entry) => entry.id === orderId) ?? null,
+    mock: true,
+    apiError: null,
+  };
+}
+
+/**
+ * Wave 4: claim-store executions of one order (GET /api/orders/:id/executions).
+ * A live envelope error surfaces as `apiError` — the timeline renders an
+ * honest "executions unavailable" state, never the fixture and never a
+ * misleading "no executions yet". Fixtures only cover an unreachable API.
  */
 export async function getOrderExecutions(
   orderId: string,
@@ -377,6 +413,7 @@ export async function requestKillSwitchMode(
       body: JSON.stringify({ mode, reason }),
       headers: { 'content-type': 'application/json' },
     },
+    MUTATION_TIMEOUT_MS,
   );
   if (
     outcome.kind === 'envelope' &&
