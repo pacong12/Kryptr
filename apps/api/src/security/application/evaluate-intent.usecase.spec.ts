@@ -178,6 +178,7 @@ describe('EvaluateIntentUseCase', () => {
     };
     deployAllowlist = {
       isAllowed: jest.fn().mockReturnValue(true),
+      verificationIdFor: jest.fn().mockReturnValue(ARTIFACT.id),
     };
     verificationStore = {
       get: jest
@@ -463,6 +464,23 @@ describe('EvaluateIntentUseCase', () => {
 
     it('rejects a deploy whose factory misses the layer-2 allowlist', async () => {
       deployAllowlist.isAllowed.mockReturnValue(false);
+      const decision = await useCase.execute(makeDeployIntent());
+      expect(decision.result).toBe('rejected');
+      expect(decision.reason).toBe('factory_not_allowlisted');
+    });
+
+    it('rejects consent against a release other than the pinned one (Review54 F1)', async () => {
+      // Factory allowlisted for release v1; consent references v2. The
+      // canonical store may even know v2 — release confusion still
+      // rejects with the allowlist code (stable tuple unchanged).
+      deployAllowlist.verificationIdFor.mockReturnValue('t21:factory-base:v2');
+      const decision = await useCase.execute(makeDeployIntent());
+      expect(decision.result).toBe('rejected');
+      expect(decision.reason).toBe('factory_not_allowlisted');
+    });
+
+    it('rejects when the allowlist pins no release for the factory (fail-closed)', async () => {
+      deployAllowlist.verificationIdFor.mockReturnValue(null);
       const decision = await useCase.execute(makeDeployIntent());
       expect(decision.result).toBe('rejected');
       expect(decision.reason).toBe('factory_not_allowlisted');

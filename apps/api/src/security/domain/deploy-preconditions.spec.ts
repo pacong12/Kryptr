@@ -81,6 +81,8 @@ function deployIntent(
 const deps = {
   isFactoryAllowed: (chain: string, factory: string) =>
     chain === 'base' && factory.toLowerCase() === FACTORY,
+  verificationIdFor: (chain: string, factory: string) =>
+    chain === 'base' && factory.toLowerCase() === FACTORY ? ARTIFACT.id : null,
   resolveVerification: async (id: string) =>
     id === ARTIFACT.id ? ARTIFACT : null,
 };
@@ -295,14 +297,25 @@ describe('deploy preconditions (wave-5 gate table)', () => {
       ).toBe('verification_missing');
     });
 
-    it('rejects an artifact the canonical store does not know', async () => {
+    it('rejects a pinned-release artifact the store has not seeded yet', async () => {
+      // Referenced id EQUALS the pinned release, but the canonical store
+      // answers null (artifact not provisioned) ⇒ verification_missing.
+      const unseededDeps = { ...deps, resolveVerification: async () => null };
+      expect(
+        await validateDeployPreconditions(deployIntent(), unseededDeps),
+      ).toBe('verification_missing');
+    });
+
+    it('rejects an unpinned release id as release confusion (allowlist code)', async () => {
+      // A foreign release id never matches the manifest pin ⇒ allowlist
+      // reject, not a store lookup (Review54 F1).
       const deploy: DeployContext = {
         ...VALID_DEPLOY,
         verification: { ...ARTIFACT, id: 't21:unknown' },
       };
       expect(
         await validateDeployPreconditions(deployIntent({}, deploy), deps),
-      ).toBe('verification_missing');
+      ).toBe('factory_not_allowlisted');
     });
 
     it('rejects a hash mismatch against the canonical artifact', async () => {
@@ -463,5 +476,46 @@ describe('SecReview68 fix batch', () => {
         ),
       ).toBeNull();
     });
+  });
+});
+
+describe('Review54 F1: release pinning (manifest ↔ verificationId)', () => {
+  it('rejects consent referencing a release other than the pinned one', async () => {
+    // The allowlist pins ARTIFACT.id for this factory; consent carries a
+    // DIFFERENT release id. Even if the store knew that release, this is
+    // operator/release confusion ⇒ allowlist reject (stable tuple intact).
+    const otherRelease: DeployContext = {
+      ...VALID_DEPLOY,
+      verification: {
+        ...ARTIFACT,
+        id: 't21:base:contracts/v2.0.0',
+      },
+    };
+    expect(
+      await validateDeployPreconditions(deployIntent({}, otherRelease), deps),
+    ).toBe('factory_not_allowlisted');
+  });
+
+  it('rejects when the allowlist has no pinned release (fail-closed)', async () => {
+    const unpinnedDeps = { ...deps, verificationIdFor: () => null };
+    expect(
+      await validateDeployPreconditions(deployIntent(), unpinnedDeps),
+    ).toBe('factory_not_allowlisted');
+  });
+
+  it('accepts consent whose verification id equals the pinned release', async () => {
+    expect(await validateDeployPreconditions(deployIntent(), deps)).toBeNull();
+  });
+
+  it('defers to verification_missing when the ref carries no id at all', async () => {
+    // A malformed/missing verification is NOT release confusion — the
+    // later artifact check owns that code (audit order preserved).
+    const noVerification: DeployContext = {
+      ...VALID_DEPLOY,
+      verification: undefined,
+    };
+    expect(
+      await validateDeployPreconditions(deployIntent({}, noVerification), deps),
+    ).toBe('verification_missing');
   });
 });

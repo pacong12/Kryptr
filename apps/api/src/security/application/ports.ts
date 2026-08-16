@@ -115,4 +115,12 @@ export interface DecisionAudit {
  */
 export interface DeployAllowlistPort {
   isAllowed(chain: ChainId, factory: `0x${string}`): boolean;
+  /**
+   * The T21 release (verificationId) the ops manifest pins for this
+   * factory, or null when unknown (fail-closed). Release pinning
+   * (Review54 F1): a factory allowlisted on release A must never accept
+   * consent against release B — the gate compares this pin with the
+   * embedded verification id before any artifact lookup.
+   */
+  verificationIdFor(chain: ChainId, factory: `0x${string}`): string | null;
 }

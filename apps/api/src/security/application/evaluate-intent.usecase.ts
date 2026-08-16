@@ -137,6 +137,8 @@ export class EvaluateIntentUseCase {
       const rejectCode = await validateDeployPreconditions(intent, {
         isFactoryAllowed: (chain, factory) =>
           this.deployAllowlist.isAllowed(chain, factory),
+        verificationIdFor: (chain, factory) =>
+          this.deployAllowlist.verificationIdFor(chain, factory),
         resolveVerification: (id) => this.verificationStore.get(id),
       });
       if (rejectCode !== null) {

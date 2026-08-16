@@ -28,6 +28,8 @@ const REQUIRED_FIELDS = [
 export class ManifestDeployAllowlist implements DeployAllowlistPort {
   private constructor(
     private readonly allowed: ReadonlyMap<ChainId, ReadonlySet<string>>,
+    /** Review54 F1: pinned release per (chain, lowercased factory). */
+    private readonly pinned: ReadonlyMap<ChainId, ReadonlyMap<string, string>>,
   ) {}
 
   /**
@@ -36,11 +38,12 @@ export class ManifestDeployAllowlist implements DeployAllowlistPort {
    */
   static fromDir(dir: string): ManifestDeployAllowlist {
     const byChain = new Map<ChainId, Set<string>>();
+    const pinnedByChain = new Map<ChainId, Map<string, string>>();
     let files: string[];
     try {
       files = readdirSync(dir).filter((file) => file.endsWith('.json'));
     } catch {
-      return new ManifestDeployAllowlist(byChain);
+      return new ManifestDeployAllowlist(byChain, pinnedByChain);
     }
     for (const file of files) {
       let entry: unknown;
@@ -55,15 +58,24 @@ export class ManifestDeployAllowlist implements DeployAllowlistPort {
       if (!ManifestDeployAllowlist.isValidEntry(entry)) {
         continue;
       }
+      const factoryKey = entry.factoryAddress.toLowerCase();
       const factories = byChain.get(entry.chain) ?? new Set<string>();
-      factories.add(entry.factoryAddress.toLowerCase());
+      factories.add(factoryKey);
       byChain.set(entry.chain, factories);
+      const pinnedForChain =
+        pinnedByChain.get(entry.chain) ?? new Map<string, string>();
+      pinnedForChain.set(factoryKey, entry.verificationId);
+      pinnedByChain.set(entry.chain, pinnedForChain);
     }
-    return new ManifestDeployAllowlist(byChain);
+    return new ManifestDeployAllowlist(byChain, pinnedByChain);
   }
 
   isAllowed(chain: ChainId, factory: `0x${string}`): boolean {
     return this.allowed.get(chain)?.has(factory.toLowerCase()) ?? false;
+  }
+
+  verificationIdFor(chain: ChainId, factory: `0x${string}`): string | null {
+    return this.pinned.get(chain)?.get(factory.toLowerCase()) ?? null;
   }
 
   private static isValidEntry(entry: unknown): entry is {

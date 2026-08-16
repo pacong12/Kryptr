@@ -120,4 +120,62 @@ describe('ManifestDeployAllowlist (fail-closed by construction)', () => {
     const allowlist = ManifestDeployAllowlist.fromDir(dir);
     expect(allowlist.isAllowed('base', FACTORY as `0x${string}`)).toBe(true);
   });
+
+  describe('verificationIdFor (Review54 F1 release pinning)', () => {
+    it('returns the manifest verificationId for an allowlisted factory', () => {
+      writeFileSync(join(dir, 'base.json'), JSON.stringify(validEntry()));
+      const allowlist = ManifestDeployAllowlist.fromDir(dir);
+      expect(
+        allowlist.verificationIdFor('base', FACTORY as `0x${string}`),
+      ).toBe('t21:factory-base:v1');
+    });
+
+    it('returns null for an unknown factory (fail-closed)', () => {
+      writeFileSync(join(dir, 'base.json'), JSON.stringify(validEntry()));
+      const allowlist = ManifestDeployAllowlist.fromDir(dir);
+      expect(
+        allowlist.verificationIdFor(
+          'base',
+          '0xdead000000000000000000000000000000000000' as `0x${string}`,
+        ),
+      ).toBeNull();
+    });
+
+    it('returns null on a chain with no entry (no cross-chain pin)', () => {
+      writeFileSync(join(dir, 'base.json'), JSON.stringify(validEntry()));
+      const allowlist = ManifestDeployAllowlist.fromDir(dir);
+      expect(
+        allowlist.verificationIdFor('ethereum', FACTORY as `0x${string}`),
+      ).toBeNull();
+    });
+
+    it('returns null for an empty allowlist (launchpad dark)', () => {
+      const allowlist = ManifestDeployAllowlist.fromDir(dir);
+      expect(
+        allowlist.verificationIdFor('base', FACTORY as `0x${string}`),
+      ).toBeNull();
+    });
+
+    it('resolves checksummed query addresses (case-insensitive)', () => {
+      writeFileSync(join(dir, 'base.json'), JSON.stringify(validEntry()));
+      const allowlist = ManifestDeployAllowlist.fromDir(dir);
+      expect(
+        allowlist.verificationIdFor(
+          'base',
+          FACTORY.toUpperCase().replace('0X', '0x') as `0x${string}`,
+        ),
+      ).toBe('t21:factory-base:v1');
+    });
+
+    it('skipped entries pin nothing (missing verificationId ⇒ null)', () => {
+      writeFileSync(
+        join(dir, 'base.json'),
+        JSON.stringify(validEntry({ verificationId: '' })),
+      );
+      const allowlist = ManifestDeployAllowlist.fromDir(dir);
+      expect(
+        allowlist.verificationIdFor('base', FACTORY as `0x${string}`),
+      ).toBeNull();
+    });
+  });
 });

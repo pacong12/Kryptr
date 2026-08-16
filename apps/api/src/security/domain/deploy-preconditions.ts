@@ -54,6 +54,11 @@ const POSITIVE_INT_PATTERN = /^[1-9][0-9]*$/;
 export interface DeployPreconditionsDeps {
   /** Layer-2 allowlist (fail-closed; empty manifest ⇒ always false). */
   isFactoryAllowed(chain: ChainId, factory: `0x${string}`): boolean;
+  /**
+   * The release (T21 verificationId) the manifest pins for this factory;
+   * null when unknown (fail-closed). Review54 F1 release pinning.
+   */
+  verificationIdFor(chain: ChainId, factory: `0x${string}`): string | null;
   /** Canonical T21 artifact lookup for the consent-chip parity check. */
   resolveVerification(id: string): Promise<VerificationArtifactRef | null>;
   /** Launch total fee in bps; defaults to LAUNCH_TOTAL_FEE_BPS. */
@@ -89,6 +94,19 @@ export async function validateDeployPreconditions(
   // 2. Layer-2 allowlist: pinned from the ops manifest, fail-closed.
   if (!deps.isFactoryAllowed(intent.chain, deploy.factory)) {
     return 'factory_not_allowlisted';
+  }
+
+  // 2b. Release pinning (Review54 F1): the manifest pins WHICH release
+  // (verificationId) is trusted for this factory. Consent referencing any
+  // other release is operator/release confusion — reject with the allowlist
+  // code (stable tuple unchanged), before any artifact lookup. A missing or
+  // malformed verification ref is NOT confusion; step 7 owns that code.
+  const verificationRef = deploy.verification;
+  if (isRecord(verificationRef) && typeof verificationRef.id === 'string') {
+    const pinned = deps.verificationIdFor(intent.chain, deploy.factory);
+    if (pinned === null || verificationRef.id !== pinned) {
+      return 'factory_not_allowlisted';
+    }
   }
 
   // 3. Bond: the gate validates the paid flag; the bond itself is

@@ -124,8 +124,10 @@ function makeGate() {
     bind: jest.fn().mockResolvedValue(true),
   };
   const deployAllowlist: jest.Mocked<DeployAllowlistPort> = {
-    // Fully allowlisted factory — the firewall must ignore this too.
+    // Fully allowlisted factory pinned to the fixture release — the
+    // firewall must ignore the allowlist posture entirely anyway.
     isAllowed: jest.fn().mockReturnValue(true),
+    verificationIdFor: jest.fn().mockReturnValue(ARTIFACT.id),
   };
   const verificationStore: jest.Mocked<VerificationArtifactStore> = {
     get: jest.fn().mockResolvedValue(ARTIFACT),
