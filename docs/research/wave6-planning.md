@@ -17,7 +17,7 @@ Wave 6 closes both, on the rails the earlier waves already built.
 - **Wave 6 = Signer + Venue**, with persistence as its foundation stage.
 - **Wave 7 = conversational layer**, deliberately last: it is the largest attack surface with the lowest audit value. Hard rule carried from the discussion: **language is not authorization** — an NLP layer may only emit intents through the existing gate, with zero privileged paths.
 - Additional gaps the team surfaced beyond the conductor's initial list:
-  - **Key custody is its own decision**, not a signer implementation detail (where keys live, session-key scoping, kill-switch interaction; reference-product lesson RC-4/RC-6: *how the signer is constrained matters more than that it signs*).
+  - **Key custody is its own decision**, not a signer implementation detail (where keys live, session-key scoping, kill-switch interaction; reference-product lesson RC-4/RC-6: _how the signer is constrained matters more than that it signs_).
   - **End-to-end deploy-intent execution** (consent → approve → sign → submit) is the natural Signer↔Venue bridge; approved deploys today are never executed.
   - **Unified audit feed** + backoffice surfaces for signer receipts and venue state; live-vs-dry-run provenance badges.
   - **Kill-switch runbook + incident procedure for live funds** (deploys are non-rollbackable by design; response is halt + communicate, never patch-forward).
@@ -25,15 +25,15 @@ Wave 6 closes both, on the rails the earlier waves already built.
 
 ## 3. Proposed internal ordering
 
-| Stage | Content | Notes |
-|---|---|---|
-| S0 | Custody design doc + ruling | before ONE line of signer code |
-| S1 | Persistence + idempotent execution | compare-and-reserve (Postgres) replaces per-instance KeyedMutex caps; nonce uniqueness across replicas; audit durability |
-| S2 | Signer infra behind existing SignerPort | separate service; never evaluates policy itself; decision-binding; testnet-only execution |
-| S3 | First deploy execution on TESTNET | validates gate + factory + signer together before any venue funds move |
-| S4 | Venue contracts + T21 battery extension | bonding curve / graduation; own manifest + artifact; INV-FEE-2/4 move on-chain; §9.1 rounding/dust decisions |
-| S5 | Testnet soak with mini policy limits | one full launch→graduate cycle monitored before any larger exposure |
-| S6 | Mainnet readiness review | separate release gate; staged exposure (small bond first) |
+| Stage | Content                                 | Notes                                                                                                                    |
+| ----- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| S0    | Custody design doc + ruling             | before ONE line of signer code                                                                                           |
+| S1    | Persistence + idempotent execution      | compare-and-reserve (Postgres) replaces per-instance KeyedMutex caps; nonce uniqueness across replicas; audit durability |
+| S2    | Signer infra behind existing SignerPort | separate service; never evaluates policy itself; decision-binding; testnet-only execution                                |
+| S3    | First deploy execution on TESTNET       | validates gate + factory + signer together before any venue funds move                                                   |
+| S4    | Venue contracts + T21 battery extension | bonding curve / graduation; own manifest + artifact; INV-FEE-2/4 move on-chain; §9.1 rounding/dust decisions             |
+| S5    | Testnet soak with mini policy limits    | one full launch→graduate cycle monitored before any larger exposure                                                      |
+| S6    | Mainnet readiness review                | separate release gate; staged exposure (small bond first)                                                                |
 
 S2/S4 may progress in parallel once S0/S1 land; live venue funds only flow after the extended T21 battery is green AND the signer has passed S3/S5.
 
