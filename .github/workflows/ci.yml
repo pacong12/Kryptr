@@ -107,8 +107,8 @@ jobs:
       # Only @kryptr/contracts defines these targets, so affected runs them
       # only when contracts/ changed; no-op (green) otherwise.
       # NOTE: no --projects flag — nx would forward it to the commands.
-      - name: Contracts gates (forge-build/forge-test/fmt/slither/manifests)
-        run: npx nx affected --base="${{ steps.nx_base.outputs.base }}" -t forge-build forge-test fmt slither manifests
+      - name: Contracts gates (forge-build/forge-test/fmt/slither/manifests/canonicalize)
+        run: npx nx affected --base="${{ steps.nx_base.outputs.base }}" -t forge-build forge-test fmt slither manifests canonicalize
 
   # Fork tests against real Base RPC: OPT-IN via the `fork-tests` PR label
   # (public RPC rate limits/flakes must never gate default CI). Nightly
