@@ -7,6 +7,12 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(import.meta.dirname, 'src'),
+      // shared-types ships no dist in the worktree; specs need its runtime
+      // constants (ORDER_STATUSES, WORKER_ERROR_CODES, …) from source.
+      '@kryptr/shared-types': path.resolve(
+        import.meta.dirname,
+        '../../packages/shared-types/src/index.ts',
+      ),
     },
   },
   test: {

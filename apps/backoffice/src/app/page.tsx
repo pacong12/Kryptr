@@ -21,6 +21,10 @@ import {
   WalletsSection,
   WalletsSectionSkeleton,
 } from '@/components/wallets-section';
+import {
+  WorkerHealthSection,
+  WorkerHealthSectionSkeleton,
+} from '@/components/worker-health-section';
 
 /**
  * Dashboard. Each section is its own async server component inside a
@@ -37,14 +41,14 @@ export default function DashboardPage() {
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
           <p className="text-sm text-muted-foreground">
-            Fleet health, data feeds, chain connections, agent wallets and the
-            latest transaction intents.
+            Fleet health, data feeds, chain connections, the order worker, agent
+            wallets and the latest transaction intents.
           </p>
         </div>
         <RefreshButton />
       </header>
 
-      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
         <Suspense fallback={<HealthSectionSkeleton />}>
           <HealthSection />
         </Suspense>
@@ -53,6 +57,9 @@ export default function DashboardPage() {
         </Suspense>
         <Suspense fallback={<ChainConnectionsSectionSkeleton />}>
           <ChainConnectionsSection />
+        </Suspense>
+        <Suspense fallback={<WorkerHealthSectionSkeleton />}>
+          <WorkerHealthSection />
         </Suspense>
       </div>
 

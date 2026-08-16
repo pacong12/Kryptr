@@ -3,11 +3,16 @@ import type {
   ChainReaderHealth,
   FeedHealth,
   IntentTimelineStep,
+  KillSwitchMode,
+  KillSwitchState,
+  Order,
+  OrderExecution,
   SecurityDecision,
   SwapQuote,
   TransactionIntent,
   TransactionStatus,
   WalletBalance,
+  WorkerHealth,
 } from '@kryptr/shared-types';
 
 /**
@@ -372,4 +377,271 @@ export const MOCK_BALANCES: Record<string, WalletBalance[]> = {
       tokens: [],
     },
   ],
+};
+
+/**
+ * Wave-4 order-automation fixtures.
+ *
+ * These back the orders list, order detail + execution timeline, kill-switch
+ * panel and worker-health card whenever the order-worker API is unreachable.
+ * Statuses span the whole frozen ORDER_STATUSES union so every badge has a
+ * rendered example.
+ */
+
+const BASE = 'base';
+const WETH = '0x4200000000000000000000000000000000000006';
+const USDC = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
+
+export const MOCK_ORDERS: Order[] = [
+  {
+    id: 'ord_dca_treasury',
+    walletId: 'wal_base_treasury',
+    type: 'dca',
+    status: 'open',
+    chain: BASE,
+    baseAsset: WETH,
+    quoteAsset: USDC,
+    side: 'buy',
+    amount: '250000000000000000',
+    limitPrice: null,
+    interval: 'P1D',
+    createdAt: '2026-08-12T08:00:00.000Z',
+  },
+  {
+    id: 'ord_limit_gas',
+    walletId: 'wal_ops_gas_reserve',
+    type: 'limit',
+    status: 'triggered',
+    chain: BASE,
+    baseAsset: WETH,
+    quoteAsset: USDC,
+    side: 'sell',
+    amount: '100000000000000000',
+    limitPrice: '3450.00',
+    interval: null,
+    createdAt: '2026-08-15T10:30:00.000Z',
+  },
+  {
+    id: 'ord_limit_fill',
+    walletId: 'wal_base_treasury',
+    type: 'limit',
+    status: 'filled',
+    chain: BASE,
+    baseAsset: USDC,
+    quoteAsset: null,
+    side: 'buy',
+    amount: '1000000000',
+    limitPrice: '0.9998',
+    interval: null,
+    createdAt: '2026-08-14T09:00:00.000Z',
+  },
+  {
+    id: 'ord_dca_partial',
+    walletId: 'wal_base_treasury',
+    type: 'dca',
+    status: 'partially_filled',
+    chain: BASE,
+    baseAsset: WETH,
+    quoteAsset: USDC,
+    side: 'buy',
+    amount: '500000000000000000',
+    limitPrice: null,
+    interval: 'P1W',
+    createdAt: '2026-08-01T12:00:00.000Z',
+  },
+  {
+    id: 'ord_stop_pause',
+    walletId: 'wal_ops_gas_reserve',
+    type: 'stop',
+    status: 'paused',
+    chain: BASE,
+    baseAsset: WETH,
+    quoteAsset: USDC,
+    side: 'sell',
+    amount: '75000000000000000',
+    limitPrice: '3000.00',
+    interval: null,
+    createdAt: '2026-08-10T16:45:00.000Z',
+  },
+  {
+    id: 'ord_twap_reject',
+    walletId: 'wal_base_treasury',
+    type: 'twap',
+    status: 'rejected',
+    chain: BASE,
+    baseAsset: WETH,
+    quoteAsset: USDC,
+    side: 'buy',
+    amount: '300000000000000000',
+    limitPrice: null,
+    interval: 'PT1H',
+    createdAt: '2026-08-16T07:20:00.000Z',
+  },
+  {
+    id: 'ord_limit_cancel',
+    walletId: 'wal_robinhood_settlement',
+    type: 'limit',
+    status: 'cancelled',
+    chain: 'robinhood-chain',
+    baseAsset: null,
+    quoteAsset: null,
+    side: 'sell',
+    amount: '5000000000000000000',
+    limitPrice: '1.02',
+    interval: null,
+    createdAt: '2026-08-08T11:00:00.000Z',
+  },
+  {
+    id: 'ord_limit_expire',
+    walletId: 'wal_ops_gas_reserve',
+    type: 'limit',
+    status: 'expired',
+    chain: BASE,
+    baseAsset: WETH,
+    quoteAsset: USDC,
+    side: 'buy',
+    amount: '120000000000000000',
+    limitPrice: '2800.00',
+    interval: null,
+    createdAt: '2026-08-05T14:10:00.000Z',
+  },
+  {
+    id: 'ord_dca_fail',
+    walletId: 'wal_base_treasury',
+    type: 'dca',
+    status: 'failed',
+    chain: BASE,
+    baseAsset: WETH,
+    quoteAsset: USDC,
+    side: 'buy',
+    amount: '400000000000000000',
+    limitPrice: null,
+    interval: 'P1D',
+    createdAt: '2026-08-11T06:30:00.000Z',
+  },
+  {
+    id: 'ord_limit_pending',
+    walletId: 'wal_base_treasury',
+    type: 'limit',
+    status: 'pending_approval',
+    chain: BASE,
+    baseAsset: WETH,
+    quoteAsset: USDC,
+    side: 'sell',
+    amount: '900000000000000000',
+    limitPrice: '3600.00',
+    interval: null,
+    createdAt: '2026-08-17T09:55:00.000Z',
+  },
+];
+
+/**
+ * Execution timelines keyed by order id. Each step mirrors the frozen
+ * OrderExecution claim-store lifecycle (claimed → quoted → submitted →
+ * confirmed / failed / cancelled / gate_rejected).
+ */
+export const MOCK_ORDER_EXECUTIONS: Record<string, OrderExecution[]> = {
+  ord_limit_gas: [
+    {
+      id: 'ord_limit_gas:once',
+      orderId: 'ord_limit_gas',
+      slotKey: 'once',
+      intentId: 'intent:ord_limit_gas:once',
+      status: 'submitted',
+      claimedAt: '2026-08-17T10:30:04.000Z',
+      finishedAt: null,
+      detail: 'Trigger price 3452.10 crossed limit 3450.00',
+    },
+  ],
+  ord_limit_fill: [
+    {
+      id: 'ord_limit_fill:once',
+      orderId: 'ord_limit_fill',
+      slotKey: 'once',
+      intentId: 'intent:ord_limit_fill:once',
+      status: 'confirmed',
+      claimedAt: '2026-08-14T09:00:06.000Z',
+      finishedAt: '2026-08-14T09:00:31.000Z',
+      detail: 'Filled at 0.9997; gate approved, 0x quote bound',
+    },
+  ],
+  ord_dca_partial: [
+    {
+      id: 'ord_dca_partial:2026-08-08T00:00:00.000Z',
+      orderId: 'ord_dca_partial',
+      slotKey: '2026-08-08T00:00:00.000Z',
+      intentId: 'intent:ord_dca_partial:2026-08-08T00:00:00.000Z',
+      status: 'confirmed',
+      claimedAt: '2026-08-08T00:00:05.000Z',
+      finishedAt: '2026-08-08T00:00:29.000Z',
+      detail: 'Weekly tranche filled',
+    },
+    {
+      id: 'ord_dca_partial:2026-08-15T00:00:00.000Z',
+      orderId: 'ord_dca_partial',
+      slotKey: '2026-08-15T00:00:00.000Z',
+      intentId: null,
+      status: 'claimed',
+      claimedAt: '2026-08-15T00:00:03.000Z',
+      finishedAt: null,
+      detail: 'Awaiting gate evaluation',
+    },
+  ],
+  ord_dca_fail: [
+    {
+      id: 'ord_dca_fail:2026-08-11T00:00:00.000Z',
+      orderId: 'ord_dca_fail',
+      slotKey: '2026-08-11T00:00:00.000Z',
+      intentId: null,
+      status: 'failed',
+      claimedAt: '2026-08-11T06:30:02.000Z',
+      finishedAt: '2026-08-11T06:30:09.000Z',
+      detail: 'quote_unavailable — aggregator returned no route',
+    },
+  ],
+};
+
+/** Kill-switch state is OFF by default; the audit trail shows prior flips. */
+export const MOCK_KILL_SWITCH: KillSwitchState = {
+  mode: 'off',
+  activatedAt: null,
+  reason: null,
+};
+
+/**
+ * One audited kill-switch mode change (freeze §3: actor, at, from→to,
+ * reason). Deck-local shape until the worker API ships the audit endpoint.
+ */
+export interface KillSwitchAuditEntry {
+  actor: string;
+  /** ISO-8601. */
+  at: string;
+  from: KillSwitchMode;
+  to: KillSwitchMode;
+  reason: string | null;
+}
+
+export const MOCK_KILL_SWITCH_AUDIT: KillSwitchAuditEntry[] = [
+  {
+    actor: 'backoffice:deck',
+    at: '2026-08-10T09:12:00.000Z',
+    from: 'cancel_active',
+    to: 'off',
+    reason: 'Oracle feed restored — resuming automation',
+  },
+  {
+    actor: 'backoffice:deck',
+    at: '2026-08-09T22:47:00.000Z',
+    from: 'off',
+    to: 'cancel_active',
+    reason: 'Stale oracle feed — halt automation and cancel live orders',
+  },
+];
+
+/** Worker health fixture — degraded on purpose to exercise the detail row. */
+export const MOCK_WORKER_HEALTH: WorkerHealth = {
+  component: 'order-worker',
+  ok: false,
+  detail: 'redis_unreachable',
+  checkedAt: '2026-08-17T11:41:55.000Z',
 };

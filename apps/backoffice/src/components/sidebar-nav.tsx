@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
   CommandIcon,
   LayoutDashboardIcon,
+  ListOrderedIcon,
   ShieldCheckIcon,
   WalletIcon,
 } from 'lucide-react';
@@ -17,6 +18,7 @@ const NAV_ITEMS = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboardIcon },
   { href: '/intents', label: 'Intents', icon: ShieldCheckIcon },
   { href: '/wallets', label: 'Wallets', icon: WalletIcon },
+  { href: '/orders', label: 'Orders', icon: ListOrderedIcon },
 ] as const;
 
 /**
@@ -56,7 +58,7 @@ export function SidebarNav() {
         })}
       </nav>
       <p className="mt-auto p-4 text-xs text-muted-foreground">
-        Backoffice · wave 1
+        Backoffice · wave 4
       </p>
     </aside>
   );
