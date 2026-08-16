@@ -14,10 +14,12 @@ import { getOrderExecutions } from '@/lib/api';
 import { formatDateTime } from '@/lib/format';
 
 /**
- * Wave-4 addition: execution timeline for one order, composed from the
- * frozen OrderExecution claim-store steps (claimed → quoted → submitted →
- * confirmed / failed / cancelled / gate_rejected). A live envelope error
- * renders the empty state; fixtures only cover an unreachable API.
+ * Wave-4 addition (rewired): execution timeline for one order, composed
+ * from the frozen OrderExecution claim-store steps (claimed → quoted →
+ * submitted → confirmed / failed / cancelled / gate_rejected). A live
+ * envelope error renders an honest "executions unavailable" state — never
+ * the fixture and never a misleading "no executions yet". Fixtures only
+ * cover an unreachable API.
  */
 export async function ExecutionTimeline({ orderId }: { orderId: string }) {
   const executions = await getOrderExecutions(orderId);
@@ -33,14 +35,18 @@ export async function ExecutionTimeline({ orderId }: { orderId: string }) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {executions.data.length === 0 ? (
+        {executions.apiError !== null ? (
+          <p className="text-sm text-muted-foreground">
+            Executions unavailable — {executions.apiError.message}
+          </p>
+        ) : executions.data.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             No executions yet — this order has not been claimed by the worker.
           </p>
         ) : (
           <ol className="flex flex-col gap-4 border-l border-border pl-5">
-            {executions.data.map((execution, index) => (
-              <li key={`${execution.id}-${index}`} className="relative">
+            {executions.data.map((execution) => (
+              <li key={execution.id} className="relative">
                 <span
                   aria-hidden
                   className="absolute -left-[25.5px] top-1 size-2.5 rounded-full bg-primary"

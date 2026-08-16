@@ -3,7 +3,7 @@ import type {
   ChainReaderHealth,
   FeedHealth,
   IntentTimelineStep,
-  KillSwitchMode,
+  KillSwitchAuditEntry,
   KillSwitchState,
   Order,
   OrderExecution,
@@ -608,18 +608,8 @@ export const MOCK_KILL_SWITCH: KillSwitchState = {
   reason: null,
 };
 
-/**
- * One audited kill-switch mode change (freeze §3: actor, at, from→to,
- * reason). Deck-local shape until the worker API ships the audit endpoint.
- */
-export interface KillSwitchAuditEntry {
-  actor: string;
-  /** ISO-8601. */
-  at: string;
-  from: KillSwitchMode;
-  to: KillSwitchMode;
-  reason: string | null;
-}
+/** Audited kill-switch mode changes — the frozen KillSwitchAuditEntry from
+ * shared-types (moved there per wave-4 stage-B ruling; consumed verbatim). */
 
 export const MOCK_KILL_SWITCH_AUDIT: KillSwitchAuditEntry[] = [
   {
