@@ -106,4 +106,49 @@ describe('InMemoryOrderStore — terminal guard', () => {
       code: 'order_not_found',
     });
   });
+
+  it('findLive returns open AND paused orders (freeze §3 fan-out, review M3)', async () => {
+    const store = new InMemoryOrderStore();
+    await store.save(order('open'));
+    await store.save({ ...order('open'), id: 'ord-paused', status: 'paused' });
+    await store.save({ ...order('open'), id: 'ord-filled', status: 'filled' });
+    expect((await store.findLive()).map((o) => o.id).sort()).toEqual([
+      'ord-1',
+      'ord-paused',
+    ]);
+  });
+});
+
+describe('InMemoryExecutionStore — reclaim CAS (review OW-2)', () => {
+  it('reclaims a non-terminal record as a fresh claimed lease', async () => {
+    const store = new InMemoryExecutionStore();
+    await store.claim('ord-1', 'slot-0', AT);
+    await store.update('ord-1:slot-0', {
+      status: 'quoted',
+      detail: 'quote:q-1',
+    });
+
+    const reclaimed = await store.reclaim('ord-1:slot-0', AT);
+    expect(reclaimed).toMatchObject({ id: 'ord-1:slot-0', status: 'claimed' });
+    expect((await store.findById('ord-1:slot-0'))?.status).toBe('claimed');
+  });
+
+  it.each([
+    'submitted',
+    'confirmed',
+    'failed',
+    'cancelled',
+    'gate_rejected',
+  ] as const)('refuses to reclaim a terminal record (%s)', async (status) => {
+    const store = new InMemoryExecutionStore();
+    await store.claim('ord-1', 'slot-0', AT);
+    await store.update('ord-1:slot-0', { status });
+    expect(await store.reclaim('ord-1:slot-0', AT)).toBeNull();
+    expect((await store.findById('ord-1:slot-0'))?.status).toBe(status);
+  });
+
+  it('reclaim on a missing id returns null', async () => {
+    const store = new InMemoryExecutionStore();
+    expect(await store.reclaim('ghost:slot', AT)).toBeNull();
+  });
 });

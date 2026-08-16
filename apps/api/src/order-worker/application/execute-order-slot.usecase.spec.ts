@@ -7,6 +7,8 @@ import { InMemoryWalletRepository } from '../../wallet/infrastructure/in-memory-
 import { InMemoryQuoteStore } from '../../trading/infrastructure/in-memory-quote-store';
 import type { DexAggregatorPort } from '../../trading/domain/dex-aggregator.port';
 import type { EvaluateIntentUseCase } from '../../security/application/evaluate-intent.usecase';
+import type { TriggerPricePort } from '../domain/trigger-price.port';
+import type { TriggerPricePrint } from '@kryptr/shared-types';
 import {
   AUTOMATION_ORIGIN,
   ExecuteOrderSlotUseCase,
@@ -35,6 +37,17 @@ function quote(overrides: Partial<SwapQuote> = {}): SwapQuote {
   };
 }
 
+function print(
+  priceUsd: string,
+  observedAtMs: number = NOW,
+): TriggerPricePrint {
+  return {
+    source: 'static',
+    priceUsd,
+    observedAt: new Date(observedAtMs).toISOString(),
+  };
+}
+
 function decision(result: SecurityDecision['result']): SecurityDecision {
   return {
     intentId: 'intent:ord-1:slot-0',
@@ -52,6 +65,7 @@ describe('ExecuteOrderSlotUseCase (stage-2 core)', () => {
   let wallets: InMemoryWalletRepository;
   let quoteStore: InMemoryQuoteStore;
   let dex: jest.Mocked<Pick<DexAggregatorPort, 'getQuote'>> & DexAggregatorPort;
+  let triggerPrice: { getPrint: jest.Mock };
   let evaluate: { execute: jest.Mock };
   let usecase: ExecuteOrderSlotUseCase;
 
@@ -90,6 +104,9 @@ describe('ExecuteOrderSlotUseCase (stage-2 core)', () => {
       buildSwapTx: jest.fn(),
       health: jest.fn(),
     } as never;
+    triggerPrice = {
+      getPrint: jest.fn().mockResolvedValue(print('3000')),
+    };
     evaluate = { execute: jest.fn().mockResolvedValue(decision('approved')) };
     usecase = new ExecuteOrderSlotUseCase(
       executions,
@@ -98,6 +115,7 @@ describe('ExecuteOrderSlotUseCase (stage-2 core)', () => {
       wallets,
       dex,
       quoteStore,
+      triggerPrice as unknown as TriggerPricePort,
       evaluate as unknown as EvaluateIntentUseCase,
     );
   });
@@ -106,7 +124,7 @@ describe('ExecuteOrderSlotUseCase (stage-2 core)', () => {
     jest.useRealTimers();
   });
 
-  it('runs the full ladder: claim → triggered → re-quote → gate → submitted + filled', async () => {
+  it('runs the full ladder: claim → triggered → re-quote → gate → submitted (DCA back to open, H1)', async () => {
     const execution = await usecase.execute({
       orderId: 'ord-1',
       slotKey: 'slot-0',
@@ -138,8 +156,10 @@ describe('ExecuteOrderSlotUseCase (stage-2 core)', () => {
     });
     // Quote stored so the gate's bind check can verify it.
     expect(await quoteStore.findById('quote-1')).not.toBeNull();
-    // Order lifecycle: open → triggered → filled.
-    expect((await orders.findById('ord-1'))?.status).toBe('filled');
+    // Order lifecycle (H1): DCA is RECURRING — open → triggered → back
+    // to open for the next slot. Only the final slot fills, and the
+    // current contract has no DCA end condition.
+    expect((await orders.findById('ord-1'))?.status).toBe('open');
   });
 
   it('exactly-once: a terminal slot rejects every later execution as duplicate', async () => {
@@ -151,16 +171,41 @@ describe('ExecuteOrderSlotUseCase (stage-2 core)', () => {
     expect(evaluate.execute).toHaveBeenCalledTimes(1);
   });
 
-  it('distinct slots of the same order each execute once (DCA rhythm)', async () => {
+  it('DCA is recurring: distinct slots each execute once, order stays open (H1)', async () => {
     await usecase.execute({ orderId: 'ord-1', slotKey: 'slot-0' });
-    // Order became filled (terminal) — the next slot is order_not_live,
-    // NOT a duplicate: slots are independent claims.
+    expect((await orders.findById('ord-1'))?.status).toBe('open');
+    // The next slot is an independent claim — NOT order_not_live, since
+    // the mid-cycle success returned the order to 'open'.
     const second = await usecase.execute({
       orderId: 'ord-1',
       slotKey: 'slot-1',
     });
-    expect(second.status).toBe('failed');
-    expect(second.detail).toContain('order_not_live');
+    expect(second.status).toBe('submitted');
+    expect(evaluate.execute).toHaveBeenCalledTimes(2);
+    expect((await orders.findById('ord-1'))?.status).toBe('open');
+  });
+
+  it('limit one-shot: a successful execution FILLS the order (H1 final slot)', async () => {
+    await orders.save({
+      id: 'ord-limit',
+      walletId: 'w-1',
+      type: 'limit',
+      status: 'open',
+      chain: 'base',
+      baseAsset: null,
+      quoteAsset: USDC,
+      side: 'buy',
+      amount: '3000000000',
+      limitPrice: '3100',
+      interval: null,
+      createdAt: new Date(NOW).toISOString(),
+    });
+    const execution = await usecase.execute({
+      orderId: 'ord-limit',
+      slotKey: 'once',
+    });
+    expect(execution.status).toBe('submitted');
+    expect((await orders.findById('ord-limit'))?.status).toBe('filled');
   });
 
   it('resumes a crashed in-flight claim instead of double-executing', async () => {
@@ -264,6 +309,187 @@ describe('ExecuteOrderSlotUseCase (stage-2 core)', () => {
     });
     expect(retry.status).toBe('submitted');
     expect(evaluate.execute).toHaveBeenCalledTimes(1);
+  });
+
+  describe('review fixes (OW-1, OW-2, M2)', () => {
+    it('OW-1: kill switch flipped between decision and record fails the execution AFTER approval', async () => {
+      evaluate.execute = jest.fn().mockImplementation(async () => {
+        await killSwitch.setMode('pause_new', {
+          actor: 'deck',
+          reason: 'flip mid-flight',
+          at: new Date(NOW).toISOString(),
+        });
+        return decision('approved');
+      });
+      const execution = await usecase.execute({
+        orderId: 'ord-1',
+        slotKey: 'slot-0',
+      });
+      expect(execution.status).toBe('failed');
+      expect(execution.detail).toBe('kill_switch_active');
+      // pause_new: the order is NOT cancelled, and it must not be
+      // finalized as filled either — it stays where the worker left it.
+      expect((await orders.findById('ord-1'))?.status).toBe('triggered');
+    });
+
+    it('OW-1: cancel_active flipped after approval fails the execution AND cancels the order', async () => {
+      evaluate.execute = jest.fn().mockImplementation(async () => {
+        await killSwitch.setMode('cancel_active', {
+          actor: 'deck',
+          reason: 'hard stop',
+          at: new Date(NOW).toISOString(),
+        });
+        return decision('approved');
+      });
+      const execution = await usecase.execute({
+        orderId: 'ord-1',
+        slotKey: 'slot-0',
+      });
+      expect(execution.status).toBe('failed');
+      expect(execution.detail).toBe('kill_switch_active');
+      expect((await orders.findById('ord-1'))?.status).toBe('cancelled');
+    });
+
+    it('OW-1: order cancelled concurrently after approval is never marked submitted', async () => {
+      evaluate.execute = jest.fn().mockImplementation(async () => {
+        await orders.setStatus(
+          'ord-1',
+          'cancelled',
+          new Date(NOW).toISOString(),
+        );
+        return decision('approved');
+      });
+      const execution = await usecase.execute({
+        orderId: 'ord-1',
+        slotKey: 'slot-0',
+      });
+      expect(execution.status).toBe('failed');
+      expect(execution.detail).toBe('order_not_live:cancelled');
+      expect((await orders.findById('ord-1'))?.status).toBe('cancelled');
+    });
+
+    it('OW-2: double-dispatching one slot approves EXACTLY ONE decision', async () => {
+      const results = await Promise.allSettled([
+        usecase.execute({ orderId: 'ord-1', slotKey: 'slot-0' }),
+        usecase.execute({ orderId: 'ord-1', slotKey: 'slot-0' }),
+      ]);
+      const fulfilled = results.filter(
+        (
+          r,
+        ): r is PromiseFulfilledResult<
+          Awaited<ReturnType<ExecuteOrderSlotUseCase['execute']>>
+        > => r.status === 'fulfilled',
+      );
+      const rejected = results.filter((r) => r.status === 'rejected');
+      expect(fulfilled).toHaveLength(1);
+      expect(fulfilled[0].value.status).toBe('submitted');
+      expect(rejected).toHaveLength(1);
+      expect((rejected[0] as PromiseRejectedResult).reason).toMatchObject({
+        code: 'duplicate_execution',
+      });
+      // The gate saw exactly ONE intent despite two concurrent dispatches.
+      expect(evaluate.execute).toHaveBeenCalledTimes(1);
+    });
+
+    it('M2: limit order whose execution-time price violates the bound is rejected fail-closed, order stays OPEN', async () => {
+      await orders.save({
+        id: 'ord-limit',
+        walletId: 'w-1',
+        type: 'limit',
+        status: 'open',
+        chain: 'base',
+        baseAsset: null,
+        quoteAsset: USDC,
+        side: 'buy',
+        amount: '3000000000',
+        limitPrice: '3000',
+        interval: null,
+        createdAt: new Date(NOW).toISOString(),
+      });
+      // Price moved UP through the trigger into execution — buying at
+      // 3200 violates limit 3000.
+      triggerPrice.getPrint.mockResolvedValue(print('3200'));
+      const execution = await usecase.execute({
+        orderId: 'ord-limit',
+        slotKey: 'once',
+      });
+      expect(execution.status).toBe('failed');
+      expect(execution.detail).toContain('limit_price_violation');
+      expect(execution.detail).toContain('3200');
+      // Fail-closed: the gate NEVER saw an intent, and the order stays
+      // open (re-armable), not failed.
+      expect(evaluate.execute).not.toHaveBeenCalled();
+      expect((await orders.findById('ord-limit'))?.status).toBe('open');
+    });
+
+    it('M2: unknown or stale print at execution time rejects fail-closed', async () => {
+      await orders.save({
+        id: 'ord-limit',
+        walletId: 'w-1',
+        type: 'limit',
+        status: 'open',
+        chain: 'base',
+        baseAsset: null,
+        quoteAsset: USDC,
+        side: 'sell',
+        amount: '3000000000',
+        limitPrice: '3000',
+        interval: null,
+        createdAt: new Date(NOW).toISOString(),
+      });
+      triggerPrice.getPrint.mockResolvedValue(null);
+      const unknown = await usecase.execute({
+        orderId: 'ord-limit',
+        slotKey: 'once',
+      });
+      expect(unknown.status).toBe('failed');
+      expect(unknown.detail).toContain('trigger_price_unknown');
+      expect((await orders.findById('ord-limit'))?.status).toBe('open');
+
+      // Stale print (beyond TRIGGER_MAX_AGE_MS) — same fail-closed path.
+      triggerPrice.getPrint.mockResolvedValue(print('3000', NOW - 2_700_001));
+      const stale = await usecase.execute({
+        orderId: 'ord-limit',
+        slotKey: 'once',
+      });
+      expect(stale.status).toBe('failed');
+      expect(stale.detail).toContain('trigger_price_stale');
+      expect((await orders.findById('ord-limit'))?.status).toBe('open');
+      expect(evaluate.execute).not.toHaveBeenCalled();
+    });
+
+    it('M2 re-arm: after a limit rejection the one-shot is unspent — the next trigger executes', async () => {
+      await orders.save({
+        id: 'ord-limit',
+        walletId: 'w-1',
+        type: 'limit',
+        status: 'open',
+        chain: 'base',
+        baseAsset: null,
+        quoteAsset: USDC,
+        side: 'buy',
+        amount: '3000000000',
+        limitPrice: '3000',
+        interval: null,
+        createdAt: new Date(NOW).toISOString(),
+      });
+      triggerPrice.getPrint.mockResolvedValueOnce(print('3200'));
+      const rejected = await usecase.execute({
+        orderId: 'ord-limit',
+        slotKey: 'once',
+      });
+      expect(rejected.status).toBe('failed');
+
+      // Price back through the limit: the deterministic slot re-arms.
+      triggerPrice.getPrint.mockResolvedValueOnce(print('2900'));
+      const execution = await usecase.execute({
+        orderId: 'ord-limit',
+        slotKey: 'once',
+      });
+      expect(execution.status).toBe('submitted');
+      expect((await orders.findById('ord-limit'))?.status).toBe('filled');
+      expect(evaluate.execute).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('never touches a wallet that does not exist', async () => {

@@ -34,6 +34,12 @@ export class InMemoryOrderStore implements OrderStore {
       .map((order) => ({ ...order }));
   }
 
+  async findLive(): Promise<Order[]> {
+    return [...this.orders.values()]
+      .filter((order) => order.status === 'open' || order.status === 'paused')
+      .map((order) => ({ ...order }));
+  }
+
   async findAll(): Promise<Order[]> {
     return [...this.orders.values()].map((order) => ({ ...order }));
   }

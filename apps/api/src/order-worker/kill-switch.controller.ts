@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Logger, Post } from '@nestjs/common';
 import {
   ok,
   type ApiEnvelope,
@@ -17,6 +17,8 @@ import { KillSwitchDto } from './dto/kill-switch.dto';
  */
 @Controller('automation/kill-switch')
 export class KillSwitchController {
+  private readonly logger = new Logger(KillSwitchController.name);
+
   constructor(private readonly setKillSwitch: SetKillSwitchUseCase) {}
 
   @Get()
@@ -35,7 +37,12 @@ export class KillSwitchController {
     });
     if (body.mode === 'cancel_active') {
       // Ack-first: never block the response on the order fan-out.
-      void this.setKillSwitch.cancelOpenOrders().catch(() => undefined);
+      // Errors are logged, never dropped silently (review L4).
+      void this.setKillSwitch
+        .cancelLiveOrders()
+        .catch((error) =>
+          this.logger.error(`cancel_active fan-out failed: ${String(error)}`),
+        );
     }
     return ok(state);
   }

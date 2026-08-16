@@ -10,13 +10,24 @@ import { EXECUTE_QUEUE_NAME } from './bullmq-job-queue';
  * already terminal) — it acks, never retries. Everything else the use
  * case throws is a retryable class (quote layer etc.) and bubbles to
  * BullMQ's bounded retry policy.
+ *
+ * Review M1: when a job exhausts its attempts, the worker's 'failed'
+ * event finalizes the slot (execution failed + order failed + audit)
+ * via the injected finalizer — freeze §1's triggered -> failed path.
+ * Intermediate failures (retries remaining) are left to the queue.
  */
 export function createExecutionWorker(input: {
   connection: { host: string; port: number };
   prefix?: string;
   executeOrderSlot: ExecuteOrderSlotUseCase;
+  /** Called exactly once per job when attempts run out. */
+  onRetryExhausted?: (input: {
+    orderId: string;
+    slotKey: string;
+    reason: string;
+  }) => Promise<void>;
 }): Worker {
-  return new Worker(
+  const worker = new Worker(
     EXECUTE_QUEUE_NAME,
     async (job: Job<{ orderId: string; slotKey: string }>) => {
       try {
@@ -43,4 +54,22 @@ export function createExecutionWorker(input: {
       prefix: input.prefix,
     },
   );
+
+  worker.on('failed', (job, error) => {
+    if (!job) {
+      return;
+    }
+    const maxAttempts = job.opts.attempts ?? 1;
+    if (job.attemptsMade < maxAttempts) {
+      return; // intermediate failure — BullMQ will retry
+    }
+    const reason = error instanceof Error ? error.message : String(error);
+    void input.onRetryExhausted?.({
+      orderId: job.data.orderId,
+      slotKey: job.data.slotKey,
+      reason,
+    });
+  });
+
+  return worker;
 }

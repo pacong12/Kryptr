@@ -18,6 +18,7 @@ import {
   evaluateLimitTrigger,
   LIMIT_SLOT_KEY,
 } from '../domain/trigger-evaluation';
+import { isLimitRejection } from '../domain/execution-rules';
 
 /**
  * One scheduler pass over every OPEN order (freeze §4). Runs inside a
@@ -33,6 +34,7 @@ import {
  */
 @Injectable()
 export class SchedulerTickUseCase {
+  private ticking = false;
   constructor(
     @Inject(ORDER_STORE) private readonly orderStore: OrderStore,
     @Inject(EXECUTION_STORE) private readonly executionStore: ExecutionStore,
@@ -43,27 +45,37 @@ export class SchedulerTickUseCase {
   ) {}
 
   async execute(): Promise<TriggerEvaluation[]> {
-    const killState = await this.killSwitch.getState();
-    if (killState.mode !== 'off') {
+    // OW-2 option (a): a slow tick must never overlap the next one —
+    // overlapping ticks double-enqueue the same slots.
+    if (this.ticking) {
       return [];
     }
-    const nowMs = Date.now();
-    const open = await this.orderStore.findOpen();
-    const evaluations: TriggerEvaluation[] = [];
+    this.ticking = true;
+    try {
+      const killState = await this.killSwitch.getState();
+      if (killState.mode !== 'off') {
+        return [];
+      }
+      const nowMs = Date.now();
+      const open = await this.orderStore.findOpen();
+      const evaluations: TriggerEvaluation[] = [];
 
-    for (const order of open) {
-      if (order.type === 'dca') {
-        const evaluation = await this.tickDca(order, nowMs);
-        if (evaluation) {
+      for (const order of open) {
+        if (order.type === 'dca') {
+          const evaluation = await this.tickDca(order, nowMs);
+          if (evaluation) {
+            evaluations.push(evaluation);
+          }
+        } else if (order.type === 'limit') {
+          const evaluation = await this.tickLimit(order, nowMs);
           evaluations.push(evaluation);
         }
-      } else if (order.type === 'limit') {
-        const evaluation = await this.tickLimit(order, nowMs);
-        evaluations.push(evaluation);
+        // stop/twap are rejected at creation; ignore defensively.
       }
-      // stop/twap are rejected at creation; ignore defensively.
+      return evaluations;
+    } finally {
+      this.ticking = false;
     }
-    return evaluations;
   }
 
   private async tickDca(
@@ -126,7 +138,9 @@ export class SchedulerTickUseCase {
       return evaluation;
     }
     const prior = await this.executionStore.findByOrderId(order.id);
-    if (prior.length > 0) {
+    // M2 re-arm: an execution-time limit rejection (order left open)
+    // did NOT spend the one-shot; every other prior record did.
+    if (prior.some((record) => !isLimitRejection(record))) {
       return {
         ...evaluation,
         outcome: 'armed',

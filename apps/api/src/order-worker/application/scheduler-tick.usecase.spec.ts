@@ -166,4 +166,77 @@ describe('SchedulerTickUseCase', () => {
       { orderId: 'ord-1', slotKey: '2026-05-01T12:00:00.000Z' },
     ]);
   });
+
+  it('OW-2: overlapping ticks are skipped while one is still running', async () => {
+    await orders.save(order({}));
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    // Stall the first tick inside findOpen.
+    const originalFindOpen = orders.findOpen.bind(orders);
+    jest.spyOn(orders, 'findOpen').mockImplementation(async () => {
+      await gate;
+      return originalFindOpen();
+    });
+
+    const first = usecase.execute();
+    const second = await usecase.execute(); // must no-op immediately
+    expect(second).toEqual([]);
+    release();
+    const evaluations = await first;
+    expect(evaluations).toHaveLength(1);
+    // Exactly ONE enqueue despite two concurrent execute() calls.
+    expect(enqueued).toHaveLength(1);
+  });
+
+  it('M2 re-arm: a limit rejection does NOT spend the one-shot', async () => {
+    const limit = order({
+      id: 'ord-limit',
+      type: 'limit',
+      limitPrice: '3000',
+      interval: null,
+      createdAt: new Date(NOW).toISOString(),
+    });
+    await orders.save(limit);
+    // Prior execution = an execution-time limit rejection (order left open).
+    await executions.claim('ord-limit', 'once', new Date(NOW).toISOString());
+    await executions.update('ord-limit:once', {
+      status: 'failed',
+      finishedAt: new Date(NOW).toISOString(),
+      detail:
+        'limit_price_violation: price 3200 no longer satisfies limit 3000 (buy)',
+    });
+    build(
+      new StaticTriggerPrice({ priceUsd: '2900' }),
+      new StaticTriggerPrice({ priceUsd: '2900' }),
+    );
+    const evaluations = await usecase.execute();
+    expect(evaluations[0].outcome).toBe('triggered');
+    expect(enqueued).toEqual([{ orderId: 'ord-limit', slotKey: 'once' }]);
+  });
+
+  it('a spent one-shot (any non-rejection execution) stays suppressed', async () => {
+    const limit = order({
+      id: 'ord-limit',
+      type: 'limit',
+      limitPrice: '3000',
+      interval: null,
+      createdAt: new Date(NOW).toISOString(),
+    });
+    await orders.save(limit);
+    await executions.claim('ord-limit', 'once', new Date(NOW).toISOString());
+    await executions.update('ord-limit:once', {
+      status: 'submitted',
+      finishedAt: new Date(NOW).toISOString(),
+    });
+    build(
+      new StaticTriggerPrice({ priceUsd: '2900' }),
+      new StaticTriggerPrice({ priceUsd: '2900' }),
+    );
+    const evaluations = await usecase.execute();
+    expect(evaluations[0].outcome).toBe('armed');
+    expect(evaluations[0].detail).toContain('one-shot already spent');
+    expect(enqueued).toEqual([]);
+  });
 });

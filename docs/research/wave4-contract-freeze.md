@@ -6,6 +6,17 @@ Perubahan shape setelah freeze = PR amandemen eksplisit + pengumuman IRC "shape 
 **Revisi 2026-08-16 (shape FROZEN, revisi):** §4 ditambah spesifikasi feed ETH/USD Base yang
 terverifikasi on-chain — penambahan fakta, shape kontrak TIDAK berubah.
 
+**Revisi 2026-08-16 #2 (shape FROZEN, revisi — Review54):** tiga amandemen
+semantik tanpa mengubah shape kontrak shared-types:
+
+1. §1 — DCA bersifat RECURRING: slot mid-cycle yang sukses bertransisi
+   `triggered → open` (slot berikutnya); hanya slot terakhir → `filled`.
+   Kontrak Order saat ini tidak punya kondisi akhir DCA, jadi setiap slot
+   sukses = mid-cycle (slot terakhir menunggu follow-up kondisi akhir).
+2. §3 — fan-out `cancel_active` memakai `findLive()` = order `open` +
+   `paused` (implementasi sebelumnya hanya `open`).
+3. §4 — kalimat minBuyAmount diganti sesuai ruling M2 (lihat §4).
+
 Rujukan: ruling evaluasi (docs/research/wave1-3-evaluation.md), desain worker
 (wave4-worker-design.md), desain CI (wave4-ci-redis-design.md), riset oracle
 (wave4-oracle-research.md).
@@ -23,6 +34,10 @@ Semantik transisi yang relevan untuk worker:
 - `open` → `triggered`: kondisi trigger terpenuhi; eksekusi sedang berjalan.
 - `triggered` → `filled` | `failed`: hasil eksekusi (failed = gate reject,
   quote unavailable, atau submit gagal setelah retry habis).
+- `triggered` → `open` (amandemen Review54 H1): slot DCA mid-cycle sukses —
+  order kembali `open` untuk slot berikutnya (DCA RECURRING). Hanya slot
+  terakhir yang → `filled`; kontrak Order belum punya kondisi akhir DCA
+  (follow-up), jadi saat ini setiap slot DCA sukses = mid-cycle.
 - `open` → `paused` (kill switch `pause_new` TIDAK mem-pause order aktif —
   lihat §3; `paused` hanya via pembatalan siklus DCA manual / HITL).
 - `open` → `expired`: TTL order habis (limit) tanpa ter-trigger.
@@ -88,8 +103,11 @@ KILL_SWITCH_MODES = ['off', 'pause_new', 'cancel_active'];
 - TWAP: **tidak diimplementasikan wave 4**; flag `interval` pada OrderType
   `twap` sudah ada di shape, worker menolak dengan `order_type_unsupported`.
 - Trigger = proposal: setiap fill = TransactionIntent BARU lewat gate penuh +
-  re-quote 0x saat eksekusi; minBuyAmount dari batas limit order (mitigasi
-  MEV, ruling #8).
+  re-quote 0x saat eksekusi. Ruling M2 (Review54): `minBuyAmount` TETAP
+  slippage floor dari quote (gate-consistent); bound limit order diverifikasi
+  terpisah — worker memverifikasi harga saat re-quote terhadap `limitPrice`
+  SEBELUM build intent; dilanggar → eksekusi ditolak fail-closed (order tetap
+  `open`, one-shot tidak terbakar, bisa re-trigger).
 
 ## 5. Intent automation (beku)
 

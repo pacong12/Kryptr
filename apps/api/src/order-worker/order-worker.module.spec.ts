@@ -162,7 +162,7 @@ describe('OrderWorkerModule wiring — AUTOMATION_MODE=in-memory (end to end)', 
     expect(envelope.data).toMatchObject({ type: 'dca', status: 'open' });
   });
 
-  it('tick → claim → gate → unsigned execution; order fills at the dry-run boundary', async () => {
+  it('tick → claim → gate → unsigned execution; DCA returns to open (H1) at the dry-run boundary', async () => {
     const orders = app.get(OrdersController);
     const created = await orders.create(dcaDto('150000000000000000'));
     const order = created.data as Order;
@@ -188,8 +188,11 @@ describe('OrderWorkerModule wiring — AUTOMATION_MODE=in-memory (end to end)', 
     });
     expect(records[0].detail).toContain('dry-run boundary');
 
+    // H1: DCA is recurring — a successful mid-cycle slot returns the
+    // order to 'open'; only the final slot fills (no DCA end condition
+    // exists in the current contract).
     const after = await orders.findOne(order.id);
-    expect(after.data?.status).toBe('filled');
+    expect(after.data?.status).toBe('open');
 
     // The gate audited an APPROVED decision for the automation intent.
     const audit = app.get<DecisionAudit>(DECISION_AUDIT);

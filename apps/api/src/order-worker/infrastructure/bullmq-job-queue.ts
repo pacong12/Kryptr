@@ -5,6 +5,35 @@ import type { JobQueuePort } from '../domain/job-queue.port';
 export const EXECUTE_QUEUE_NAME = 'automation.execute';
 
 /**
+ * Review L6: REDIS_URL misconfiguration must fail with an actionable
+ * message at wiring time, never an opaque `new URL('')` crash.
+ */
+export function parseRedisUrl(raw: string | undefined): {
+  host: string;
+  port: number;
+} {
+  if (!raw || raw.trim() === '') {
+    throw new Error(
+      'AUTOMATION_MODE=bullmq requires REDIS_URL (e.g. redis://localhost:6379) — got nothing',
+    );
+  }
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error(
+      `AUTOMATION_MODE=bullmq requires a valid REDIS_URL (e.g. redis://localhost:6379) — got malformed value "${raw}"`,
+    );
+  }
+  if (url.protocol !== 'redis:' && url.protocol !== 'rediss:') {
+    throw new Error(
+      `REDIS_URL must use the redis:// or rediss:// protocol — got "${url.protocol}"`,
+    );
+  }
+  return { host: url.hostname, port: Number(url.port || 6379) };
+}
+
+/**
  * BullMQ v6 binding for the execute queue. Two stage-B facts (proven in
  * ops harness, see env-gate header):
  *  - queue jobId is the COLON-FREE projection of the deterministic claim
@@ -31,9 +60,8 @@ export class BullMqJobQueue implements JobQueuePort {
   }
 
   static fromEnv(prefix?: string): BullMqJobQueue {
-    const url = new URL(process.env.REDIS_URL ?? '');
     return new BullMqJobQueue({
-      connection: { host: url.hostname, port: Number(url.port || 6379) },
+      connection: parseRedisUrl(process.env.REDIS_URL),
       prefix,
     });
   }

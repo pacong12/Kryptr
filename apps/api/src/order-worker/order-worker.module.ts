@@ -29,7 +29,10 @@ import { InMemoryKillSwitch } from './infrastructure/in-memory-kill-switch';
 import { InMemoryJobQueue } from './infrastructure/in-memory-job-queue';
 import { UnavailableJobQueue } from './infrastructure/unavailable-job-queue';
 import { makeUnavailable } from './infrastructure/unavailable-stub';
-import { BullMqJobQueue } from './infrastructure/bullmq-job-queue';
+import {
+  BullMqJobQueue,
+  parseRedisUrl,
+} from './infrastructure/bullmq-job-queue';
 import { createExecutionWorker } from './infrastructure/bullmq-execution-worker';
 import { StaticTriggerPrice } from './infrastructure/static-trigger-price';
 import { ChainlinkTriggerPrice } from './infrastructure/chainlink-trigger-price';
@@ -40,6 +43,7 @@ import { CancelOrderUseCase } from './application/cancel-order.usecase';
 import { SetKillSwitchUseCase } from './application/set-kill-switch.usecase';
 import { SchedulerTickUseCase } from './application/scheduler-tick.usecase';
 import { ExecuteOrderSlotUseCase } from './application/execute-order-slot.usecase';
+import { FinalizeFailedExecutionUseCase } from './application/finalize-failed-execution.usecase';
 import { GetWorkerHealthUseCase } from './application/get-worker-health.usecase';
 import { OrdersController } from './orders.controller';
 import { KillSwitchController } from './kill-switch.controller';
@@ -130,6 +134,7 @@ export const TRIGGER_QUEUE_NAME = 'automation.trigger';
     SetKillSwitchUseCase,
     SchedulerTickUseCase,
     ExecuteOrderSlotUseCase,
+    FinalizeFailedExecutionUseCase,
     GetWorkerHealthUseCase,
   ],
 })
@@ -143,6 +148,7 @@ export class OrderWorkerModule implements OnModuleInit, OnModuleDestroy {
   constructor(
     @Inject(JOB_QUEUE) private readonly jobQueue: JobQueuePort,
     private readonly executeOrderSlot: ExecuteOrderSlotUseCase,
+    private readonly finalizeFailedExecution: FinalizeFailedExecutionUseCase,
     private readonly schedulerTick: SchedulerTickUseCase,
   ) {}
 
@@ -167,15 +173,23 @@ export class OrderWorkerModule implements OnModuleInit, OnModuleDestroy {
     }
 
     if (mode === 'bullmq') {
-      const url = new URL(process.env.REDIS_URL ?? '');
+      // L6: actionable config errors, never an opaque `new URL('')`.
       const connection = {
-        host: url.hostname,
-        port: Number(url.port || 6379),
+        ...parseRedisUrl(process.env.REDIS_URL),
         maxRetriesPerRequest: null,
       };
       this.executionWorker = createExecutionWorker({
         connection,
         executeOrderSlot: this.executeOrderSlot,
+        // M1: retry-exhaustion finalizer (freeze §1 triggered -> failed).
+        onRetryExhausted: (input) =>
+          this.finalizeFailedExecution
+            .execute(input)
+            .catch((error) =>
+              this.logger.error(
+                `retry-exhaustion finalizer failed for ${input.orderId}:${input.slotKey}: ${String(error)}`,
+              ),
+            ),
       });
       this.triggerQueue = new Queue(TRIGGER_QUEUE_NAME, { connection });
       await this.triggerQueue.upsertJobScheduler(

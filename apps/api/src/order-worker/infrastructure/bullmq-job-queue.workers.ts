@@ -10,12 +10,18 @@
  *  1. dot-projected jobIds + deduplication.id → one queue entry,
  *  2. a job queued before any worker exists is claimed exactly once,
  *  3. duplicate_execution acks (no retry), other errors retry bounded,
- *  4. kill-switch pause/resume gates processing.
+ *  4. kill-switch pause/resume gates processing,
+ *  5. review M1: retry exhaustion finalizes execution+order+audit.
  */
 import { Queue as RawQueue, QueueEvents } from 'bullmq';
+import type { Order } from '@kryptr/shared-types';
 import { DomainError } from '../../common/domain-error';
 import { describeRedis } from '../../test/env-gate';
 import type { ExecuteOrderSlotUseCase } from '../application/execute-order-slot.usecase';
+import { FinalizeFailedExecutionUseCase } from '../application/finalize-failed-execution.usecase';
+import { InMemoryExecutionStore } from './in-memory-execution.store';
+import { InMemoryOrderStore } from './in-memory-order.store';
+import { InMemoryDecisionAudit } from '../../security/infrastructure/in-memory-decision-audit';
 import { BullMqJobQueue, EXECUTE_QUEUE_NAME } from './bullmq-job-queue';
 import { createExecutionWorker } from './bullmq-execution-worker';
 
@@ -210,4 +216,72 @@ describeRedis('order-worker bullmq bindings (real redis)', () => {
       await worker.close();
     }
   }, 30_000);
+
+  it('M1: retry exhaustion finalizes execution + order + audit exactly once', async () => {
+    const executions = new InMemoryExecutionStore();
+    const orders = new InMemoryOrderStore();
+    const audit = new InMemoryDecisionAudit();
+    const order: Order = {
+      id: 'ord-exhaust',
+      walletId: 'w-1',
+      type: 'dca',
+      status: 'triggered',
+      chain: 'base',
+      baseAsset: null,
+      quoteAsset: null,
+      side: 'sell',
+      amount: '1000',
+      limitPrice: null,
+      interval: 'P1D',
+      createdAt: new Date().toISOString(),
+    };
+    await orders.save(order);
+    await executions.claim('ord-exhaust', 'slot-0', new Date().toISOString());
+
+    const finalizer = new FinalizeFailedExecutionUseCase(
+      executions,
+      orders,
+      audit,
+    );
+    const finalized: Array<{ orderId: string; slotKey: string }> = [];
+    const { usecase } = stubUseCase(async () => {
+      throw new DomainError('quote_unavailable', 'always down', 502);
+    });
+
+    await queue.enqueueExecution('ord-exhaust', 'slot-0');
+    const worker = createExecutionWorker({
+      connection: redisConnection(),
+      prefix: PREFIX,
+      executeOrderSlot: usecase,
+      onRetryExhausted: async (input) => {
+        finalized.push(input);
+        await finalizer.execute({ ...input, reason: 'quote_unavailable' });
+      },
+    });
+    try {
+      // attempts: 3 with exponential backoff (2s, 4s) — poll until the
+      // finalizer lands or the deadline passes.
+      const deadline = Date.now() + 25_000;
+      while (Date.now() < deadline) {
+        const record = await executions.findById('ord-exhaust:slot-0');
+        if (record?.status === 'failed') {
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+      expect(finalized).toEqual([
+        { orderId: 'ord-exhaust', slotKey: 'slot-0' },
+      ]);
+      expect(await executions.findById('ord-exhaust:slot-0')).toMatchObject({
+        status: 'failed',
+        detail: 'retry_exhausted: quote_unavailable',
+      });
+      expect((await orders.findById('ord-exhaust'))?.status).toBe('failed');
+      expect(
+        await audit.findByIntentId('intent:ord-exhaust:slot-0'),
+      ).toHaveLength(1);
+    } finally {
+      await worker.close();
+    }
+  }, 40_000);
 });

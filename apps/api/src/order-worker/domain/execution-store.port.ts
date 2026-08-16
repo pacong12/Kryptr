@@ -20,6 +20,14 @@ export interface ExecutionStore {
     slotKey: string,
     at: string,
   ): Promise<OrderExecution | null>;
+  /**
+   * Continuation ownership (review OW-2): re-acquire an execution left
+   * non-terminal by a crashed attempt. Atomic compare-and-set — succeeds
+   * ONLY while the record is non-terminal (resets it to 'claimed' as a
+   * fresh lease); returns null for terminal records, so a losing or late
+   * continuation MUST stop without side effects (duplicate).
+   */
+  reclaim(id: string, at: string): Promise<OrderExecution | null>;
   findById(id: string): Promise<OrderExecution | null>;
   findByOrderId(orderId: string): Promise<OrderExecution[]>;
   /** Patch status/intentId/finishedAt/detail; append-only history is NOT required — the audit timeline owns forensics. */

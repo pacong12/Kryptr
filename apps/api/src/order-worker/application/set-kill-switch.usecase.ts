@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import type {
   KillSwitchAuditEntry,
   KillSwitchMode,
@@ -22,6 +22,7 @@ import { JOB_QUEUE, type JobQueuePort } from '../domain/job-queue.port';
  */
 @Injectable()
 export class SetKillSwitchUseCase {
+  private readonly logger = new Logger(SetKillSwitchUseCase.name);
   constructor(
     @Inject(KILL_SWITCH) private readonly killSwitch: KillSwitchPort,
     @Inject(ORDER_STORE) private readonly orderStore: OrderStore,
@@ -54,13 +55,16 @@ export class SetKillSwitchUseCase {
   }
 
   /**
-   * cancel_active fan-out: cancel every open order. Call WITHOUT
-   * awaiting from the HTTP layer (ack-first); safe to await in tests.
+   * cancel_active fan-out (freeze §3): cancel every LIVE order —
+   * BOTH open AND paused. Call WITHOUT awaiting from the HTTP layer
+   * (ack-first); safe to await in tests. Per-order errors are logged,
+   * never swallowed silently (review L4); cancellations stay idempotent
+   * via the terminal-status guard.
    */
-  async cancelOpenOrders(): Promise<string[]> {
-    const open = await this.orderStore.findOpen();
+  async cancelLiveOrders(): Promise<string[]> {
+    const live = await this.orderStore.findLive();
     const cancelled: string[] = [];
-    for (const order of open) {
+    for (const order of live) {
       try {
         await this.orderStore.setStatus(
           order.id,
@@ -68,8 +72,12 @@ export class SetKillSwitchUseCase {
           new Date().toISOString(),
         );
         cancelled.push(order.id);
-      } catch {
-        // terminal orders refuse writes — expected, not fatal
+      } catch (error) {
+        // terminal orders refuse writes — expected; anything else is a
+        // real fault and must surface in logs, not vanish.
+        this.logger.error(
+          `cancel_active fan-out: order "${order.id}" could not be cancelled: ${String(error)}`,
+        );
       }
     }
     return cancelled;

@@ -88,17 +88,19 @@ describe('SetKillSwitchUseCase', () => {
     expect((await orders.findById('ord-1'))?.status).toBe('open');
   });
 
-  it('cancel_active fan-out cancels open orders and skips terminal ones', async () => {
+  it('cancel_active fan-out cancels every LIVE order (open + paused, freeze §3) and skips terminal ones', async () => {
     await orders.save(order('ord-open', 'open'));
+    await orders.save(order('ord-paused', 'paused'));
     await orders.save(order('ord-filled', 'filled'));
     await usecase.execute({
       mode: 'cancel_active',
       actor: 'deck',
       reason: 'x',
     });
-    const cancelled = await usecase.cancelOpenOrders();
-    expect(cancelled).toEqual(['ord-open']);
+    const cancelled = await usecase.cancelLiveOrders();
+    expect(cancelled.sort()).toEqual(['ord-open', 'ord-paused']);
     expect((await orders.findById('ord-open'))?.status).toBe('cancelled');
+    expect((await orders.findById('ord-paused'))?.status).toBe('cancelled');
     expect((await orders.findById('ord-filled'))?.status).toBe('filled');
   });
 

@@ -16,6 +16,11 @@ export interface OrderStore {
   /** All orders regardless of status (backoffice listing). */
   findAll(): Promise<Order[]>;
   /**
+   * Live orders for the kill-switch cancel_active fan-out (freeze §3):
+   * BOTH 'open' AND 'paused'. findOpen() stays scheduler-scoped.
+   */
+  findLive(): Promise<Order[]>;
+  /**
    * Transition an order's status. Implementations MUST refuse writes to
    * terminal statuses (filled/cancelled/expired/failed) — the worker
    * never touches a terminal order.
