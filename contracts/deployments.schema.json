@@ -6,6 +6,7 @@
   "required": [
     "chain",
     "factoryAddress",
+    "bondSink",
     "verificationId",
     "commitSha",
     "deployedAt"
@@ -20,6 +21,11 @@
       "type": "string",
       "pattern": "^0x[0-9a-fA-F]{40}$",
       "description": "Deployed factory (CREATE2) address."
+    },
+    "bondSink": {
+      "type": "string",
+      "pattern": "^0x[0-9a-fA-F]{40}$",
+      "description": "Factory constructor-immutable bond sink (the one authorized recipient of deploy bond). Consumed by consent/G5 via the verification artifact — NOT by the deploy gate's allowlist. REQUIRED at CI (schema) so no deploy record is incomplete for the audit chain."
     },
     "verificationId": {
       "type": "string",
