@@ -10,5 +10,12 @@ test = "test"
 script = "script"
 libs = ["lib"]
 
+# T21 §4.4 campaign params (wave5-t21-verification-design.md): runs >= 256,
+# depth >= 100, no fail-on-revert (reverting paths are expected in handlers).
+[profile.default.invariant]
+runs = 256
+depth = 128
+fail_on_revert = false
+
 [fmt]
 line_length = 100
