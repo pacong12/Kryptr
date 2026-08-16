@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Badge } from '@kryptr/shared-ui/vue/badge';
+import { Toaster } from '@kryptr/shared-ui/vue/sonner';
 import { ShieldCheck } from '@lucide/vue';
 </script>
 
@@ -39,5 +40,8 @@ import { ShieldCheck } from '@lucide/vue';
         is signed.
       </p>
     </footer>
+
+    <!-- Swap/transfer outcomes surface as toasts (vue-sonner). -->
+    <Toaster />
   </div>
 </template>
