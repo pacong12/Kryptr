@@ -1,0 +1,82 @@
+{
+  "name": "@kryptr/contracts",
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "tags": ["domain:contracts", "scope:launchpad"],
+  "targets": {
+    "forge-build": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": ["default", "^default"],
+      "outputs": ["{projectRoot}/out", "{projectRoot}/cache"],
+      "options": {
+        "cwd": "contracts",
+        "command": "forge build"
+      },
+      "metadata": {
+        "description": "Foundry build (forge build) — pinned solc per foundry.toml; unique target name so the workspace-wide `-t build test` CI line never runs it without forge"
+      }
+    },
+    "forge-test": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": ["default", "^default"],
+      "options": {
+        "cwd": "contracts",
+        "command": "forge test"
+      },
+      "metadata": {
+        "description": "Foundry unit tests (local, deterministic, no network); unique target name (see forge-build)"
+      }
+    },
+    "fmt": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "options": {
+        "cwd": "contracts",
+        "command": "forge fmt --check"
+      },
+      "metadata": {
+        "description": "forge fmt check (no writes in CI)"
+      }
+    },
+    "slither": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "cwd": "contracts",
+        "command": "slither . --config-file slither.config.json --fail-medium"
+      },
+      "metadata": {
+        "description": "Slither static analysis; high/medium findings fail (triage baseline: slither.config.json + SLITHER_TRIAGE.md)"
+      }
+    },
+    "fork-test": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "cwd": "contracts",
+        "command": "forge test --fork-url \"$RPC_URL_BASE\" -vv"
+      },
+      "metadata": {
+        "description": "Fork tests against real Base RPC — label-gated in CI + nightly only (never default CI)"
+      }
+    },
+    "manifests": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": [
+        "{projectRoot}/deployments/**/*",
+        "{projectRoot}/deployments.schema.json",
+        "{projectRoot}/tools/validate-manifests.mjs"
+      ],
+      "options": {
+        "cwd": "contracts",
+        "command": "node tools/validate-manifests.mjs"
+      },
+      "metadata": {
+        "description": "Validate deploy manifests (fail-closed: missing verificationId = invalid)"
+      }
+    }
+  }
+}

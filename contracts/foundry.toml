@@ -1,0 +1,14 @@
+[profile.default]
+# Wave-5 kickoff contract (vault): pinned solc for EIP-1167 factory+template
+# work; evm_version stays at the solc default until Base fork tests say
+# otherwise; optimizer on with runs=200.
+solc_version = "0.8.24"
+optimizer = true
+optimizer_runs = 200
+src = "src"
+test = "test"
+script = "script"
+libs = ["lib"]
+
+[fmt]
+line_length = 100
