@@ -11,10 +11,12 @@
     "jest.config.cts",
     "jest.smoke.cts",
     "jest.live.cts",
+    "jest.workers.cts",
     "src/**/*.test.ts",
     "src/**/*.spec.ts",
     "src/**/*.smoke.ts",
     "src/**/*.live.ts",
+    "src/**/*.workers.ts",
     "src/test/**/*.ts",
     "src/**/*.d.ts"
   ],

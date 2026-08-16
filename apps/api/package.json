@@ -95,6 +95,17 @@
           "description": "API smoke: golden path wallet -> quote -> evaluate(swap) -> timeline (in-memory, no DB)"
         }
       },
+      "test-workers": {
+        "executor": "nx:run-commands",
+        "cache": false,
+        "options": {
+          "cwd": "apps/api",
+          "command": "npx jest --config jest.workers.cts --runInBand --passWithNoTests"
+        },
+        "metadata": {
+          "description": "Worker/queue suites (*.workers.ts) against a real Redis; redis-gated skip without REDIS_URL"
+        }
+      },
       "test:live": {
         "executor": "nx:run-commands",
         "cache": false,

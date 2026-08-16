@@ -19,6 +19,7 @@
     "src/**/*.test.ts",
     "src/**/*.smoke.ts",
     "src/**/*.live.ts",
+    "src/**/*.workers.ts",
     "src/test/**"
   ]
 }

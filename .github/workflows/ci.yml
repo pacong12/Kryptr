@@ -13,6 +13,22 @@ permissions:
 jobs:
   main:
     runs-on: ubuntu-latest
+    # Wave-4 worker suites run against a REAL Redis (no in-memory mock):
+    # redis:7-alpine mirrors docker-compose.yml parity, healthcheck-gated so
+    # no readiness sleeps are ever needed, reachable at localhost:6379
+    # because the job runs directly on the runner.
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      REDIS_URL: redis://localhost:6379
     steps:
       - uses: actions/checkout@v5
         with:
@@ -43,8 +59,9 @@ jobs:
       - run: npx nx format:check --base="${{ steps.nx_base.outputs.base }}"
         if: github.event_name == 'pull_request'
 
-      # Lint/build/test/typecheck/smoke only what changed vs the computed base.
-      - run: npx nx affected --base="${{ steps.nx_base.outputs.base }}" -t build test typecheck lint smoke --parallel=3
+      # Lint/build/test/typecheck/smoke/test-workers only what changed vs
+      # the computed base.
+      - run: npx nx affected --base="${{ steps.nx_base.outputs.base }}" -t build test typecheck lint smoke test-workers --parallel=3
 
   # Secret scanning: fail if anything that looks like a real key lands in
   # the repo. GitGuardian alone does not cover pushes from this repo, so
