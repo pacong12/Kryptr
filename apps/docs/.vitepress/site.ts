@@ -7,6 +7,8 @@
  * - the frontoffice deep-link base (`VITE_DOCS_URL`, fail-closed: docs links
  *   are hidden, never guessed, when the env is absent or mismatched),
  * - every docs link rendered by the backoffice,
+ * - `/llms.txt`, generated at build time from .vitepress/llms.template.txt
+ *   (the template must never hardcode a docs domain),
  * - the footer of this site.
  *
  * OpsCI confirms the final `docs.*` domain before the first deploy and
