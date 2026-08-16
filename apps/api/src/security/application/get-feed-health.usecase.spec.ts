@@ -28,9 +28,11 @@ describe('GetFeedHealthUseCase', () => {
     dex = {
       getQuote: jest.fn(),
       buildSwapTx: jest.fn(),
-      health: jest.fn().mockReturnValue(
-        feed({ feedId: 'dex:static-mock', source: 'static-mock' }),
-      ),
+      health: jest
+        .fn()
+        .mockReturnValue(
+          feed({ feedId: 'dex:static-mock', source: 'static-mock' }),
+        ),
     };
     useCase = new GetFeedHealthUseCase(priceFeed, dex);
   });
@@ -46,7 +48,9 @@ describe('GetFeedHealthUseCase', () => {
   });
 
   it('flags degradation when the price feed is stale', async () => {
-    priceFeed.health.mockReturnValue(feed({ status: 'stale', priceAgeSec: 90 }));
+    priceFeed.health.mockReturnValue(
+      feed({ status: 'stale', priceAgeSec: 90 }),
+    );
     const report = await useCase.execute();
     expect(report.degraded).toBe(true);
     expect(report.staleFeedIds).toEqual(['price:static']);
