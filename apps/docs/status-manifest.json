@@ -1,0 +1,85 @@
+{
+  "_meta": {
+    "purpose": "Single status manifest for the Kryptr user docs. Every page's front-matter `status` MUST match this file; the 'What's live today' page renders this manifest at build time. Change status here AND in the page front matter in the same commit.",
+    "statuses": {
+      "live": "Available in Kryptr today, within the phase boundaries stated on the page.",
+      "preview": "Built and visible in the app, but not fully enabled yet — degrades fail-closed.",
+      "planned": "Designed and contract-frozen, but not available yet."
+    },
+    "globalPhase": "Phase 1 boundary: signing is dry-run only — nothing is broadcast on-chain yet."
+  },
+  "pages": [
+    {
+      "path": "/",
+      "title": "Kryptr Docs",
+      "status": "live",
+      "summary": "Entry point: what this site covers and the current phase in one line."
+    },
+    {
+      "path": "/getting-started/",
+      "title": "What is Kryptr",
+      "status": "live",
+      "summary": "Security-gated finance for autonomous agents; what you can do in the current phase."
+    },
+    {
+      "path": "/core-concepts/wallet-and-security.html",
+      "title": "Wallet & security model",
+      "status": "live",
+      "summary": "Keyless by construction, read-only by default, security gate, human-in-the-loop; signing arrives later behind a dedicated signer boundary."
+    },
+    {
+      "path": "/core-concepts/fee-transparency.html",
+      "title": "Fee transparency",
+      "status": "live",
+      "summary": "Quote fees and the slippage floor are shown before you approve; launchpad fee schedules freeze at launch (launchpad itself is planned)."
+    },
+    {
+      "path": "/features/balances-and-history.html",
+      "title": "Balances & history",
+      "status": "live",
+      "summary": "Read-only balances on Base and Robinhood Chain with honest zeros; every action leaves an auditable gate decision."
+    },
+    {
+      "path": "/features/swaps-and-quotes.html",
+      "title": "Swaps & quotes",
+      "status": "live",
+      "summary": "Read-only quote bound to one intent, gate evaluation, approval — execution stops at the unsigned dry-run boundary in this phase."
+    },
+    {
+      "path": "/features/orders-and-kill-switch.html",
+      "title": "Orders & kill switch",
+      "status": "preview",
+      "summary": "Limit and DCA orders with a frozen lifecycle, oracle triggers, and a three-mode kill switch; the worker ships disabled by default and executions are dry-run only."
+    },
+    {
+      "path": "/features/launchpad-consent.html",
+      "title": "Launchpad consent",
+      "status": "planned",
+      "summary": "Token launches with consent-frozen fees (reference 175 bps), an on-chain bond, and T21 verification. No factory is deployed — the launchpad stays dark."
+    },
+    {
+      "path": "/honest-edges/limitations.html",
+      "title": "Limitations by phase",
+      "status": "live",
+      "summary": "What Kryptr cannot do yet — including on-chain execution, which has no live signer."
+    },
+    {
+      "path": "/honest-edges/faq.html",
+      "title": "FAQ",
+      "status": "live",
+      "summary": "Custody, automation authority, dry-run phase, verification claims."
+    },
+    {
+      "path": "/honest-edges/glossary.html",
+      "title": "Glossary",
+      "status": "live",
+      "summary": "The frozen vocabulary: intents, gate results, kill-switch modes, order statuses, verification claims."
+    },
+    {
+      "path": "/whats-live.html",
+      "title": "What's live today",
+      "status": "live",
+      "summary": "Status index rendered from the manifest — live, preview, planned."
+    }
+  ]
+}

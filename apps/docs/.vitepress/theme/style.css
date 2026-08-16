@@ -1,0 +1,56 @@
+/* Phase-status banner — minimal styling, no external fonts or assets. */
+
+.status-banner {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid var(--vp-c-divider);
+  border-left-width: 4px;
+  border-radius: 6px;
+  background-color: var(--vp-c-bg-soft);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.status-banner__badge {
+  flex-shrink: 0;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.status-banner--live {
+  border-left-color: var(--vp-c-green-2);
+}
+
+.status-banner--live .status-banner__badge {
+  background-color: var(--vp-c-green-soft);
+  color: var(--vp-c-green-1);
+}
+
+.status-banner--preview {
+  border-left-color: var(--vp-c-yellow-2);
+}
+
+.status-banner--preview .status-banner__badge {
+  background-color: var(--vp-c-yellow-soft);
+  color: var(--vp-c-yellow-1);
+}
+
+.status-banner--planned {
+  border-left-color: var(--vp-c-neutral-2);
+}
+
+.status-banner--planned .status-banner__badge {
+  background-color: var(--vp-c-neutral-soft);
+  color: var(--vp-c-text-2);
+}
+
+.status-banner__text {
+  color: var(--vp-c-text-2);
+}
