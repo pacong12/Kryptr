@@ -180,7 +180,7 @@ bond mechanics, fee accrual — all factory-era.
 
 ---
 
-## 3. DeployContext sketch (for DeckUI's prep PR, gate #4)
+## 3. DeployContext sketch (for the vault-owned prep PR, gate #4)
 
 Mirrors `SwapContext` (bound context, present iff `kind==='deploy'`),
 contract-first in `packages/shared-types/src/lib/transactions.ts`:
@@ -192,6 +192,29 @@ export interface FeeRecipients {
   lp: `0x${string}`;
   protocol: `0x${string}`;
   buyback: `0x${string}`;
+}
+
+/**
+ * T21 verification artifact reference — CLIENT-ADDRESSABLE (FaceUI flag):
+ * the consent chip may only render what it can fetch + verify, so this is
+ * a structure, never an opaque id.
+ */
+export interface VerificationClaim {
+  /** e.g. 'admin_key_free' | 'non_upgradeable' | 'fee_split_invariant' | 'bond_accounting'. */
+  claim: string;
+  /** Evidence pointer inside the artifact (test id / file / section). */
+  evidence?: string;
+  /** ISO-8601 when the claim was verified. */
+  verifiedAt: string;
+}
+
+export interface VerificationArtifactRef {
+  /** Stable artifact id, e.g. 't21:factory-base:v1'. */
+  id: string;
+  /** Content hash (sha256) of the canonical artifact for client integrity checks. */
+  hash: string;
+  /** The verified claims the consent screen may render. */
+  claims: VerificationClaim[];
 }
 
 /** Present iff kind === 'deploy'; frozen at consent, validated pre-sign. */
@@ -212,8 +235,13 @@ export interface DeployContext {
   feeRecipients: FeeRecipients;
   /** Ruling 2: gate validates bond-paid; the bond itself is on-chain. */
   bondPaid: boolean;
-  /** T21 verification artifact id the consent UI may render (cond. #1). */
-  verificationId?: string;
+  /**
+   * T21 artifact (cond. #1 + FaceUI flag): claims frozen at consent —
+   * what the user saw is what the decision audited. Optional only until
+   * the first factory lands; the gate will REQUIRE it for allowlisted
+   * factories (see §2.3 table).
+   */
+  verification?: VerificationArtifactRef;
 }
 ```
 
@@ -229,9 +257,20 @@ Field notes:
   launch detail) and the gate asserts equality — mismatch is a construction
   bug or an attack, reject either way (T17 mitigation: what was consented is
   what gets validated).
+- **`verification` is embedded, not referenced-only (FaceUI flag)**: consent
+  freezes the exact claims presented, so the decision record is auditable
+  against what the user saw (T17 parity: what was consented is what was
+  verified). The paired read endpoint — `GET /launchpad/verification/:id`
+  returning the canonical artifact `{ id, hash, claims }` — lands with the
+  deploy-gate branch (§2); chip flow: fetch artifact → compare `hash` and
+  `claims` against the intent's ref → render. Nothing opaque, nothing
+  trust-me. Claim vocabulary is a frozen string union from the T21 battery
+  (Web3Intel owns the list; `admin_key_free` and `non_upgradeable` are the
+  decision-condition minimum).
 - **Freeze discipline**: land as a contract-first prep PR (no consumers),
   then freeze exactly like the wave-4 orders contract — amendments only,
-  amendment log in the PR. DeckUI owns the PR; this section is the proposal.
+  amendment log in the PR. Vault owns the prep PR per Main's wave-5
+  assignment (gate #4); this section is the proposal that gets frozen.
 
 Gate-side validation table (§2.3 consumes this):
 
@@ -244,6 +283,7 @@ Gate-side validation table (§2.3 consumes this):
 | totalSupply positive integer string                                             | `deploy_context_invalid`  |
 | feeBps integers non-negative, sum = launch total bps, mirrors match shares (Q1) | `fee_schedule_invalid`    |
 | recipients ×4 valid addresses                                                   | `fee_recipients_invalid`  |
+| verification present for allowlisted factory; claims non-empty (FaceUI flag)    | `verification_missing`    |
 
 ---
 
@@ -260,9 +300,10 @@ Gate-side validation table (§2.3 consumes this):
 - **T19 valueless auto-approval**: closed since wave 3 (unconditional HITL).
 - **T20 upgrade authority**: no upgrade path Phase 1 (Option A); nothing for
   the gate to carry yet — policy pre-emption stays in docs.
-- **T21 clone bugs**: Web3Intel/OpsCI battery; vault surface = consume the
-  `verificationId` artifact id and refuse manifest entries without it (CI
-  schema, ops-owned).
+- **T21 clone bugs**: Web3Intel/OpsCI battery; vault surface = embed the
+  verification artifact ref in `DeployContext` (§3, client-addressable per
+  FaceUI flag), require it for allowlisted factories, and refuse manifest
+  entries without `verificationId` (CI schema, ops-owned).
 
 ## 5. Kickoff rulings (Main, 2026-08-16 — post-review of this doc)
 
@@ -280,6 +321,11 @@ Gate-side validation table (§2.3 consumes this):
   ever receives deploy auto-approval; HITL for deploys is unconditional,
   forever. Must be reflected as an L3 test (§1 layer 3: HITL-permanence
   spec) — done, spec listed.
+- **FaceUI flag — T21 artifact client-addressability: ACCEPTED as shape
+  decision.** `verificationId?: string` superseded by embedded
+  `verification?: VerificationArtifactRef { id, hash, claims[] }` (§3);
+  paired read endpoint `GET /launchpad/verification/:id` specified with the
+  deploy-gate branch; consent chip renders only what it fetches + verifies.
 
 ## 6. Sources
 
