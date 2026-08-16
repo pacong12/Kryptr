@@ -13,7 +13,7 @@ const eslintRecommended = Object.fromEntries(
 export default tseslint.config(
   {
     name: 'kryptr/api/ignores',
-    ignores: ['dist/**', 'jest.config.cts'],
+    ignores: ['dist/**', 'jest.config.cts', 'jest.smoke.cts'],
   },
   {
     name: 'kryptr/api/eslint-recommended',

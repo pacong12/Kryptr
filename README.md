@@ -49,14 +49,18 @@ npx nx format:write               # prettier
 
 ## Pre-commit hooks
 
-`npm install` wires a pre-commit hook via `simple-git-hooks` (config block in
-`package.json`). Every commit first runs:
+`npm install` wires a pre-commit hook (config block in `package.json`) via
+`scripts/install-hooks.mjs` — a worktree-aware installer that writes into the
+shared git hooks dir, so linked worktrees get the hook too (plain
+`simple-git-hooks` cannot install there). Every commit first runs:
 
-- `nx format:check` — prettier formatting gate
+- `nx format:check` — prettier formatting gate (staged files)
 - `nx affected -t lint --base=HEAD~1` — lint what the commit touches
 
 If the hook ever goes missing (fresh clone, git upgrade), re-install it with
-`npx simple-git-hooks`.
+`node scripts/install-hooks.mjs`. Bypass in emergencies:
+`SKIP_SIMPLE_GIT_HOOKS=1 git commit ...` or `git commit --no-verify` (never
+on `main`).
 
 ## Security model
 

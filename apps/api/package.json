@@ -79,6 +79,21 @@
         "options": {
           "passWithNoTests": true
         }
+      },
+      "smoke": {
+        "executor": "nx:run-commands",
+        "cache": true,
+        "inputs": [
+          "default",
+          "^default"
+        ],
+        "options": {
+          "cwd": "apps/api",
+          "command": "npx jest --config jest.smoke.cts --runInBand"
+        },
+        "metadata": {
+          "description": "API smoke: golden path wallet -> quote -> evaluate(swap) -> timeline (in-memory, no DB)"
+        }
       }
     }
   },

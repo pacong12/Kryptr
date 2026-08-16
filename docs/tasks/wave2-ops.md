@@ -36,3 +36,22 @@ the known worktree hook bug.
 - Hook install works from a linked worktree (demonstrate with a scratch
   worktree, then clean it up).
 - ci.yml changes minimal and reviewed in PR body.
+
+## Retro
+
+- Done: `smoke` target on `@kryptr/api` (jest.smoke.cts + supertest golden
+  path wallet → quote → evaluate(swap) → timeline, in-memory, no DB;
+  contract anchors locked with VaultAPI over IRC before either side built).
+  `smoke` added to the ci.yml affected line; base computation gained a
+  root-commit guard (single-commit push falls back to the root commit).
+  `scripts/install-hooks.mjs`: worktree-aware hook installer wired into
+  `prepare` — linked worktrees now get the pre-commit gate (demonstrated
+  from a scratch worktree, then cleaned up).
+- Sequenced: smoke can only go green after `feat/api-trading` lands (it adds
+  /api/quotes + timeline). Merge order vault-first, ops-second held; after
+  #20 merged I rebased clean and smoke went green on the first run.
+- Learned: contract-first over IRC (exact envelopes, step names, amount
+  below the $100 threshold) removed every integration surprise; jest's
+  default testMatch keeps `*.smoke.ts` out of unit runs for free; generated
+  jest configs carry a blanket eslint-disable → add them to config ignores,
+  never edit them.
