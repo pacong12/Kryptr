@@ -37,10 +37,15 @@ print costs real money at execution. Recommended stack:
   viem `eth_call` / Multicall3 batch — no HTTP API at all `[O2][O4]`.
 - **Auth:** none. Reading is keyless and free (only RPC cost); feed updates are sponsored by
   the ecosystem `[O3]`.
-- **Freshness:** update on **deviation threshold OR heartbeat**, whichever first. Base ETH/USD
-  per directory at access date: deviation **0.15%**, heartbeat displayed ≈ 12h24m — heartbeats
-  vary per feed and must be verified per pair at implementation; in volatile markets the
-  deviation trigger dominates `[O1][O2]`.
+- **Freshness:** update on **deviation threshold OR heartbeat**, whichever first. Base
+  ETH/USD **verified on-chain 2026-08-16** (proxy
+  `0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70`; `latestRoundData()`/`decimals()=8` read via
+  public RPC `mainnet.base.org`, keyless): 18 consecutive rounds (26691–26708, 01:09–06:27
+  UTC) show a heartbeat of **≈1230 s (~20.5 min)** during a quiet window, with early updates
+  exactly when |Δprice| ≥ ~16 bps — consistent with deviation **0.15%** `[O21][O22]`.
+  Correction: an earlier draft recorded "heartbeat ≈ 12h24m" from the directory UI; that was
+  a misread, superseded by this measurement. Heartbeats vary per feed and must be verified
+  per pair at implementation; in volatile markets the deviation trigger dominates `[O1][O2]`.
 - **Stale-data hygiene:** check `updatedAt` against your own maxAge; always use proxy
   addresses `[O2][O4]`.
 - **Chains:** Base fully covered `[O1][O4]`; same oracle family is Robinhood Chain's official
@@ -193,29 +198,31 @@ cadence vs RPC rate budgets (wave 3 §2 limits).
 
 ## 6. Sources
 
-Registry (§7) count: 20 entries (`O1`–`O20`) plus cross-references `[W#]`/`[S#]`.
+Registry (§7) count: 22 entries (`O1`–`O22`) plus cross-references `[W#]`/`[S#]`.
 
 ## 7. Source registry
 
-| ID  | Source (URL)                                                                                                                                                                                        | Date / accessed     |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
-| O1  | Chainlink — ETH/USD feed directory (Base) — https://data.chain.link/feeds/base/base/eth-usd                                                                                                         | accessed 2026-08-16 |
-| O2  | Chainlink — Data Feeds docs — https://docs.chain.link/data-feeds                                                                                                                                    | accessed 2026-08-16 |
-| O3  | Chainlink — Data Feeds getting started (keyless/free reads) — https://docs.chain.link/data-feeds/getting-started                                                                                    | accessed 2026-08-16 |
-| O4  | Chainlink — feed contract addresses — https://docs.chain.link/data-feeds/price-feeds/addresses                                                                                                      | accessed 2026-08-16 |
-| O5  | Chainlink — Data Streams docs — https://docs.chain.link/data-streams                                                                                                                                | accessed 2026-08-16 |
-| O6  | Chainlink — Data Streams authentication — https://docs.chain.link/data-streams/reference/data-streams-api/authentication                                                                            | accessed 2026-08-16 |
-| O7  | Chainlink — Data Streams interface API (HMAC headers) — https://docs.chain.link/data-streams/reference/data-streams-api/interface-api                                                               | accessed 2026-08-16 |
-| O8  | Chainlink — Data Streams JS auth examples — https://docs.chain.link/data-streams/reference/data-streams-api/authentication/javascript-examples                                                      | accessed 2026-08-16 |
-| O9  | Chainlink — Data Streams product page (sub-second, report contents) — https://chain.link/data-streams                                                                                               | accessed 2026-08-16 |
-| O10 | The Block — Chainlink 24/5 onchain Data Streams for tokenized US stocks/ETFs — https://www.theblock.co/news/business/2026-01-20-chainlink-24-5-onchain-data-streams-tokenized-us-stocks-etfs-386387 | 2026-01-20          |
-| O11 | smartcontractkit — Data Streams demo (credentials, verification) — https://github.com/smartcontractkit/datastreams-demo                                                                             | accessed 2026-08-16 |
-| O12 | Pyth — Core upgrade preparation (key mandate, rate limits) — https://docs.pyth.network/price-feeds/core/upgrade/preparing                                                                           | accessed 2026-08-16 |
-| O13 | Pyth — "The Pyth Core Upgrade" (Starter $500/mo, Pro tiers) — https://www.pyth.network/blog/the-pyth-core-upgrade                                                                                   | accessed 2026-08-16 |
-| O14 | Pyth — Hermes (confidence intervals, API) — https://docs.pyth.network/price-feeds/core/how-pyth-works/hermes                                                                                        | accessed 2026-08-16 |
-| O15 | CoW Protocol — docs (intents, batch auctions, solvers, limit orders) — https://docs.cow.fi/                                                                                                         | accessed 2026-08-16 |
-| O16 | 1inch — developer docs (Fusion/limit order protocol, resolvers) — https://docs.1inch.io/                                                                                                            | accessed 2026-08-16 |
-| O17 | Chainlink — Automation docs (upkeep pricing model) — https://docs.chain.link/chain-automation                                                                                                       | accessed 2026-08-16 |
-| O18 | Uniswap — v3 oracle (TWAP cumulative price) — https://docs.uniswap.org/concepts/protocol/oracle                                                                                                     | accessed 2026-08-16 |
-| O19 | rekt.news — Mango Markets post-mortem (~$116M oracle manipulation) — https://rekt.news/mango-markets-rekt/                                                                                          | 2022-10             |
-| O20 | Internal — Bankr scheduled-trading surface + May 2026 incident analysis — `bankrbot-analysis.md` §2.4/§6 ([S2] et al.)                                                                              | 2026-08-15          |
+| ID  | Source (URL)                                                                                                                                                                                                 | Date / accessed     |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------- |
+| O1  | Chainlink — ETH/USD feed directory (Base) — https://data.chain.link/feeds/base/base/eth-usd                                                                                                                  | accessed 2026-08-16 |
+| O2  | Chainlink — Data Feeds docs — https://docs.chain.link/data-feeds                                                                                                                                             | accessed 2026-08-16 |
+| O3  | Chainlink — Data Feeds getting started (keyless/free reads) — https://docs.chain.link/data-feeds/getting-started                                                                                             | accessed 2026-08-16 |
+| O4  | Chainlink — feed contract addresses — https://docs.chain.link/data-feeds/price-feeds/addresses                                                                                                               | accessed 2026-08-16 |
+| O5  | Chainlink — Data Streams docs — https://docs.chain.link/data-streams                                                                                                                                         | accessed 2026-08-16 |
+| O6  | Chainlink — Data Streams authentication — https://docs.chain.link/data-streams/reference/data-streams-api/authentication                                                                                     | accessed 2026-08-16 |
+| O7  | Chainlink — Data Streams interface API (HMAC headers) — https://docs.chain.link/data-streams/reference/data-streams-api/interface-api                                                                        | accessed 2026-08-16 |
+| O8  | Chainlink — Data Streams JS auth examples — https://docs.chain.link/data-streams/reference/data-streams-api/authentication/javascript-examples                                                               | accessed 2026-08-16 |
+| O9  | Chainlink — Data Streams product page (sub-second, report contents) — https://chain.link/data-streams                                                                                                        | accessed 2026-08-16 |
+| O10 | The Block — Chainlink 24/5 onchain Data Streams for tokenized US stocks/ETFs — https://www.theblock.co/news/business/2026-01-20-chainlink-24-5-onchain-data-streams-tokenized-us-stocks-etfs-386387          | 2026-01-20          |
+| O11 | smartcontractkit — Data Streams demo (credentials, verification) — https://github.com/smartcontractkit/datastreams-demo                                                                                      | accessed 2026-08-16 |
+| O12 | Pyth — Core upgrade preparation (key mandate, rate limits) — https://docs.pyth.network/price-feeds/core/upgrade/preparing                                                                                    | accessed 2026-08-16 |
+| O13 | Pyth — "The Pyth Core Upgrade" (Starter $500/mo, Pro tiers) — https://www.pyth.network/blog/the-pyth-core-upgrade                                                                                            | accessed 2026-08-16 |
+| O14 | Pyth — Hermes (confidence intervals, API) — https://docs.pyth.network/price-feeds/core/how-pyth-works/hermes                                                                                                 | accessed 2026-08-16 |
+| O15 | CoW Protocol — docs (intents, batch auctions, solvers, limit orders) — https://docs.cow.fi/                                                                                                                  | accessed 2026-08-16 |
+| O16 | 1inch — developer docs (Fusion/limit order protocol, resolvers) — https://docs.1inch.io/                                                                                                                     | accessed 2026-08-16 |
+| O17 | Chainlink — Automation docs (upkeep pricing model) — https://docs.chain.link/chain-automation                                                                                                                | accessed 2026-08-16 |
+| O18 | Uniswap — v3 oracle (TWAP cumulative price) — https://docs.uniswap.org/concepts/protocol/oracle                                                                                                              | accessed 2026-08-16 |
+| O19 | rekt.news — Mango Markets post-mortem (~$116M oracle manipulation) — https://rekt.news/mango-markets-rekt/                                                                                                   | 2022-10             |
+| O20 | Internal — Bankr scheduled-trading surface + May 2026 incident analysis — `bankrbot-analysis.md` §2.4/§6 ([S2] et al.)                                                                                       | 2026-08-15          |
+| O21 | On-chain verification — Chainlink ETH/USD Base proxy `0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70`: `latestRoundData()`/`decimals()`/`getTimestamp()` reads via public RPC https://mainnet.base.org (keyless) | accessed 2026-08-16 |
+| O22 | On-chain round scan — same proxy/RPC, rounds 26691–26708 (2026-08-16 01:09–06:27 UTC): gaps 1228–1232 s (heartbeat ≈1230 s); early updates only at price moves ≥ ~16 bps (deviation ≈0.15%)                  | accessed 2026-08-16 |
