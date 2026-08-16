@@ -3,6 +3,11 @@ import { computed, onMounted } from 'vue';
 import type { TransactionIntent } from '@kryptr/shared-types';
 import { Badge } from '@kryptr/shared-ui/vue/badge';
 import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from '@kryptr/shared-ui/vue/alert';
+import {
   Card,
   CardContent,
   CardDescription,
@@ -11,7 +16,7 @@ import {
 } from '@kryptr/shared-ui/vue/card';
 import { Separator } from '@kryptr/shared-ui/vue/separator';
 import { Skeleton } from '@kryptr/shared-ui/vue/skeleton';
-import { ShieldCheck } from '@lucide/vue';
+import { ShieldCheck, TriangleAlert } from '@lucide/vue';
 import BalanceTable from '@/components/BalanceTable.vue';
 import SecurityDecisionCard from '@/components/SecurityDecisionCard.vue';
 import TransferForm from '@/components/TransferForm.vue';
@@ -67,10 +72,16 @@ function handleSubmit(intent: TransactionIntent): void {
       </CardHeader>
       <CardContent>
         <Skeleton v-if="loading" class="h-40 w-full" />
-        <p v-else-if="error" role="alert" class="text-destructive text-sm">
-          {{ error.message }}
-        </p>
-        <BalanceTable v-else :balances="balances" />
+        <Alert v-else-if="error" variant="destructive">
+          <TriangleAlert aria-hidden="true" />
+          <AlertTitle>Balances unavailable</AlertTitle>
+          <AlertDescription>{{ error.message }}</AlertDescription>
+        </Alert>
+        <BalanceTable
+          v-else
+          :balances="balances"
+          :chains="wallet?.chains ?? []"
+        />
       </CardContent>
     </Card>
 
@@ -95,26 +106,21 @@ function handleSubmit(intent: TransactionIntent): void {
           <div class="space-y-4" aria-live="polite">
             <Skeleton v-if="submitting" class="h-32 w-full" />
             <SecurityDecisionCard v-else-if="decision" :decision="decision" />
-            <div
-              v-else-if="gateUnreachable"
-              role="alert"
-              class="text-destructive space-y-1 text-sm"
-            >
-              <p class="font-medium">
-                Security gate unreachable — transfer blocked.
-              </p>
-              <p>
+            <Alert v-else-if="gateUnreachable" variant="destructive">
+              <TriangleAlert aria-hidden="true" />
+              <AlertTitle
+                >Security gate unreachable — transfer blocked.</AlertTitle
+              >
+              <AlertDescription>
                 Kryptr never lets an intent bypass the gate. Retry when the API
                 is available.
-              </p>
-            </div>
-            <p
-              v-else-if="transferError"
-              role="alert"
-              class="text-destructive text-sm"
-            >
-              {{ transferError.message }}
-            </p>
+              </AlertDescription>
+            </Alert>
+            <Alert v-else-if="transferError" variant="destructive">
+              <TriangleAlert aria-hidden="true" />
+              <AlertTitle>Transfer failed</AlertTitle>
+              <AlertDescription>{{ transferError.message }}</AlertDescription>
+            </Alert>
             <p
               v-else
               class="text-muted-foreground flex items-center gap-1.5 text-sm"
@@ -125,9 +131,13 @@ function handleSubmit(intent: TransactionIntent): void {
           </div>
         </template>
 
-        <p v-else role="alert" class="text-destructive text-sm">
-          Wallet {{ walletId }} was not found.
-        </p>
+        <Alert v-else variant="destructive">
+          <TriangleAlert aria-hidden="true" />
+          <AlertTitle>Wallet not found</AlertTitle>
+          <AlertDescription>
+            Wallet {{ walletId }} was not found.
+          </AlertDescription>
+        </Alert>
       </CardContent>
     </Card>
   </div>

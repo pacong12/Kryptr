@@ -11,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from '@kryptr/shared-ui/vue/table';
+import { TriangleAlert } from '@lucide/vue';
 import {
   CHAIN_LABELS,
   NATIVE_DECIMALS,
@@ -19,7 +20,11 @@ import {
   shortAddress,
 } from '@/lib/format';
 
-const props = defineProps<{ balances: WalletBalance[] }>();
+const props = defineProps<{
+  balances: WalletBalance[];
+  /** Chains the wallet declares; used to spot chains the reader missed. */
+  chains: ChainId[];
+}>();
 
 interface BalanceRow {
   key: string;
@@ -51,6 +56,29 @@ const rows = computed<BalanceRow[]>(() =>
     return [native, ...tokens];
   }),
 );
+
+/**
+ * Chains the wallet declares but the API returned no balance entry for —
+ * a partial chain-reader failure. We render a note row and NEVER fabricate
+ * zeros for them.
+ */
+const missingChains = computed(() =>
+  props.chains.filter(
+    (chain) => !props.balances.some((balance) => balance.chain === chain),
+  ),
+);
+
+/**
+ * A wallet holding only zeros holds nothing worth tabling — show the empty
+ * state instead of a wall of 0 rows. (Real zeros, never fabricated ones.)
+ */
+const holdsAnything = computed(() =>
+  props.balances.some(
+    (balance) =>
+      balance.nativeBalance !== '0' ||
+      balance.tokens.some((token) => token.amount !== '0'),
+  ),
+);
 </script>
 
 <template>
@@ -64,21 +92,38 @@ const rows = computed<BalanceRow[]>(() =>
       </TableRow>
     </TableHeader>
     <TableBody>
-      <TableRow v-for="row in rows" :key="row.key">
-        <TableCell class="font-medium">
-          <span class="flex items-center gap-2">
-            {{ row.asset }}
-            <Badge v-if="row.native" variant="secondary">native</Badge>
+      <template v-if="holdsAnything">
+        <TableRow v-for="row in rows" :key="row.key">
+          <TableCell class="font-medium">
+            <span class="flex items-center gap-2">
+              {{ row.asset }}
+              <Badge v-if="row.native" variant="secondary">native</Badge>
+            </span>
+          </TableCell>
+          <TableCell>{{ CHAIN_LABELS[row.chain] }}</TableCell>
+          <TableCell class="text-right font-mono">{{ row.amount }}</TableCell>
+          <TableCell class="text-muted-foreground font-mono">
+            {{ row.contract ? shortAddress(row.contract) : '—' }}
+          </TableCell>
+        </TableRow>
+      </template>
+      <TableRow v-for="chain in missingChains" :key="`missing:${chain}`">
+        <TableCell :colspan="4">
+          <span class="text-muted-foreground flex items-center gap-2 text-sm">
+            <TriangleAlert class="size-4" aria-hidden="true" />
+            No balance data for {{ CHAIN_LABELS[chain] }} — the chain reader did
+            not answer for this chain. Nothing is fabricated.
           </span>
         </TableCell>
-        <TableCell>{{ CHAIN_LABELS[row.chain] }}</TableCell>
-        <TableCell class="text-right font-mono">{{ row.amount }}</TableCell>
-        <TableCell class="text-muted-foreground font-mono">
-          {{ row.contract ? shortAddress(row.contract) : '—' }}
-        </TableCell>
       </TableRow>
-      <TableEmpty v-if="rows.length === 0" :colspan="4">
-        No balances found for this wallet.
+      <TableEmpty
+        v-if="!holdsAnything && missingChains.length === 0"
+        :colspan="4"
+      >
+        <div class="text-muted-foreground space-y-1 py-6 text-sm">
+          <p class="font-medium">No assets to show</p>
+          <p>This wallet doesn't hold anything on the loaded chains yet.</p>
+        </div>
       </TableEmpty>
     </TableBody>
   </Table>
