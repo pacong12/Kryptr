@@ -39,6 +39,19 @@ workspace-wide CI line (`nx affected -t build test ...`) must never run
 them on a runner without Foundry — the dedicated `contracts` CI job owns
 them.
 
+Release flow: `release-tag.yml` is dispatch-only — the operator cuts a
+`contracts-v*` tag AND explicitly runs the battery at it (two audited
+acts). Job `battery` runs the Tier-F suite at exactly the tag; job
+`verify-g5` independently re-derives every
+`deployments/{chain}.verification.json` artifact's `contentHash`
+(`tools/verify-content-hash.mjs`) — the producer's recorded hash is
+never trusted. G5 artifact assembly is a separate runbook §7 step
+(wave-6 carry-over), so `expect_artifacts` defaults true (fail-closed)
+and only a closing run may set it false explicitly — an audited
+one-time opt-out, never a silent skip. The manifest validator only sees
+`{chain}.json` files; verification artifacts carry a different shape
+and are verified by the hash tool, never the manifest schema.
+
 ## Layout
 
 ```
@@ -48,11 +61,13 @@ contracts/
 ├── slither.config.json      # Slither gate config
 ├── SLITHER_TRIAGE.md        # triage baseline log (acceptances recorded here)
 ├── deployments.schema.json  # deploy manifest schema (Q3 baseline)
-├── deployments/             # {chain}.json manifests (empty pre-launch)
+├── deployments/             # {chain}.json deploy manifests + G5
+                             # *.verification.json artifacts (runbook §7)
 ├── src/                     # TokenFactory + TokenTemplate (no probe, no deps)
 ├── test/                    # *.t.sol (forge-std vendored at lib/forge-std)
 ├── script/                  # deploy scripts (later)
-└── tools/                   # validate-manifests.mjs
+└── tools/                   # validate-manifests.mjs, canonicalize.mjs,
+                             # verify-content-hash.mjs (release-tag G5 check)
 ```
 
 ## Probe removal condition (SATISFIED in the factory PR)
