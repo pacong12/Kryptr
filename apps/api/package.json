@@ -94,6 +94,17 @@
         "metadata": {
           "description": "API smoke: golden path wallet -> quote -> evaluate(swap) -> timeline (in-memory, no DB)"
         }
+      },
+      "test:live": {
+        "executor": "nx:run-commands",
+        "cache": false,
+        "options": {
+          "cwd": "apps/api",
+          "command": "npx jest --config jest.live.cts --runInBand"
+        },
+        "metadata": {
+          "description": "OPT-IN live Base RPC reads (public, no keys). Excluded from default CI."
+        }
       }
     }
   },

@@ -45,3 +45,17 @@ jobs:
 
       # Lint/build/test/typecheck/smoke only what changed vs the computed base.
       - run: npx nx affected --base="${{ steps.nx_base.outputs.base }}" -t build test typecheck lint smoke --parallel=3
+
+  # Secret scanning: fail if anything that looks like a real key lands in
+  # the repo. GitGuardian alone does not cover pushes from this repo, so
+  # gitleaks runs on both PRs and pushes-to-main.
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
