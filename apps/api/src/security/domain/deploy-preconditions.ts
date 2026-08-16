@@ -3,6 +3,7 @@ import type {
   TransactionIntent,
   VerificationArtifactRef,
 } from '@kryptr/shared-types';
+import { VERIFICATION_CLAIMS } from '@kryptr/shared-types';
 import { ADDRESS_PATTERN } from '../../common/address';
 
 /**
@@ -36,6 +37,9 @@ export type DeployRejectCode = (typeof DEPLOY_REJECT_CODES)[number];
  * Wiring-time constant today; moves to config in the factory era.
  */
 export const LAUNCH_TOTAL_FEE_BPS = 175;
+
+/** Frozen claim vocabulary (T21 union); membership check at the gate. */
+const CLAIM_VOCABULARY: ReadonlySet<string> = new Set(VERIFICATION_CLAIMS);
 
 /** Token name: 1–64 printable-ASCII chars after trim (FaceUI parity). */
 const NAME_MAX = 64;
@@ -157,6 +161,12 @@ export async function validateDeployPreconditions(
   // fetch-and-compare flow. Nothing opaque, nothing trust-me.
   const verification = deploy.verification;
   if (!verification || verification.claims.length === 0) {
+    return 'verification_missing';
+  }
+  // Review54 N2: the claim vocabulary is frozen (VERIFICATION_CLAIMS).
+  // A ref carrying an unknown claim is rejected at the source — the
+  // client-side filter is UX, not the security boundary.
+  if (verification.claims.some((claim) => !CLAIM_VOCABULARY.has(claim.claim))) {
     return 'verification_missing';
   }
   const canonical = await deps.resolveVerification(verification.id);

@@ -2,6 +2,7 @@ import type {
   DeployContext,
   TransactionIntent,
   VerificationArtifactRef,
+  VerificationClaimKind,
 } from '@kryptr/shared-types';
 import {
   DEPLOY_REJECT_CODES,
@@ -308,6 +309,27 @@ describe('deploy preconditions (wave-5 gate table)', () => {
       const deploy: DeployContext = {
         ...VALID_DEPLOY,
         verification: { ...ARTIFACT, hash: '0xtampered' },
+      };
+      expect(
+        await validateDeployPreconditions(deployIntent({}, deploy), deps),
+      ).toBe('verification_missing');
+    });
+
+    it('rejects claims outside the frozen vocabulary (Review54 N2)', async () => {
+      // Wire payloads ignore TypeScript: the cast simulates a ref whose
+      // claims fall outside VERIFICATION_CLAIMS. The gate rejects at the
+      // source — the client-side filter is UX, not the security boundary.
+      const deploy: DeployContext = {
+        ...VALID_DEPLOY,
+        verification: {
+          ...ARTIFACT,
+          claims: [
+            {
+              claim: 'unaudited_bonus' as unknown as VerificationClaimKind,
+              verifiedAt: '2026-08-01T00:00:00.000Z',
+            },
+          ],
+        },
       };
       expect(
         await validateDeployPreconditions(deployIntent({}, deploy), deps),
