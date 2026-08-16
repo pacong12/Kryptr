@@ -3,6 +3,7 @@ export * from './lib/chains.js';
 export * from './lib/feeds.js';
 export * from './lib/orders.js';
 export * from './lib/security.js';
+export * from './lib/signing.js';
 export * from './lib/token.js';
 export * from './lib/trading.js';
 export * from './lib/transactions.js';

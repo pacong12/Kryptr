@@ -70,11 +70,12 @@ export function HealthStatusBadge({
 
 const FEED_STATUS_VARIANTS: Record<
   FeedStatus,
-  'default' | 'secondary' | 'destructive'
+  'default' | 'secondary' | 'destructive' | 'outline'
 > = {
   healthy: 'default',
   stale: 'secondary',
   down: 'destructive',
+  unconfigured: 'outline',
 };
 
 export function FeedStatusBadge({ status }: { status: FeedStatus }) {
