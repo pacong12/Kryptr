@@ -65,16 +65,27 @@ describe('OrdersTable (lifecycle list)', () => {
     );
   });
 
-  it('formats amounts via known asset metadata (#52 follow-up)', () => {
+  it('formats amounts side-aware: sell in base units, buy in quote units (#52 + F1)', () => {
     const wrapper = mount(OrdersTable, {
       props: {
         ...BASE_PROPS,
         orders: [
+          // SELL: amount is BASE-denominated (USDC here).
           makeOrder({
+            id: 'order-sell',
             baseAsset: USDC,
             quoteAsset: null,
             side: 'sell',
             amount: '3000000000',
+          }),
+          // BUY: amount is QUOTE-denominated (USDC here), per the worker
+          // contract — never the base asset's decimals.
+          makeOrder({
+            id: 'order-buy',
+            baseAsset: null,
+            quoteAsset: USDC,
+            side: 'buy',
+            amount: '1500000000',
           }),
         ],
         balances: [
@@ -97,7 +108,11 @@ describe('OrdersTable (lifecycle list)', () => {
     });
 
     expect(wrapper.text()).toContain('3000 USDC');
+    expect(wrapper.text()).toContain('1500 USDC');
+    // Neither amount renders through the wrong (native 18-dp) metadata.
+    expect(wrapper.text()).not.toContain('ETH');
     expect(wrapper.text()).not.toContain('3000000000');
+    expect(wrapper.text()).not.toContain('1500000000');
   });
 
   it('falls back to the raw amount when the asset metadata is unknown', () => {
@@ -106,6 +121,7 @@ describe('OrdersTable (lifecycle list)', () => {
         ...BASE_PROPS,
         orders: [
           makeOrder({
+            side: 'sell',
             baseAsset: '0x000000000000000000000000000000000000dEaD',
           }),
         ],
@@ -113,8 +129,8 @@ describe('OrdersTable (lifecycle list)', () => {
       },
     });
 
-    // Unknown token, no balances loaded — raw units render, never invented
-    // decimals.
+    // SELL denominates in the base asset; unknown token, no balances loaded
+    // — raw units render, never invented decimals.
     expect(wrapper.text()).toContain('500000000000000000');
   });
 

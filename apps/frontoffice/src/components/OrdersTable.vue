@@ -57,11 +57,15 @@ function assetLabel(address: `0x${string}` | null): string {
 
 /**
  * Format the raw-unit amount via the wallet's known asset metadata
- * (#52 follow-up). An unknown asset falls back to the raw string — the
- * table never invents decimals or symbols.
+ * (#52 follow-up). The denomination asset is SIDE-AWARE to match the worker
+ * contract: a BUY amount is raw units of the QUOTE asset (amount to spend);
+ * a SELL amount is raw units of the BASE asset (amount to sell). An unknown
+ * asset falls back to the raw string — the table never invents decimals or
+ * symbols.
  */
 function amountLabel(order: Order): string {
-  const meta = resolveAssetMeta(order.chain, order.baseAsset, props.balances);
+  const asset = order.side === 'buy' ? order.quoteAsset : order.baseAsset;
+  const meta = resolveAssetMeta(order.chain, asset, props.balances);
   if (meta === null) return order.amount;
   return `${formatUnits(order.amount, meta.decimals)} ${meta.symbol}`;
 }

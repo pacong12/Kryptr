@@ -51,7 +51,7 @@ function makeOrder(overrides: Partial<Order> = {}): Order {
     baseAsset: null,
     quoteAsset: USDC,
     side: 'buy',
-    amount: '500000000000000000',
+    amount: '3000000000',
     limitPrice: '3000',
     interval: null,
     createdAt: '2026-08-16T00:00:00.000Z',
@@ -215,10 +215,10 @@ describe('WalletOrdersPage (rewired to the worker API)', () => {
       false,
     );
     expect(wrapper.find('[data-order-id="order-1"]').exists()).toBe(true);
-    // #52 follow-up: the native base asset renders via real metadata,
-    // never as a raw unit string.
-    expect(wrapper.text()).toContain('0.5 ETH');
-    expect(wrapper.text()).not.toContain('500000000000000000');
+    // #52 + F1: the BUY amount is QUOTE-denominated (worker contract) and
+    // renders via the quote asset's metadata, never as a raw unit string.
+    expect(wrapper.text()).toContain('3000 USDC');
+    expect(wrapper.text()).not.toContain('3000000000');
     expect(wrapper.text()).toContain('New order');
     wrapper.unmount();
   });
@@ -329,7 +329,7 @@ describe('WalletOrdersPage (rewired to the worker API)', () => {
       baseAsset: null,
       quoteAsset: USDC,
       side: 'buy',
-      amount: '500000000000000000',
+      amount: '500000',
       limitPrice: '3000',
       interval: null,
     });

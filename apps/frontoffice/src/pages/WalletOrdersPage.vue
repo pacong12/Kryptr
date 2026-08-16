@@ -123,13 +123,20 @@ async function handleSubmit(): Promise<void> {
     formQuoteAsset.value === NATIVE_ASSET
       ? null
       : (formQuoteAsset.value as `0x${string}`);
-  const baseMeta = resolveAssetMeta(
+  // Worker contract (execute-order-slot): a BUY `amount` is raw units of the
+  // QUOTE asset (amount to spend); a SELL `amount` is raw units of the BASE
+  // asset (amount to sell). Parse with the matching asset's decimals so the
+  // raw units sent on the wire carry the denomination the worker expects.
+  const amountAsset = formSide.value === 'buy' ? quoteAddress : baseAddress;
+  const amountMeta = resolveAssetMeta(
     formChain.value,
-    baseAddress,
+    amountAsset,
     balances.value,
   );
   const rawAmount =
-    baseMeta === null ? null : parseUnits(formAmount.value, baseMeta.decimals);
+    amountMeta === null
+      ? null
+      : parseUnits(formAmount.value, amountMeta.decimals);
   if (rawAmount === null) {
     toast.error('Invalid amount — enter a positive number.');
     return;
