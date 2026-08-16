@@ -11,10 +11,15 @@ gate #2 (binding, from the first contracts PR — never retrofitted):
   schedule).
 - **Deploy manifests are the allowlist handoff** — every
   `deployments/{chain}.json` must carry
-  `{chain, factoryAddress, verificationId, commitSha, deployedAt}`
+  `{chain, factoryAddress, bondSink, verificationId, commitSha, deployedAt}`
   (schema: `deployments.schema.json`). Missing `verificationId` is invalid
   (fail-closed: no artifact → no vault allowlist entry → factory stays
-  dark). CI target: `manifests`.
+  dark). CI target: `manifests`. Note the deliberate asymmetry: the CI
+  schema is STRICT (bondSink required, unknown fields rejected), while the
+  vault deploy-gate reader requires only the fields the gate itself
+  consumes (`chain, factoryAddress, verificationId, commitSha,
+deployedAt`) — bondSink is consumed downstream by consent/G5, so it
+  never gates deploy availability.
 
 ## Targets
 

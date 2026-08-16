@@ -20,6 +20,7 @@ const deploymentsDir = join(here, '..', 'deployments');
 const REQUIRED_FIELDS = [
   'chain',
   'factoryAddress',
+  'bondSink',
   'verificationId',
   'commitSha',
   'deployedAt',
@@ -82,6 +83,12 @@ for (const file of files) {
     fail(
       file,
       `factoryAddress is not a 0x-prefixed 40-hex address: ${entry.factoryAddress}`,
+    );
+  }
+  if (typeof entry.bondSink === 'string' && !ADDRESS_RE.test(entry.bondSink)) {
+    fail(
+      file,
+      `bondSink is not a 0x-prefixed 40-hex address: ${entry.bondSink}`,
     );
   }
   if (typeof entry.commitSha === 'string' && !SHA_RE.test(entry.commitSha)) {
