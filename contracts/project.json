@@ -56,10 +56,10 @@
       "cache": false,
       "options": {
         "cwd": "contracts",
-        "command": "forge test --fork-url \"$RPC_URL_BASE\" -vv"
+        "command": "forge test --fork-url \"$RPC_URL_BASE\" --no-match-path \"test/invariant/*\" -vv"
       },
       "metadata": {
-        "description": "Fork tests against real Base RPC — label-gated in CI + nightly only (never default CI)"
+        "description": "Fork tests against real Base RPC — label-gated in CI + nightly only (never default CI). UNIT-ONLY by ruling (Main, fork round 31949753694): the 256x128 invariant campaigns saturate a keyless public RPC (HTTP 429) — they run locally on anvil via forge-test, and move to fork only with a keyed RPC in the nightly deep campaign. The invariant funding fix stays: future forked invariant runs must not die in setup."
       }
     },
     "manifests": {
