@@ -18,14 +18,19 @@ gate #2 (binding, from the first contracts PR — never retrofitted):
 
 ## Targets
 
-| Target                           | Command                               | Notes                                  |
-| -------------------------------- | ------------------------------------- | -------------------------------------- |
-| `nx build @kryptr/contracts`     | `forge build`                         | pinned solc 0.8.24, optimizer runs=200 |
-| `nx test @kryptr/contracts`      | `forge test`                          | local, deterministic, no network       |
-| `nx fmt @kryptr/contracts`       | `forge fmt --check`                   | formatting gate                        |
-| `nx slither @kryptr/contracts`   | `slither . --fail-medium`             | triage baseline applies                |
-| `nx fork-test @kryptr/contracts` | `forge test --fork-url $RPC_URL_BASE` | label/nightly only, cache off          |
-| `nx manifests @kryptr/contracts` | `node tools/validate-manifests.mjs`   | fail-closed manifest schema check      |
+| Target                             | Command                               | Notes                                  |
+| ---------------------------------- | ------------------------------------- | -------------------------------------- |
+| `nx forge-build @kryptr/contracts` | `forge build`                         | pinned solc 0.8.24, optimizer runs=200 |
+| `nx forge-test @kryptr/contracts`  | `forge test`                          | local, deterministic, no network       |
+| `nx fmt @kryptr/contracts`         | `forge fmt --check`                   | formatting gate                        |
+| `nx slither @kryptr/contracts`     | `slither . --fail-medium`             | triage baseline applies                |
+| `nx fork-test @kryptr/contracts`   | `forge test --fork-url $RPC_URL_BASE` | label/nightly only, cache off          |
+| `nx manifests @kryptr/contracts`   | `node tools/validate-manifests.mjs`   | fail-closed manifest schema check      |
+
+`forge-build`/`forge-test` carry unique names on purpose: the
+workspace-wide CI line (`nx affected -t build test ...`) must never run
+them on a runner without Foundry — the dedicated `contracts` CI job owns
+them.
 
 ## Layout
 

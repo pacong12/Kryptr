@@ -4,7 +4,7 @@
   "projectType": "application",
   "tags": ["domain:contracts", "scope:launchpad"],
   "targets": {
-    "build": {
+    "forge-build": {
       "executor": "nx:run-commands",
       "cache": true,
       "inputs": ["default", "^default"],
@@ -14,10 +14,10 @@
         "command": "forge build"
       },
       "metadata": {
-        "description": "Foundry build (forge build) — pinned solc per foundry.toml"
+        "description": "Foundry build (forge build) — pinned solc per foundry.toml; unique target name so the workspace-wide `-t build test` CI line never runs it without forge"
       }
     },
-    "test": {
+    "forge-test": {
       "executor": "nx:run-commands",
       "cache": true,
       "inputs": ["default", "^default"],
@@ -26,7 +26,7 @@
         "command": "forge test"
       },
       "metadata": {
-        "description": "Foundry unit tests (local, deterministic, no network)"
+        "description": "Foundry unit tests (local, deterministic, no network); unique target name (see forge-build)"
       }
     },
     "fmt": {

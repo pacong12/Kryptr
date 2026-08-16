@@ -83,7 +83,11 @@ jobs:
 
       - run: npm ci
 
-      - uses: foundry-toolchain/foundry-toolchain@v1
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          # Exact pin (Review54 F1): matches the conductor-proven local
+          # toolchain; bump deliberately, never float.
+          version: v1.7.1
 
       - name: Install Slither
         run: python3 -m pip install --user slither-analyzer==0.11.6
@@ -97,11 +101,11 @@ jobs:
           else
             echo "base=$(git rev-list --max-parents=0 HEAD)" >> "$GITHUB_OUTPUT"
           fi
-
-      # Runs the contracts targets only when contracts/ is affected;
-      # no-op (green) otherwise.
-      - name: Contracts gates (build/test/fmt/slither/manifests)
-        run: npx nx affected --base="${{ steps.nx_base.outputs.base }}" -t build test fmt slither manifests --projects=@kryptr/contracts
+      # Only @kryptr/contracts defines these targets, so affected runs them
+      # only when contracts/ changed; no-op (green) otherwise.
+      # NOTE: no --projects flag — nx would forward it to the commands.
+      - name: Contracts gates (forge-build/forge-test/fmt/slither/manifests)
+        run: npx nx affected --base="${{ steps.nx_base.outputs.base }}" -t forge-build forge-test fmt slither manifests
 
   # Fork tests against real Base RPC: OPT-IN via the `fork-tests` PR label
   # (public RPC rate limits/flakes must never gate default CI). Nightly
@@ -119,7 +123,9 @@ jobs:
 
       - run: npm ci
 
-      - uses: foundry-toolchain/foundry-toolchain@v1
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.7.1
 
       - name: Fork tests (public Base RPC, keyless)
         run: npx nx run @kryptr/contracts:fork-test

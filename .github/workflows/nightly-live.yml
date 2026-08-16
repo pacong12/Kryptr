@@ -66,7 +66,9 @@ jobs:
 
       - run: npm ci
 
-      - uses: foundry-toolchain/foundry-toolchain@v1
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.7.1
 
       - name: Contracts fork tests (public Base RPC, keyless)
         run: npx nx run @kryptr/contracts:fork-test
