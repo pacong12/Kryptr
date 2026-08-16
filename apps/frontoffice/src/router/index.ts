@@ -2,6 +2,7 @@ import { createRouter, createWebHistory, type RouterHistory } from 'vue-router';
 import HomePage from '@/pages/HomePage.vue';
 import SwapPage from '@/pages/SwapPage.vue';
 import WalletDetailPage from '@/pages/WalletDetailPage.vue';
+import WalletOrdersPage from '@/pages/WalletOrdersPage.vue';
 import WalletOverviewPage from '@/pages/WalletOverviewPage.vue';
 
 export const routes = [
@@ -25,6 +26,12 @@ export const routes = [
         path: 'swap',
         name: 'wallet-swap',
         component: SwapPage,
+        props: true,
+      },
+      {
+        path: 'orders',
+        name: 'wallet-orders',
+        component: WalletOrdersPage,
         props: true,
       },
     ],

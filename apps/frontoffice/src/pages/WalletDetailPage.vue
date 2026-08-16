@@ -23,13 +23,21 @@ const wallet = computed(
     wallets.value.find((candidate) => candidate.id === props.walletId) ?? null,
 );
 
-const activeTab = computed(() =>
-  route.name === 'wallet-swap' ? 'swap' : 'overview',
-);
+const activeTab = computed(() => {
+  if (route.name === 'wallet-swap') return 'swap';
+  if (route.name === 'wallet-orders') return 'orders';
+  return 'overview';
+});
 
 function handleTabChange(value: string | number): void {
+  const target =
+    value === 'swap'
+      ? 'wallet-swap'
+      : value === 'orders'
+        ? 'wallet-orders'
+        : 'wallet-detail';
   void router.push({
-    name: value === 'swap' ? 'wallet-swap' : 'wallet-detail',
+    name: target,
     params: { walletId: props.walletId },
   });
 }
@@ -62,6 +70,7 @@ function handleTabChange(value: string | number): void {
       <TabsList aria-label="Wallet sections">
         <TabsTrigger value="overview">Overview</TabsTrigger>
         <TabsTrigger value="swap">Swap</TabsTrigger>
+        <TabsTrigger value="orders">Orders</TabsTrigger>
       </TabsList>
     </Tabs>
 
