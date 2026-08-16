@@ -9,7 +9,7 @@
         "../../packages/shared-ui/src/vue/components/ui/*"
       ]
     },
-    "outDir": "dist",
+    "outDir": "out-tsc/app",
     "rootDir": "../..",
     "types": ["vite/client"],
     "jsx": "preserve",
@@ -17,7 +17,7 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
-    "tsBuildInfoFile": "dist/tsconfig.app.tsbuildinfo"
+    "tsBuildInfoFile": "out-tsc/app/tsconfig.app.tsbuildinfo"
   },
   "exclude": [
     "out-tsc",
