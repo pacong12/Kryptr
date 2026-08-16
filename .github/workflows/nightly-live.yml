@@ -1,0 +1,51 @@
+name: Nightly live
+
+# Advisory live signal, never a required check. Runs keyed adapter suites
+# (0x, CoinGecko) when the user-owned secrets exist, and test:live (public
+# Base RPC, no keys) always — so every run contributes regression signal.
+#
+# Secrets policy: keys live in GitHub Actions repo settings under the
+# canonical names below; they are NEVER committed to this repo. Without
+# them, env-gate skips keyed suites with a logged reason and the run stays
+# green (skip ≠ failure; forks are safe).
+#
+# Cron caveats: schedules run from the DEFAULT branch only, in UTC, with
+# possible GitHub-side delays; scheduled workflows auto-disable after 60
+# days of repo inactivity (re-enable from the Actions tab).
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-live
+  cancel-in-progress: true
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Keyed adapter suites (graceful skip without secrets)
+        run: npx nx run-many -t test
+        env:
+          ZEROX_API_KEY: ${{ secrets.ZEROX_API_KEY }}
+          COINGECKO_API_KEY: ${{ secrets.COINGECKO_API_KEY }}
+
+      # test:live is keyless (public Base RPC) — always contributes signal.
+      # Target name has a colon: invoke as `nx test:live api`, never
+      # `nx run api:test:live` (that parses as target=test config=live).
+      - name: Live Base RPC reads (no keys needed)
+        run: npx nx test:live api

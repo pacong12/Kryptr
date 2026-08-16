@@ -81,6 +81,19 @@ The api smoke suite never touches the network or keys; degradation paths
 (unconfigured aggregator, fail-closed price feed) are asserted
 deterministically.
 
+Worker/queue suites (`apps/api/src/**/*.workers.ts`) run against a real
+Redis via `nx run api:test-workers` (dash in the name; the CI job provides
+a `redis:7-alpine` service). Without a local Redis they skip gracefully
+with a logged reason — set `REDIS_URL=redis://localhost:6379` (jest does
+not read `.env` files under tests) or `docker compose up -d redis` to run
+them locally.
+
+A nightly workflow (`.github/workflows/nightly-live.yml`, advisory, never
+a required check) runs the keyed adapter suites with user-owned GitHub
+secrets (`ZEROX_API_KEY`, `COINGECKO_API_KEY`) plus the keyless
+`test:live`. Without secrets, keyed suites skip with a logged reason and
+the run stays green.
+
 ## Security model
 
 Hard lessons from the Bankr/Grok incident (May 2026) are built into the
