@@ -28,8 +28,9 @@ closure = keyless battery PASS at the tag; gate #1 stays safe by construction be
 factory cannot go live before wave 6):
 
 - **Tier F — factory-release battery** (keyless; passable now; **wave-5 closure evidence**):
-  G1 full unit suite + DEEP invariant campaign **runs ≥2000, depth ≥512** (conductor ruling —
-  exceeds the T21 §4.4 CI baseline) + G2 + G3 FK-1/3/4/5 on pinned rehearsal fork state
+  factory-phase G1 subset (unit suite + DEEP invariant campaign, **runs ≥2000, depth ≥512** —
+  conductor ruling; exceeds the T21 §4.4 CI baseline) + G2 + G3 FK-1/3/4/5 on pinned rehearsal
+  fork state
   (`B_fork`, §5) + the Appendix A carve-out assertions C-1…C-7. PASS at release tag
   `contracts-v0.1.0` closes wave 5. No deploy, no signing, no external accounts.
 - **Tier D — deploy-time battery** (wave 6; first signing-era operation): real deploy via the
@@ -150,8 +151,9 @@ of `template()`, `totalFeeBps()`, `bondAmount()`, `bondSink()` with provenance),
 
 ## 8. Pass/fail semantics **[design]**
 
-**Tier F PASS (wave-5 closure):** full unit suite + DEEP invariant campaign (runs ≥2000, depth
-≥512) + G2 (Slither + selector surface) + G3 FK-1/3/4/5 + Appendix A C-1…C-7 all green at the
+**Tier F PASS (wave-5 closure):** factory-phase G1 subset (unit suite + DEEP invariant
+campaign — runs ≥2000, depth ≥512) + G2 (Slither + selector surface) + G3 FK-1/3/4/5 +
+Appendix A C-1…C-7 all green at the
 same tag / commit / `B_fork` → recorded as wave-5 closure evidence; factory source frozen and
 eligible to proceed to venue-phase work and the wave-6 deploy. No artifact is written at Tier F
 (the artifact is tied to a real deploy tuple).
@@ -174,7 +176,7 @@ this runbook (new chain slug, new pins, own artifact).
 3. **Testnet signing for venue-phase live exercises** (FK-2) — still open; the keyless question
    returns in testnet form and needs its own ruling.
 4. **Rehearsal chain** — CLOSED: dual rehearsal confirmed — Base Sepolia stage 1 → Robinhood
-   Chain stage 2; stage-2 RPC (port 46630) arrives from user.
+   Chain stage 2; stage-2 RPC (testnet chainId 46630) arrives from user.
 5. **Fork-block drift policy** — CLOSED: signed off by ops, endorsed by vault (§5).
 6. **Blockscout verification submission owner** — still open; gates Tier D (FK-6/P-5).
 
