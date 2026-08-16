@@ -1,8 +1,11 @@
 # Wave 5 Release-Tag Battery Runbook — executing G2–G5 against the deployed factory
 
 > **Author:** `web3` (Kryptr crew) · **Date:** 2026-08-16 · **Status:** operational runbook;
-> **revised 2026-08-16** per vault/ops review (two battery tiers, template-before-factory
-> ordering, artifact identity tuple, dual-rehearsal framing). Operationalizes G2–G5 of
+> **revised 2026-08-16** per vault/ops review and the FINAL ruling: deploy deferred to wave 6
+> (mechanism settled: CI calldata → human signs from own wallet → post-deploy verification),
+> three battery tiers (Tier F keyless = wave-5 closure; Tier D deploy-time = wave 6 opener;
+> Tier V launch), DEEP invariant campaign runs ≥2000 depth ≥512 for Tier F, dual rehearsal
+> confirmed (Base Sepolia → Robinhood), bondAmount 0.01 ETH frozen. Operationalizes G2–G5 of
 > `wave5-t21-verification-design.md` (doc #60, merged) at release-tag time. `[fact]` = sourced;
 > **[inference]** = derived here; **[design]** = proposed requirement. Tags `[R#]` resolve in
 > §10; `[F#]`/`[V#]`/`[O#]` in the T21 doc and wave-3/4 registries.
@@ -20,48 +23,55 @@ criteria, and the producing/consuming agent.
 **Battery PASS ≠ allowlist entry.** The artifact produced here is the _input_ to vault's gate #3
 deploy-HITL decision; entry remains a separate human decision.
 
-**Two battery tiers [design]** (resolves the gate-#1 deadlock: venue work needs a frozen
-factory, but a "full battery including venue" would make the factory wait for venue):
+**Three battery tiers [design]** (final ruling 2026-08-16: deploy deferred to wave 6; wave-5
+closure = keyless battery PASS at the tag; gate #1 stays safe by construction because the
+factory cannot go live before wave 6):
 
-- **Tier F — factory-release battery** (passable now): factory-phase G1 subset (INV-FEE-1/3,
-  INV-BOND-1/2/3, INV-SUP-1 fee-free conservation, INV-CLONE-1, INV-INIT-1) + G2 + G3
-  FK-1/3/4/5/6 + G4 P-1…P-6 + G5 artifact, with the carve-out boundary asserted explicitly
-  (Appendix A, authored by the contracts lead). Tier F PASS freezes the factory
-  and releases it for venue-phase work on the rehearsal chain.
-- **Tier V — launch battery:** Tier F + INV-FEE-2/4 + FK-2 venue-accrual ghost + §9.1
-  rounding/dust decision. If venue work changes template/factory, Tier V runs against a NEW
-  factory release tag (Tier F re-runs on that tag first). Tier V PASS is required before any
-  user-facing launch.
-- The consent vocabulary is unchanged: the four frozen claims derive at Tier F; Tier V deepens
+- **Tier F — factory-release battery** (keyless; passable now; **wave-5 closure evidence**):
+  factory-phase G1 subset (unit suite + DEEP invariant campaign, **runs ≥2000, depth ≥512** —
+  conductor ruling; exceeds the T21 §4.4 CI baseline) + G2 + G3 FK-1/3/4/5 on pinned rehearsal
+  fork state
+  (`B_fork`, §5) + the Appendix A carve-out assertions C-1…C-7. PASS at release tag
+  `contracts-v0.1.0` closes wave 5. No deploy, no signing, no external accounts.
+- **Tier D — deploy-time battery** (wave 6; first signing-era operation): real deploy via the
+  settled mechanism (CI prepares deterministic calldata → human operator signs from their own
+  wallet → post-deploy verification BEFORE the artifact is written), then G4 P-1…P-6 live at
+  `B_pin` = the factory deploy block, FK-6 source verification, and G5 artifact + manifest
+  entry. Tier D PASS writes the verification artifact consent references.
+- **Tier V — launch battery:** Tier D evidence + venue-phase G1 (INV-FEE-2/4 + FK-2 live
+  accrual + §9 rounding/dust decision), at a NEW tag if venue work changed template/factory
+  (Tier F re-runs on that tag first). Tier V PASS is required before any user-facing launch.
+- The consent vocabulary is unchanged: the four frozen claims derive at Tier D; Tier V deepens
   `fee_split_invariant` evidence with INV-FEE-2/4.
 
-**Deploy is an external input.** The factory DEPLOY mechanism is under ruling (keyless policy;
-the signer phase does not exist yet). This runbook deliberately does NOT assume any deploy
-automation: it consumes `(releaseTag, commitSha)` plus TWO deploy tuples — template
-`(address, tx, block)` first, factory `(address, tx, block)` second — whatever mechanism
-produces them.
+**Deploy is an external input, deferred to wave 6.** The deploy mechanism is SETTLED (final
+ruling): CI prepares deterministic calldata → a human operator signs from their own wallet →
+post-deploy verification precedes any artifact write. No signing code exists in CI today, and
+this runbook never assumes it. Tier F needs no deploy at all (fork state only); Tier D consumes
+`(releaseTag, commitSha)` plus TWO deploy tuples — template `(address, tx, block)` first,
+factory `(address, tx, block)` second.
 
 ## 2. Inputs and owners
 
-| Input                                                                                                                                                                                                                                     | Owner                         | Blocking?               |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- | ----------------------- |
-| Factory deploy mechanism ruling (keyless policy)                                                                                                                                                                                          | Main/user                     | YES — deploy itself     |
-| Release tag + commit sha of the exact deployed source — tag MUST include this runbook + T21 criteria doc (battery scopes against in-tree criteria); proposed `contracts-v0.1.0`                                                           | VaultAPI                      | YES                     |
-| Deployed **template** tuple `(address, tx, block)` — deployed FIRST                                                                                                                                                                       | VaultAPI                      | YES (post-deploy steps) |
-| Deployed **factory** tuple `(address, tx, block)` — deployed SECOND (constructor takes the live template address)                                                                                                                         | VaultAPI                      | YES (post-deploy steps) |
-| Constructor params: `totalFeeBps=175` CERTIFIED (in-tree parity test vs gate constant); `bondAmount` + `bondSink` UNRULED (Main/user owes); confirmation = kit output + on-chain immutable readback transcript recorded into the artifact | VaultAPI                      | YES                     |
-| Pinned Slither version (0.11.6 per #76 CI pin) + `slither.config.json` + never-triage guard (#78)                                                                                                                                         | OpsCI                         | YES (G2)                |
-| Fork-test runner with retry/backoff against rehearsal RPC `[F5]` + fork label gates                                                                                                                                                       | OpsCI                         | YES (G3)                |
-| RFC 8785 canonicalizer, pinned, with test vectors (G5 `contentHash`)                                                                                                                                                                      | OpsCI                         | YES (G5)                |
-| Artifact commit path + manifest schema-validation job                                                                                                                                                                                     | OpsCI                         | YES (G5)                |
-| Venue-phase G1 completion timing (INV-FEE-2/4, FK-2, rounding)                                                                                                                                                                            | VaultAPI                      | YES for Tier V          |
-| Testnet faucet ETH for live-exercise scenarios                                                                                                                                                                                            | OpsCI                         | venue phase only        |
-| Release-tag workflow (tag/dispatch trigger → battery → G5 artifact upload); awaits vault naming battery entry points                                                                                                                      | OpsCI                         | YES (G5 automation)     |
-| Blockscout source-verification submission (each rehearsal chain) — prerequisite for G4 P-5; owner open (§9.6)                                                                                                                             | OpsCI or VaultAPI (open §9.6) | YES (G4)                |
+| Input                                                                                                                                                                                                                                                                                       | Owner                         | Blocking?               |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- | ----------------------- |
+| Factory deploy — DEFERRED to wave 6; mechanism SETTLED: CI deterministic calldata → human operator signs from own wallet → post-deploy verification before artifact write                                                                                                                   | Main/user + VaultAPI          | YES — Tier D (wave 6)   |
+| Release tag + commit sha of the exact deployed source — tag MUST include this runbook + T21 criteria doc (battery scopes against in-tree criteria); proposed `contracts-v0.1.0`                                                                                                             | VaultAPI                      | YES                     |
+| Deployed **template** tuple `(address, tx, block)` — deployed FIRST                                                                                                                                                                                                                         | VaultAPI                      | YES (post-deploy steps) |
+| Deployed **factory** tuple `(address, tx, block)` — deployed SECOND (constructor takes the live template address)                                                                                                                                                                           | VaultAPI                      | YES (post-deploy steps) |
+| Constructor params: `totalFeeBps=175` CERTIFIED (in-tree parity test vs gate constant); `bondAmount=0.01 ETH` FROZEN (final ruling); `bondSink` = user-provided address, delivered at wave 6; confirmation = kit output + on-chain immutable readback transcript recorded into the artifact | VaultAPI                      | YES — Tier D (wave 6)   |
+| Pinned Slither version (0.11.6 per #76 CI pin) + `slither.config.json` + never-triage guard (#78)                                                                                                                                                                                           | OpsCI                         | YES (G2)                |
+| Fork-test runner with retry/backoff against rehearsal RPC `[F5]` + fork label gates                                                                                                                                                                                                         | OpsCI                         | YES (G3)                |
+| RFC 8785 canonicalizer, pinned, with test vectors (G5 `contentHash`)                                                                                                                                                                                                                        | OpsCI                         | YES (G5)                |
+| Artifact commit path + manifest schema-validation job                                                                                                                                                                                                                                       | OpsCI                         | YES (G5)                |
+| Venue-phase G1 completion timing (INV-FEE-2/4, FK-2, rounding)                                                                                                                                                                                                                              | VaultAPI                      | YES for Tier V          |
+| Testnet faucet ETH for live-exercise scenarios                                                                                                                                                                                                                                              | OpsCI                         | venue phase only        |
+| Release-tag workflow (tag/dispatch trigger → battery → G5 artifact upload); awaits vault naming battery entry points                                                                                                                                                                        | OpsCI                         | YES (G5 automation)     |
+| Blockscout source-verification submission (each rehearsal chain) — prerequisite for G4 P-5; owner open (§9.6)                                                                                                                                                                               | OpsCI or VaultAPI (open §9.6) | YES (G4)                |
 
 ## 3. Rehearsal chain **[design + fact]**
 
-**Dual rehearsal, pending ruling.** Stage 1: **Base Sepolia** — chainId `84532`, public RPC
+**Dual rehearsal, CONFIRMED by final ruling.** Stage 1: **Base Sepolia** — chainId `84532`, public RPC
 `https://sepolia.base.org` (rate-limited public endpoint) `[R1]`, Blockscout instance
 `https://base-sepolia.blockscout.com` `[R2]`, so G4 P-5 (source verification, public
 re-derivability) stays executable and keyless; endorsed by ops. Stage 2: the SAME kit against
@@ -87,12 +97,13 @@ dbHash}`; `selectorAudit.{factorySelectors, templateSelectors, forbiddenMatches:
 
 ## 5. G3 at the release tag — fork scenarios, pinned block **[design]**
 
-**Block pin (closes T21 §9.4; signed off by ops, endorsed by vault):** `B_pin` = the **factory
-deploy block** (template deploys earlier; both contracts are readable at `B_pin`). The release
-gate runs FK-\* at exactly `B_pin` `[F5]`. Nightly suites may refresh to newer blocks, but **the
-artifact is only valid at its recorded block**: a re-run at any other block = new `contentHash`
-= new `verificationId` = new release pin — no silent drift. The manifest pin change IS the
-release event (consent references `verificationId`).
+**Two block pins [design].** Tier F (no deploy yet) forks rehearsal-chain state at `B_fork` —
+the pinned Base Sepolia block recorded in the release-tag workflow run; FK-\* deploy their own
+instances inside the fork environment `[F5]`. Tier D pins `B_pin` = the **factory deploy
+block** (template deploys earlier; both contracts readable at `B_pin`). Nightly suites may
+refresh to newer blocks, but **any record is only valid at its recorded block**: a re-run at any
+other block = new `contentHash` = new `verificationId` = new release pin — no silent drift. The
+manifest pin change IS the release event (consent references `verificationId`).
 
 Factory-phase scenarios (keyless — fork tests never send real transactions):
 
@@ -103,11 +114,11 @@ Factory-phase scenarios (keyless — fork tests never send real transactions):
 | FK-3 bond lifecycle on forked ETH (`deal`), sink-only flow                 | RUN                                                                                   |
 | FK-4 same-salt revert, template direct calls, garbage calldata, slots zero | RUN                                                                                   |
 | FK-5 gas realism incl. OP-stack L1 data cost                               | RUN                                                                                   |
-| FK-6 Blockscout source verification                                        | RUN (needs verification submission — owner open, §9.6)                                |
+| FK-6 Blockscout source verification                                        | DEFERRED to Tier D (needs a real deployed contract + submission — owner open, §9.6)   |
 
-**Pass:** all non-deferred scenarios green at `B_pin`.
+**Pass:** all non-deferred scenarios green at `B_fork`.
 
-## 6. G4 at the release tag — live proofs, keyless **[design]**
+## 6. G4 at deploy time — live proofs, keyless (Tier D — wave 6) **[design]**
 
 P-1…P-6 run against BOTH deployed contracts (template, then factory, plus a sample clone) on the
 rehearsal chain at `B_pin` via read-only RPC (wave-4 method discipline `[O21][O22]`): clone
@@ -118,9 +129,9 @@ hashes make RPC lies detectable offline against the artifact. Cross-check critic
 second RPC where available (T24 discipline).
 
 **Pass:** all six proofs at `B_pin`; P-5 requires prior source verification (submission owner
-open — §9.6).
+open — §9.6). Tier D = wave 6; until then G4/G5/manifest are carry-over, not wave-5 blockers.
 
-## 7. G5 at the release tag — artifact assembly **[design]**
+## 7. G5 at deploy time — artifact assembly (Tier D — wave 6) **[design]**
 
 CI (producer) assembles `contracts/deployments/{chain}.verification.json` per T21 §8: stable
 `id` (`t21:base-sepolia:<releaseTag>` for the stage-1 rehearsal), `claims` CI-derived from
@@ -140,26 +151,34 @@ of `template()`, `totalFeeBps()`, `bondAmount()`, `bondSink()` with provenance),
 
 ## 8. Pass/fail semantics **[design]**
 
-**Tier F PASS:** factory-phase G1 subset + G2 + G3 (FK-1/3/4/5/6) + G4 P-1…P-6 + G5 all green
-at the same tag / commit / `B_pin`, carve-out boundary asserted → artifact recorded → factory
-frozen and eligible for the gate #3 allowlist decision for venue-phase work. **Tier V PASS:**
-Tier F evidence + INV-FEE-2/4 + FK-2 ghost + rounding decision, on the tag that ships venue
-(new tag if template/factory changed) → required before any user-facing launch. Any single
-failure at either tier → no artifact for that tier, no entry, fail-closed throughout.
-**Testnet PASS ≠ mainnet PASS:** mainnet requires a fresh run of this runbook (new chain slug,
-new `B_pin`, own artifact).
+**Tier F PASS (wave-5 closure):** factory-phase G1 subset (unit suite + DEEP invariant
+campaign — runs ≥2000, depth ≥512) + G2 (Slither + selector surface) + G3 FK-1/3/4/5 +
+Appendix A C-1…C-7 all green at the
+same tag / commit / `B_fork` → recorded as wave-5 closure evidence; factory source frozen and
+eligible to proceed to venue-phase work and the wave-6 deploy. No artifact is written at Tier F
+(the artifact is tied to a real deploy tuple).
+**Tier D PASS:** deploy via settled mechanism → G4 P-1…P-6 + FK-6 green at `B_pin` →
+post-deploy verification → artifact assembled, validated, and committed → manifest entry. This
+is the wave-6 opener; consent references the resulting `verificationId`.
+**Tier V PASS:** Tier D evidence + INV-FEE-2/4 + FK-2 ghost + rounding decision, on the tag
+that ships venue (new tag if template/factory changed; Tier F re-runs on it first) → required
+before any user-facing launch. Any single failure at any tier → no artifact for that tier, no
+entry, fail-closed throughout. **Testnet PASS ≠ mainnet PASS:** mainnet requires a fresh run of
+this runbook (new chain slug, new pins, own artifact).
 
-## 9. Open questions (need rulings/confirmations)
+## 9. Open questions and rulings
 
-1. **Deploy mechanism** — keyless-policy ruling pending; runbook treats deploy as external input.
-2. **`bondAmount` + `bondSink` values** for the rehearsal deploy — Main/user ruling owed
-   (totalFeeBps=175 already certified in-tree).
-3. **Testnet signing for venue-phase live exercises** (FK-2) — the keyless question returns in
-   testnet form; needs its own ruling.
-4. **Rehearsal chain confirmation** — dual rehearsal proposed (§3): Base Sepolia stage 1
-   (endorsed by ops), Robinhood stage 2 same kit; conductor to rule.
+1. **Deploy mechanism** — CLOSED (final ruling): keyless by construction — CI prepares
+   deterministic calldata, human operator signs from their own wallet, post-deploy verification
+   precedes any artifact write. Deploy itself deferred to wave 6.
+2. **`bondAmount` + `bondSink`** — CLOSED: `bondAmount = 0.01 ETH` frozen for the deploy;
+   `bondSink` = user-provided address, delivered at wave 6 (totalFeeBps=175 certified in-tree).
+3. **Testnet signing for venue-phase live exercises** (FK-2) — still open; the keyless question
+   returns in testnet form and needs its own ruling.
+4. **Rehearsal chain** — CLOSED: dual rehearsal confirmed — Base Sepolia stage 1 → Robinhood
+   Chain stage 2; stage-2 RPC (testnet chainId 46630) arrives from user.
 5. **Fork-block drift policy** — CLOSED: signed off by ops, endorsed by vault (§5).
-6. **Blockscout verification submission owner** for each rehearsal chain (OpsCI or VaultAPI).
+6. **Blockscout verification submission owner** — still open; gates Tier D (FK-6/P-5).
 
 ## 10. Source registry
 
@@ -182,6 +201,10 @@ architecture, merged in #76); `launchpad-decision.md` (gate #1); wave-4 registry
 INV-FEE-2/4 — it must AFFIRM the carve-out boundary, so the deferral is a reviewed, frozen
 statement, never an oversight. Tier V closes the deferred items; the carve-out is deferred, not
 waived.
+
+Tier split note (post-ruling): C-1…C-4 loci run in the Tier F battery; where C-5/C-6 cite
+G4 P-2 slot accounting and C-7 cites G5 assembly, those portions are recorded at **Tier D**
+(wave 6) — the static/assertion halves remain Tier F.
 
 ### A.1 What the template is, fee-wise, in the factory era
 
