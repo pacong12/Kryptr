@@ -12,6 +12,7 @@ import type {
 } from './ports';
 import type { QuoteStore } from '../../trading/domain/quote-store.port';
 import { EvaluateIntentUseCase } from './evaluate-intent.usecase';
+import { InMemorySpendLedger } from '../infrastructure/in-memory-spend-ledger';
 
 const POLICY: SecurityPolicy = {
   walletId: 'wallet-1',
@@ -392,6 +393,91 @@ describe('EvaluateIntentUseCase', () => {
         makeIntent({ kind: 'deploy', to: null, amount: '0' }),
       );
       expectAudit('needs_human_approval', null);
+    });
+  });
+
+  describe('wave-4 prep: spend recording at decision time', () => {
+    it('records approved spend exactly once, idempotent per intentId', async () => {
+      const decision = await useCase.execute(makeIntent({}));
+      expect(decision.result).toBe('approved');
+      expect(spendLedger.record).toHaveBeenCalledTimes(1);
+      expect(spendLedger.record).toHaveBeenCalledWith({
+        intentId: 'intent-1',
+        walletId: 'wallet-1',
+        usd: 50,
+      });
+    });
+
+    it('never records spend for escalations or rejections', async () => {
+      priceFeed.getUsdValue.mockResolvedValue(101);
+      await useCase.execute(makeIntent({}));
+      priceFeed.getUsdValue.mockResolvedValue(null);
+      await useCase.execute(makeIntent({ id: 'intent-2' }));
+      await useCase.execute(
+        makeIntent({ id: 'intent-3', origin: 'agent:rogue' }),
+      );
+      expect(spendLedger.record).not.toHaveBeenCalled();
+    });
+
+    it('double-approve of the same intent never double-counts the daily cap', async () => {
+      const realLedger = new InMemorySpendLedger();
+      const uc = new EvaluateIntentUseCase(
+        priceFeed,
+        realLedger,
+        policyProvider,
+        intentStore,
+        decisionAudit,
+        quoteStore,
+      );
+      policyProvider.getPolicyForWallet.mockResolvedValue({
+        ...POLICY,
+        approvalThresholdUsd: 1000, // let $975 reach the cap check
+      });
+      await uc.execute(makeIntent({}));
+      await uc.execute(makeIntent({})); // same intentId, re-evaluated
+      await expect(realLedger.getSpentUsdToday('wallet-1')).resolves.toBe(50);
+      priceFeed.getUsdValue.mockResolvedValue(975);
+      const overflow = await uc.execute(makeIntent({ id: 'intent-overflow' }));
+      expect(overflow.result).toBe('rejected');
+      expect(overflow.reason).toContain('daily cap');
+    });
+  });
+
+  describe('wave-4 prep: automation origin allowlist (default deny)', () => {
+    it('rejects automation origins under the default policy', async () => {
+      policyProvider.getPolicyForWallet.mockResolvedValue({
+        ...POLICY,
+        allowedOrigins: ['user'],
+      });
+      const decision = await useCase.execute(
+        makeIntent({ origin: 'automation:order-worker' }),
+      );
+      expect(decision.result).toBe('rejected');
+      expect(decision.reason).toContain('origin');
+      expect(spendLedger.record).not.toHaveBeenCalled();
+    });
+
+    it('does NOT match automation origins by prefix (exact entries only)', async () => {
+      policyProvider.getPolicyForWallet.mockResolvedValue({
+        ...POLICY,
+        allowedOrigins: ['user', 'automation'],
+      });
+      const decision = await useCase.execute(
+        makeIntent({ origin: 'automation:order-worker' }),
+      );
+      expect(decision.result).toBe('rejected');
+      expect(decision.reason).toContain('origin');
+    });
+
+    it('accepts an explicitly allowlisted automation origin', async () => {
+      policyProvider.getPolicyForWallet.mockResolvedValue({
+        ...POLICY,
+        allowedOrigins: ['user', 'automation:order-worker'],
+      });
+      const decision = await useCase.execute(
+        makeIntent({ origin: 'automation:order-worker' }),
+      );
+      expect(decision.result).toBe('approved');
     });
   });
 });
