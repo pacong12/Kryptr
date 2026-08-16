@@ -2,7 +2,8 @@
 
 > **Author:** `web3` (Kryptr crew) · **Date:** 2026-08-16 · **Status:** design, normative for the
 > wave-5 build once accepted; **revised 2026-08-16** per Review54 (artifact `id` + `claims`,
-> fee-bps space pin, canonical JSON). Implements **entry gate #1** of `launchpad-decision.md`
+> fee-bps space pin, canonical JSON); **§7.1 forbidden-selector set finalized** with the
+> contracts lead. Implements **entry gate #1** of `launchpad-decision.md`
 > (Web3Intel and FaceUI): the factory + master template MUST pass this full battery BEFORE the
 > factory address goes live on Base mainnet. `[fact]` = sourced; **[inference]** = derived here;
 > **[design]** = proposed requirement. External tags `[F#]` resolve in §10; `[V#]`/`[O#]` in the
@@ -212,6 +213,68 @@ re-runnable by any third party — that reproducibility is itself part of the tr
 | P-5   | Factory + template verified on Blockscout (FK-6), so P-3/P-4 are re-derivable from public data `[V9]`.                                                                                                                                                                                                                                                         | Public auditability of every claim above.                               |
 | P-6   | **Factory impotence:** P-3's enumeration shows the factory exposes no call path writing clone storage; combined with INV-CLONE-1 (fuzz-proven isolation) the factory cannot mutate deployed clones **[inference]**.                                                                                                                                            | Post-deploy clones are beyond anyone's control — ours included.         |
 
+### 7.1 Forbidden-selector set — finalized (with contracts lead, 2026-08-16) **[design]**
+
+Closes §9.3. Applies to BOTH factory and template. **Source of truth = canonical signature
+strings**; the 4-byte values are keccak-derived for review — CI/tests derive bytes from the
+signatures, so no hex drift. Enforcement is **allowlist-primary**: every selector of both
+contracts MUST appear in the reviewed allowlist (§7.1.2); the forbidden set below is
+belt-and-braces and the stable vocabulary behind the `admin_key_free`/`non_upgradeable`
+claims. Selector-surface test records the full list into `selectorAudit`; any new selector
+enters only via a doc revision.
+
+**A — Upgrade/proxy control:** `upgradeTo(address)` `0x3659cfe6` · `upgradeToAndCall(address,bytes)`
+`0x4f1ef286` · `upgrade(address)` `0x0900f010` · `changeAdmin(address)` `0x8f283970` · `admin()`
+`0xf851a440` · `implementation()` `0x5c60da1b` · `proxiableUUID()` `0x52d1902d`.
+
+**B — Destruction:** `kill()` `0x41c0e1b5` · `destroy()` `0x83197ef0` · `selfdestruct()`
+`0x679d38e0` — plus the structural rule: NO function may reach `SELFDESTRUCT` under any name
+(Slither `suicidal` never-triage, §5, + P-4 op-scan).
+
+**C — Ownership/authority:** `transferOwnership(address)` `0xf2fde38b` · `renounceOwnership()`
+`0x715018a6` · `owner()` `0x8da5cb5b` · `setOwner(address)` `0x13af4035` ·
+`setAuthority(address)` `0x7a9e5e4b` · `acceptOwnership()` `0x79ba5097` · `pendingOwner()`
+`0xe30c3978` · `grantRole(bytes32,address)` `0x2f2ff15d` · `revokeRole(bytes32,address)`
+`0xd547741f` · `renounceRole(bytes32,address)` `0x36568abe` · `setDefaultAdminDelay(uint256)`
+`0x72194f46` · `changeDefaultAdminDelay(uint256)` `0x7cb71f3e`. Getters (`owner()`,
+`pendingOwner()`) are forbidden too — their presence implies the concept.
+
+**D — Frozen-parameter setters:** anchors `setFee(uint256)` `0x69fe0e2d` · `setFeeBps(uint256)`
+`0x72c27b62` · `setTotalFeeBps(uint256)` `0xbf1d14cd` · `setBondAmount(uint256)` `0x28f9f3e6` ·
+`setBondSink(address)` `0x00415290` · `setRecipients(address[4])` `0x483e4779` ·
+`setSupply(uint256)` `0x3b4c4b25` — plus the family rule: any selector matching
+`^(set|update|change)` over fee shares, total fee, recipients, bond parameter/sink, supply, or
+token metadata is forbidden (the allowlist rule makes the family airtight).
+
+**E — Flow-control mutators:** `pause()` `0x8456cb59` · `unpause()` `0x3f4ba83a` ·
+`setPaused(bool)` `0x16c38b3c` · `blacklist(address)` `0xf9f92be4` · `unBlacklist(address)`
+`0x1a895266` · `freeze(address)` `0x8d1fdf2f` · `unfreeze(address)` `0x45c8b1a6` ·
+`setMaxTxAmount(uint256)` `0xec28438a` · `setMaxWallet(uint256)` `0x5d0044ca`.
+
+**F — Value extraction:** `withdraw()` `0x3ccfd60b` · `withdraw(address,uint256)` `0xf3fef3a3` ·
+`withdrawETH(address)` `0x690d8320` · `rescueTokens(address,address,uint256)` `0xcea9d26f` ·
+`sweep(address)` `0x01681a62` · `recoverERC20(address,uint256)` `0x8980f11f` · `claimBond()`
+`0xc7cf7484`. Vacuously satisfiable under the constructor-immutable immediate-forwarding bond
+sink (factory holds 0 ETH between deploys).
+
+**G — Supply mutators:** `mint(address,uint256)` `0x40c10f19` · `burn(uint256)` `0x42966c68` ·
+`burnFrom(address,uint256)` `0x79cc6790` — launch supply is created inside `initialize()`;
+assert absence outright (INV-SUP-1 cross-check).
+
+**Structural (non-selector):** no `receive()`/`fallback()` on factory or template; no
+`SELFDESTRUCT` opcode; no `DELEGATECALL` outside the clone's EIP-1167 forwarding (P-4);
+EIP-1967 slots zero (P-2).
+
+#### 7.1.2 Reviewed allowlist (expected full surface)
+
+- **Factory:** payable entry `deployToken(…)` + views `template()`, `totalFeeBps()`,
+  `bondAmount()`, `bondSink()`, `totalBondsCollected()`, `bondsByDeployer(address)`.
+- **Template:** ERC-20 standard (`name()`, `symbol()`, `decimals()`, `totalSupply()`,
+  `balanceOf(address)`, `transfer(address,uint256)`, `approve(address,uint256)`,
+  `allowance(address,address)`, `transferFrom(address,address,uint256)`), exactly-once
+  `initialize(…)`, and schedule getters (`feeShares()`, `feeRecipients()`).
+- Any addition requires a revision of this doc + consent-vocabulary re-review (§8 rule 2).
+
 **Residual [inference]:** G4 proves the **absence of control surface**; it cannot prove the
 template's economic logic correct — that is G1–G3's job. The consent UI (§8) may state
 "no admin, no upgrades, fees frozen" only because P-1…P-5 are mechanical and re-runnable; it
@@ -342,11 +405,14 @@ hash-compare, and claim-compare it (Review54 F1):
    (dust stays in pool vs accrues to LP vs burns); decide before the invariant suite is written.
 2. **Bond sink semantics** — who may receive bond funds and when (protocol treasury at deploy?
    refundable on some condition?) → fixes INV-BOND-2's authorized-sink set.
-3. **Forbidden-selector set** final review with `vault` (G2.3 list is the starting point).
+3. **Forbidden-selector set** — RESOLVED 2026-08-16: final set recorded in §7.1 (canonical
+   signatures as source of truth; CI derives 4-bytes); enforced allowlist-primary by the
+   contracts-side selector-surface test.
 4. **Fork-block pinning strategy** — release gate pins one block; nightly refreshes it; document
    acceptable drift.
-5. **Immutable-args clones** — if the implementation adopts OZ `cloneWithImmutableArgs`, the
-   clone bytecode appends args and P-1's expected hex must switch to that variant `[F2]`.
+5. **Immutable-args clones** — RESOLVED by design 2026-08-16: the contracts phase adopts
+   standard 45-byte EIP-1167 clones (deliberately NOT `cloneWithImmutableArgs`), so P-1's
+   expected hex stands unchanged `[F2]`.
 6. **Integer split re-parameterization** — the memo's Bankr-derived reference split has
    non-integer bps values and a venue member (§4.2); the factory-era parameter set must choose
    four integer-bps shares summing to the launch total (reference 175) before first launch.
