@@ -337,3 +337,131 @@ describe('deploy preconditions (wave-5 gate table)', () => {
     });
   });
 });
+
+describe('SecReview68 fix batch', () => {
+  function broken(patch: Record<string, unknown>): TransactionIntent {
+    return deployIntent({}, {
+      ...VALID_DEPLOY,
+      ...patch,
+    } as unknown as DeployContext);
+  }
+
+  describe('C1: canonical claims ⊇ embedded claims', () => {
+    it('rejects when the embedded ref claims more than the canonical artifact', async () => {
+      // Canonical carries only the FIRST claim; the embedded ref (hash
+      // parity intact) carries both. Hash match alone must not bless
+      // claims the canonical artifact never made.
+      const narrowDeps = {
+        ...deps,
+        resolveVerification: async (id: string) =>
+          id === ARTIFACT.id
+            ? { ...ARTIFACT, claims: [ARTIFACT.claims[0]] }
+            : null,
+      };
+      expect(
+        await validateDeployPreconditions(deployIntent(), narrowDeps),
+      ).toBe('verification_missing');
+    });
+
+    it('accepts embedded claims exactly matching the canonical set', async () => {
+      expect(
+        await validateDeployPreconditions(deployIntent(), deps),
+      ).toBeNull();
+    });
+
+    it('accepts embedded claims that are a strict subset of canonical', async () => {
+      const subset: DeployContext = {
+        ...VALID_DEPLOY,
+        verification: { ...ARTIFACT, claims: [ARTIFACT.claims[0]] },
+      };
+      expect(
+        await validateDeployPreconditions(deployIntent({}, subset), deps),
+      ).toBeNull();
+    });
+  });
+
+  describe('C3: malformed wire shapes never crash the gate (stable codes)', () => {
+    it('missing feeBps ⇒ fee_schedule_invalid (no 500)', async () => {
+      const { feeBps: _omit, ...rest } = VALID_DEPLOY;
+      expect(
+        await validateDeployPreconditions(
+          deployIntent({}, rest as unknown as DeployContext),
+          deps,
+        ),
+      ).toBe('fee_schedule_invalid');
+    });
+
+    it('missing feeSchedule ⇒ fee_schedule_invalid (no 500)', async () => {
+      expect(
+        await validateDeployPreconditions(
+          broken({ feeSchedule: undefined }),
+          deps,
+        ),
+      ).toBe('fee_schedule_invalid');
+    });
+
+    it('missing feeRecipients ⇒ fee_recipients_invalid (no 500)', async () => {
+      expect(
+        await validateDeployPreconditions(
+          broken({ feeRecipients: undefined }),
+          deps,
+        ),
+      ).toBe('fee_recipients_invalid');
+    });
+
+    it('verification as a bare string ⇒ verification_missing (no 500)', async () => {
+      expect(
+        await validateDeployPreconditions(broken({ verification: 'x' }), deps),
+      ).toBe('verification_missing');
+    });
+
+    it('claims containing a null entry ⇒ verification_missing (no 500)', async () => {
+      expect(
+        await validateDeployPreconditions(
+          broken({
+            verification: { ...ARTIFACT, claims: [null] },
+          }),
+          deps,
+        ),
+      ).toBe('verification_missing');
+    });
+
+    it('non-string tokenName ⇒ deploy_context_invalid (no 500)', async () => {
+      expect(
+        await validateDeployPreconditions(broken({ tokenName: 123 }), deps),
+      ).toBe('deploy_context_invalid');
+    });
+
+    it('non-string totalSupply ⇒ deploy_context_invalid (no 500)', async () => {
+      expect(
+        await validateDeployPreconditions(broken({ totalSupply: 123 }), deps),
+      ).toBe('deploy_context_invalid');
+    });
+
+    it('missing factory ⇒ factory_mismatch (no 500)', async () => {
+      expect(
+        await validateDeployPreconditions(broken({ factory: undefined }), deps),
+      ).toBe('factory_mismatch');
+    });
+  });
+
+  describe('C6: totalSupply bounded to uint256 width', () => {
+    it('rejects a 79-digit supply ⇒ deploy_context_invalid', async () => {
+      expect(
+        await validateDeployPreconditions(
+          broken({ totalSupply: '9'.repeat(79) }),
+          deps,
+        ),
+      ).toBe('deploy_context_invalid');
+    });
+
+    it('accepts a 78-digit supply (uint256 max is 78 digits)', async () => {
+      expect(
+        await validateDeployPreconditions(
+          broken({ totalSupply: '9'.repeat(78) }),
+          deps,
+        ),
+      ).toBeNull();
+    });
+  });
+});

@@ -5,6 +5,7 @@ import type {
 } from '@kryptr/shared-types';
 import { VERIFICATION_CLAIMS } from '@kryptr/shared-types';
 import { ADDRESS_PATTERN } from '../../common/address';
+import { isRecord } from '../../common/type-guards';
 
 /**
  * Wave-5 deploy preconditions (vault design doc §2 item 3, gate table
@@ -46,7 +47,8 @@ const NAME_MAX = 64;
 const PRINTABLE_ASCII = /^[\x20-\x7e]+$/;
 /** Token symbol: 1–12 uppercase alphanumerics, no space/underscore. */
 const SYMBOL_PATTERN = /^[A-Z0-9]{1,12}$/;
-/** Raw supply: positive integer string (wave-4 amount convention). */
+/** Raw supply: positive integer string, bounded to uint256 width (C6). */
+const SUPPLY_MAX_DIGITS = 78; // uint256 max is 78 digits
 const POSITIVE_INT_PATTERN = /^[1-9][0-9]*$/;
 
 export interface DeployPreconditionsDeps {
@@ -75,8 +77,10 @@ export async function validateDeployPreconditions(
   }
 
   // 1. Structural: what was consented is what gets executed (T17).
+  // Shape guard first (C3): a malformed factory can never match intent.to.
   if (
     intent.to === null ||
+    typeof deploy.factory !== 'string' ||
     deploy.factory.toLowerCase() !== intent.to.toLowerCase()
   ) {
     return 'factory_mismatch';
@@ -94,7 +98,10 @@ export async function validateDeployPreconditions(
   }
 
   // 4. Token fields (FaceUI-agreed constraints; both sides map to the
-  // same deploy_context_invalid code).
+  // same deploy_context_invalid code). Shape guards first (C3).
+  if (typeof deploy.tokenName !== 'string') {
+    return 'deploy_context_invalid';
+  }
   const name = deploy.tokenName.trim();
   if (
     name.length === 0 ||
@@ -103,55 +110,87 @@ export async function validateDeployPreconditions(
   ) {
     return 'deploy_context_invalid';
   }
-  if (!SYMBOL_PATTERN.test(deploy.tokenSymbol)) {
+  if (
+    typeof deploy.tokenSymbol !== 'string' ||
+    !SYMBOL_PATTERN.test(deploy.tokenSymbol)
+  ) {
     return 'deploy_context_invalid';
   }
-  if (!POSITIVE_INT_PATTERN.test(deploy.totalSupply)) {
+  if (
+    typeof deploy.totalSupply !== 'string' ||
+    deploy.totalSupply.length > SUPPLY_MAX_DIGITS ||
+    !POSITIVE_INT_PATTERN.test(deploy.totalSupply)
+  ) {
     return 'deploy_context_invalid';
   }
 
-  // 5. Fee mirrors — integer arithmetic only (Q1 + F1).
+  // 5. Fee mirrors — integer arithmetic only (Q1 + F1). Shape guards
+  // first (C3): a missing mirror object is a schedule violation, not a 500.
+  if (!isRecord(deploy.feeSchedule) || !isRecord(deploy.feeBps)) {
+    return 'fee_schedule_invalid';
+  }
   const totalFeeBps = deps.totalFeeBps ?? LAUNCH_TOTAL_FEE_BPS;
   const shares = [
     deploy.feeSchedule.creatorShare,
     deploy.feeSchedule.lpShare,
     deploy.feeSchedule.protocolShare,
     deploy.feeSchedule.buybackShare,
-  ];
+  ] as unknown[];
   const mirrors = [
     deploy.feeBps.creator,
     deploy.feeBps.lp,
     deploy.feeBps.protocol,
     deploy.feeBps.buyback,
-  ];
+  ] as unknown[];
   if (
-    shares.some((share) => !Number.isFinite(share) || share < 0 || share > 1)
+    shares.some(
+      (share) =>
+        typeof share !== 'number' ||
+        !Number.isFinite(share) ||
+        share < 0 ||
+        share > 1,
+    )
   ) {
     return 'fee_schedule_invalid';
   }
   if (
-    mirrors.some((bps) => !Number.isInteger(bps) || bps < 0 || bps > 10_000)
+    mirrors.some(
+      (bps) =>
+        typeof bps !== 'number' ||
+        !Number.isInteger(bps) ||
+        bps < 0 ||
+        bps > 10_000,
+    )
   ) {
     return 'fee_schedule_invalid';
   }
-  if (mirrors.reduce((sum, bps) => sum + bps, 0) !== totalFeeBps) {
+  const mirrorInts = mirrors as number[];
+  if (mirrorInts.reduce((sum, bps) => sum + bps, 0) !== totalFeeBps) {
     return 'fee_schedule_invalid';
   }
-  for (let i = 0; i < mirrors.length; i += 1) {
+  for (let i = 0; i < mirrorInts.length; i += 1) {
     // Math.round, never literal equality (Review54 F1; see module doc).
-    if (Math.round(shares[i] * 10_000) !== mirrors[i]) {
+    if (Math.round((shares[i] as number) * 10_000) !== mirrorInts[i]) {
       return 'fee_schedule_invalid';
     }
   }
 
   // 6. Recipients: four well-formed EVM addresses (T17 surface).
+  // Shape guard first (C3).
+  if (!isRecord(deploy.feeRecipients)) {
+    return 'fee_recipients_invalid';
+  }
   const recipients = [
     deploy.feeRecipients.creator,
     deploy.feeRecipients.lp,
     deploy.feeRecipients.protocol,
     deploy.feeRecipients.buyback,
-  ];
-  if (!recipients.every((address) => ADDRESS_PATTERN.test(address))) {
+  ] as unknown[];
+  if (
+    !recipients.every(
+      (address) => typeof address === 'string' && ADDRESS_PATTERN.test(address),
+    )
+  ) {
     return 'fee_recipients_invalid';
   }
 
@@ -159,18 +198,46 @@ export async function validateDeployPreconditions(
   // required for allowlisted factories, and the embedded ref must match
   // the canonical artifact — server-side parity of the consent chip's
   // fetch-and-compare flow. Nothing opaque, nothing trust-me.
+  // Shape guards first (C3): a malformed ref is a missing artifact.
   const verification = deploy.verification;
-  if (!verification || verification.claims.length === 0) {
+  if (!isRecord(verification) || !Array.isArray(verification.claims)) {
     return 'verification_missing';
   }
+  const claims = verification.claims as unknown[];
+  if (
+    claims.length === 0 ||
+    claims.some(
+      (claim) =>
+        !isRecord(claim) ||
+        typeof claim.claim !== 'string' ||
+        typeof claim.verifiedAt !== 'string',
+    )
+  ) {
+    return 'verification_missing';
+  }
+  const claimKinds = claims.map((claim) => (claim as { claim: string }).claim);
   // Review54 N2: the claim vocabulary is frozen (VERIFICATION_CLAIMS).
   // A ref carrying an unknown claim is rejected at the source — the
   // client-side filter is UX, not the security boundary.
-  if (verification.claims.some((claim) => !CLAIM_VOCABULARY.has(claim.claim))) {
+  if (claimKinds.some((kind) => !CLAIM_VOCABULARY.has(kind))) {
+    return 'verification_missing';
+  }
+  if (
+    typeof verification.id !== 'string' ||
+    typeof verification.hash !== 'string'
+  ) {
     return 'verification_missing';
   }
   const canonical = await deps.resolveVerification(verification.id);
   if (canonical === null || canonical.hash !== verification.hash) {
+    return 'verification_missing';
+  }
+  // SecReview68 C1: the canonical artifact's claims must cover every
+  // embedded claim — hash parity alone never blesses extra claims.
+  const canonicalKinds: ReadonlySet<string> = new Set(
+    canonical.claims.map((claim) => claim.claim),
+  );
+  if (claimKinds.some((kind) => !canonicalKinds.has(kind))) {
     return 'verification_missing';
   }
 
