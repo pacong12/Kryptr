@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import Link from 'next/link';
 import type { SecurityDecision } from '@kryptr/shared-types';
 import { ArrowLeftIcon } from 'lucide-react';
@@ -12,6 +13,11 @@ import {
 import { notFound } from 'next/navigation';
 
 import { TransactionStatusBadge } from '@/components/status-badges';
+import {
+  IntentTimeline,
+  IntentTimelineSkeleton,
+} from '@/components/intent-timeline';
+import { QuoteContextCard } from '@/components/quote-context-card';
 import { MOCK_DECISIONS, MOCK_INTENTS } from '@/lib/fixtures';
 import { formatDateTime, humanize, shortenHex } from '@/lib/format';
 
@@ -74,46 +80,54 @@ export default async function IntentDetailPage({
       </header>
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Intent details</CardTitle>
-            <CardDescription>
-              TransactionIntent as produced by the originating agent — signing
-              never happens without a security decision
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <dl className="grid gap-4 sm:grid-cols-2">
-              <DetailItem label="Intent ID" value={intent.id} mono />
-              <DetailItem label="Wallet" value={intent.walletId} mono />
-              <DetailItem label="Chain" value={intent.chain} />
-              <DetailItem label="Kind" value={humanize(intent.kind)} />
-              <DetailItem
-                label="To"
-                value={intent.to === null ? '—' : shortenHex(intent.to)}
-                mono
-              />
-              <DetailItem
-                label="Asset"
-                value={
-                  intent.asset === null ? 'native' : shortenHex(intent.asset)
-                }
-                mono
-              />
-              <DetailItem
-                label="Amount (raw units)"
-                value={intent.amount}
-                mono
-              />
-              <DetailItem label="Origin" value={intent.origin} />
-              <DetailItem
-                label="Created"
-                value={formatDateTime(intent.createdAt)}
-              />
-              <DetailItem label="Status" value={humanize(intent.status)} />
-            </dl>
-          </CardContent>
-        </Card>
+        <div className="flex min-w-0 flex-col gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Intent details</CardTitle>
+              <CardDescription>
+                TransactionIntent as produced by the originating agent — signing
+                never happens without a security decision
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <dl className="grid gap-4 sm:grid-cols-2">
+                <DetailItem label="Intent ID" value={intent.id} mono />
+                <DetailItem label="Wallet" value={intent.walletId} mono />
+                <DetailItem label="Chain" value={intent.chain} />
+                <DetailItem label="Kind" value={humanize(intent.kind)} />
+                <DetailItem
+                  label="To"
+                  value={intent.to === null ? '—' : shortenHex(intent.to)}
+                  mono
+                />
+                <DetailItem
+                  label="Asset"
+                  value={
+                    intent.asset === null ? 'native' : shortenHex(intent.asset)
+                  }
+                  mono
+                />
+                <DetailItem
+                  label="Amount (raw units)"
+                  value={intent.amount}
+                  mono
+                />
+                <DetailItem label="Origin" value={intent.origin} />
+                <DetailItem
+                  label="Created"
+                  value={formatDateTime(intent.createdAt)}
+                />
+                <DetailItem label="Status" value={humanize(intent.status)} />
+              </dl>
+            </CardContent>
+          </Card>
+
+          {intent.kind === 'swap' ? <QuoteContextCard intent={intent} /> : null}
+
+          <Suspense fallback={<IntentTimelineSkeleton />}>
+            <IntentTimeline intentId={intent.id} />
+          </Suspense>
+        </div>
 
         <IntentDecisionPanel
           intentId={intent.id}

@@ -1,4 +1,5 @@
 import type {
+  FeedStatus,
   HealthStatus,
   SecurityCheckResult,
   TransactionStatus,
@@ -65,6 +66,19 @@ export function HealthStatusBadge({
   status: HealthStatus['status'];
 }) {
   return <Badge variant={HEALTH_STATUS_VARIANTS[status]}>{status}</Badge>;
+}
+
+const FEED_STATUS_VARIANTS: Record<
+  FeedStatus,
+  'default' | 'secondary' | 'destructive'
+> = {
+  healthy: 'default',
+  stale: 'secondary',
+  down: 'destructive',
+};
+
+export function FeedStatusBadge({ status }: { status: FeedStatus }) {
+  return <Badge variant={FEED_STATUS_VARIANTS[status]}>{status}</Badge>;
 }
 
 /** Marks data served from local fixtures instead of the live API. */

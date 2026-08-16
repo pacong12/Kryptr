@@ -2,11 +2,21 @@ import type {
   AgentWallet,
   ApiEnvelope,
   ApiError,
+  FeedHealth,
   HealthStatus,
+  IntentTimelineStep,
   SecurityDecision,
+  SwapQuote,
 } from '@kryptr/shared-types';
 
-import { MOCK_INTENTS, MOCK_WALLETS, type IntentWithStatus } from './fixtures';
+import {
+  MOCK_FEEDS,
+  MOCK_INTENTS,
+  MOCK_QUOTES,
+  MOCK_TIMELINES,
+  MOCK_WALLETS,
+  type IntentWithStatus,
+} from './fixtures';
 
 /**
  * Typed fetch wrapper for the Kryptr API (`apps/api`).
@@ -162,4 +172,51 @@ export async function decideIntent(
     },
     stubbed: true,
   };
+}
+
+/**
+ * Wave 2: swap quote bound to a TransactionIntent (GET /api/quotes/:id).
+ * When the live API answers with an envelope error (e.g. 404) we surface
+ * `null` instead of a fixture, so the UI can show an honest
+ * "quote unavailable" state; fixtures only cover an unreachable API.
+ */
+export async function getQuote(
+  quoteId: string,
+): Promise<DataSource<SwapQuote | null>> {
+  const outcome = await fetchEnvelope<SwapQuote>(
+    `/quotes/${encodeURIComponent(quoteId)}`,
+  );
+  if (outcome.kind === 'envelope') {
+    if (outcome.envelope.ok && outcome.envelope.data !== null) {
+      return { data: outcome.envelope.data, mock: false, apiError: null };
+    }
+    return { data: null, mock: false, apiError: outcome.envelope.error };
+  }
+  return { data: MOCK_QUOTES[quoteId] ?? null, mock: true, apiError: null };
+}
+
+/**
+ * Wave 2: intent lifecycle steps (GET /api/security/intents/:id/timeline).
+ * A live envelope error renders as an empty timeline ("no timeline yet");
+ * fixtures only cover an unreachable API.
+ */
+export async function getIntentTimeline(
+  intentId: string,
+): Promise<DataSource<IntentTimelineStep[]>> {
+  const outcome = await fetchEnvelope<IntentTimelineStep[]>(
+    `/security/intents/${encodeURIComponent(intentId)}/timeline`,
+  );
+  if (outcome.kind === 'envelope') {
+    if (outcome.envelope.ok && outcome.envelope.data !== null) {
+      return { data: outcome.envelope.data, mock: false, apiError: null };
+    }
+    return { data: [], mock: false, apiError: outcome.envelope.error };
+  }
+  return { data: MOCK_TIMELINES[intentId] ?? [], mock: true, apiError: null };
+}
+
+/** Wave 2: external data-feed health (GET /api/health/feeds). */
+export async function getFeeds(): Promise<DataSource<FeedHealth[]>> {
+  const outcome = await fetchEnvelope<FeedHealth[]>('/health/feeds');
+  return toDataSource(outcome, MOCK_FEEDS);
 }
