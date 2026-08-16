@@ -62,6 +62,24 @@ If the hook ever goes missing (fresh clone, git upgrade), re-install it with
 `SKIP_SIMPLE_GIT_HOOKS=1 git commit ...` or `git commit --no-verify` (never
 on `main`).
 
+## Keyed & live-network tests
+
+Adapter tests that need real API keys (0x, CoinGecko) use the env-gate
+helper (`apps/api/src/test/env-gate.ts`): without keys they skip with a
+logged reason — CI runs keyless and green. Canonical key names live in
+`.env.example` (`ZEROX_API_KEY`, `COINGECKO_API_KEY`).
+
+`test:live` reads real Base RPC (public endpoint, no keys) and is OPT-IN —
+it is excluded from default CI because public RPCs flake:
+
+```bash
+npx nx run api:test:live
+```
+
+The api smoke suite never touches the network or keys; degradation paths
+(unconfigured aggregator, fail-closed price feed) are asserted
+deterministically.
+
 ## Security model
 
 Hard lessons from the Bankr/Grok incident (May 2026) are built into the

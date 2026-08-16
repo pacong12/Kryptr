@@ -17,6 +17,8 @@
     "jest.config.cts",
     "src/**/*.spec.ts",
     "src/**/*.test.ts",
-    "src/**/*.smoke.ts"
+    "src/**/*.smoke.ts",
+    "src/**/*.live.ts",
+    "src/test/**"
   ]
 }
