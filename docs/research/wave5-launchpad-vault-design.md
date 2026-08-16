@@ -2,7 +2,8 @@
 
 > Author: VaultAPI · Status: **research / design sketch — NO code, NO contract
 > changes yet** (read-only phase granted by conductor 2026-08-16; build starts
-> at official wave-5 kickoff). Grounding: `launchpad-decision.md` (GO, 5/5),
+> at official wave-5 kickoff). All four kickoff questions RULED by Main
+> 2026-08-16 (§5). Grounding: `launchpad-decision.md` (GO, 5/5),
 > `launchpad-discussion.md` (memo + rulings), wave-4 freeze discipline.
 >
 > Deliverables mapped to the conductor's three focus items:
@@ -88,10 +89,11 @@ red.
 
 Semantics distinction (must stay in copy and audit strings):
 
-| Origin class                               | kind='deploy' outcome                                                            |
-| ------------------------------------------ | -------------------------------------------------------------------------------- |
-| interactive (`user`, future `agent:` HITL) | `needs_human_approval` (wave-3 behavior, unchanged)                              |
-| `automation:*`                             | hard `rejected: automation_deploy_forbidden` — never escalates, never approvable |
+| Origin class         | kind='deploy' outcome                                                              |
+| -------------------- | ---------------------------------------------------------------------------------- |
+| interactive (`user`) | `needs_human_approval` (wave-3 behavior, unchanged)                                |
+| `agent:*`            | `needs_human_approval` — unconditional, PERMANENT, never auto-approved (Q4 ruling) |
+| `automation:*`       | hard `rejected: automation_deploy_forbidden` — never escalates, never approvable   |
 
 ### Layer 2 — factory allowlist for INTERACTIVE deploys (config by design)
 
@@ -125,6 +127,12 @@ manifest, single source of truth, CI-schema-validated.
   survives refactors.
 - **Regression spec**: interactive deploy still escalates to
   `needs_human_approval` (wave-3 behavior preserved).
+- **HITL-permanence spec (Q4 ruling)**: deploy intents from EVERY
+  non-interactive origin class — `automation:*` AND `agent:*` — never
+  produce an `approved` decision: automation is hard-rejected (§L1),
+  agents escalate to unconditional HITL. This test is the executable
+  statement of the conductor ruling "no `agent:`/automation origin ever
+  gets deploy auto-approval — HITL unconditional, permanent".
 
 ### Impossibility argument
 
@@ -153,8 +161,10 @@ PR, TDD red-green:
    - `bondPaid === true` required (memo ruling 2 split: bond PARAMETER is
      factory/on-chain; bond-paid VALIDATION is gate-side) →
      `deploy_bond_unpaid` rejection otherwise;
-   - `TokenFeeSchedule` validation: shares non-negative, sum equals the
-     launch total (see open question Q1) → `fee_schedule_invalid`;
+   - fee validation via INTEGER BPS mirrors (Q1 ruling): per-share bps
+     non-negative, sum equals the per-launch total fee bps (parameterized;
+     175 reference), mirrors consistent with `TokenFeeSchedule` shares
+     (`bps === share * 10_000`) → `fee_schedule_invalid`;
    - recipients: four valid EVM addresses → `fee_recipients_invalid`.
      All pre-sign, all `rejected` (fail-closed), all audited with stable
      reason strings for the DeckUI timeline.
@@ -193,6 +203,12 @@ export interface DeployContext {
   /** Factory the deploy goes through; MUST equal intent.to + allowlist. */
   factory: `0x${string}`;
   feeSchedule: TokenFeeSchedule;
+  /**
+   * Q1 ruling: integer-bps mirrors are the gate's validation basis
+   * (deterministic precision, T21 invariant-testable). Additive — the
+   * float shares above stay the display/on-chain shape.
+   */
+  feeBps: { creator: number; lp: number; protocol: number; buyback: number };
   feeRecipients: FeeRecipients;
   /** Ruling 2: gate validates bond-paid; the bond itself is on-chain. */
   bondPaid: boolean;
@@ -219,15 +235,15 @@ Field notes:
 
 Gate-side validation table (§2.3 consumes this):
 
-| Check                                                       | Failure reason            |
-| ----------------------------------------------------------- | ------------------------- |
-| `deploy.factory === intent.to`                              | `factory_mismatch`        |
-| factory allowlisted on chain                                | `factory_not_allowlisted` |
-| `bondPaid === true`                                         | `deploy_bond_unpaid`      |
-| name/symbol non-empty (symbol charset/length TBD w/ FaceUI) | `deploy_context_invalid`  |
-| totalSupply positive integer string                         | `deploy_context_invalid`  |
-| fee shares non-negative + sum (Q1)                          | `fee_schedule_invalid`    |
-| recipients ×4 valid addresses                               | `fee_recipients_invalid`  |
+| Check                                                                           | Failure reason            |
+| ------------------------------------------------------------------------------- | ------------------------- |
+| `deploy.factory === intent.to`                                                  | `factory_mismatch`        |
+| factory allowlisted on chain                                                    | `factory_not_allowlisted` |
+| `bondPaid === true`                                                             | `deploy_bond_unpaid`      |
+| name/symbol non-empty (symbol charset/length TBD w/ FaceUI)                     | `deploy_context_invalid`  |
+| totalSupply positive integer string                                             | `deploy_context_invalid`  |
+| feeBps integers non-negative, sum = launch total bps, mirrors match shares (Q1) | `fee_schedule_invalid`    |
+| recipients ×4 valid addresses                                                   | `fee_recipients_invalid`  |
 
 ---
 
@@ -248,24 +264,22 @@ Gate-side validation table (§2.3 consumes this):
   `verificationId` artifact id and refuse manifest entries without it (CI
   schema, ops-owned).
 
-## 5. Open questions for kickoff
+## 5. Kickoff rulings (Main, 2026-08-16 — post-review of this doc)
 
-- **Q1 — fee representation**: `TokenFeeSchedule` uses float shares; float
-  equality checks are fragile. Proposal: validate via integer bps mirrors
-  (`creatorBps` etc., sum === 175 reference, parameterized per launch) —
-  either amend `TokenFeeSchedule` (breaking-ish, clean) or add bps fields
-  alongside (additive, redundant). Decision at kickoff; DeckUI freeze must
-  match.
-- **Q2 — creator === deploying wallet?** Gate-enforcing
-  `feeRecipients.creator === wallet address` kills legitimate creator≠payer
-  setups; FaceUI consent shows it either way. Recommend: NOT enforced,
-  displayed + audited.
-- **Q3 — manifest schema** (ops-owned): vault needs at least
+- **Q1 — fee representation: integer-bps mirrors ACCEPTED.** Deterministic
+  precision, T21 invariant-testable. Implemented as additive `feeBps`
+  mirrors on `DeployContext` (§3); float `TokenFeeSchedule` shares stay the
+  display/on-chain shape; gate validates mirrors + mirror↔share consistency.
+- **Q2 — creator ≠ deploying wallet: display + audit, NO enforcement.**
+  Accepted. Enforcement, if ever needed, belongs to bond/wallet policy
+  later — not the deploy gate.
+- **Q3 — manifest schema ACCEPTED as baseline**:
   `{ chain, factoryAddress, verificationId, commitSha, deployedAt }`.
-- **Q4 — `agent:` origins**: firewall covers `automation:*`; future
-  agentic-interactive origins (`agent:<id>` driving HITL) stay on the
-  escalation path — confirm at kickoff that no agent origin ever gets
-  auto-approval for deploys (currently guaranteed by unconditional HITL).
+  OpsCI validates the schema in CI when `contracts/` lands.
+- **Q4 — CONFIRMED and permanent**: NO `agent:` or `automation:` origin
+  ever receives deploy auto-approval; HITL for deploys is unconditional,
+  forever. Must be reflected as an L3 test (§1 layer 3: HITL-permanence
+  spec) — done, spec listed.
 
 ## 6. Sources
 
