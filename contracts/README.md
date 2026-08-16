@@ -41,8 +41,13 @@ them.
 
 Release flow: `release-tag.yml` is dispatch-only — the operator cuts a
 `contracts-v*` tag AND explicitly runs the battery at it (two audited
-acts). Job `battery` runs the Tier-F suite at exactly the tag; job
-`verify-g5` independently re-derives every
+acts). The battery fans out as PARALLEL jobs at exactly the tag: one
+per deep invariant campaign (`battery-g1-campaign` with
+`INVARIANT_CAMPAIGN` set) plus one fast job (unit suite, G2
+slither/selector, G3 keyless Sepolia fork) — GitHub-hosted jobs
+hard-cap at 360 minutes and the sequential campaigns exceed it; the
+split also isolates counterexamples per campaign. Job `verify-g5`
+(needs: all evidence jobs) independently re-derives every
 `deployments/{chain}.verification.json` artifact's `contentHash`
 (`tools/verify-content-hash.mjs`) — the producer's recorded hash is
 never trusted. G5 artifact assembly is a separate runbook §7 step
