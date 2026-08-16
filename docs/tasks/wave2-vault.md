@@ -61,3 +61,39 @@ Add swap/trading to the API behind ports, gate extensions included.
 - `nx affected -t lint typecheck test build` green for the api project.
 - No dependency additions without conductor approval (ports only).
 - Nothing signs; calldata only ever leaves behind an approved decision.
+
+## Retro
+
+- Done: trading module (`DexAggregatorPort` + `StaticMockDexAdapter`,
+  `QuoteStore` with single-use binding, `RequestQuote`/`GetQuote`/
+  `PreviewSwapExecution` use cases, `POST /api/quotes`,
+  `GET /api/quotes/:id`); gate extensions (swap-context checks: quote
+  exists/unused/bound-to-self, expiry + 5s margin, slippage ceiling,
+  minBuyAmount floor, sell-side match); wave-2 ports + in-memory impls
+  (`PriceFeedPort`/`StaticPriceFeed` with TTL fail-closed, `SpendLedger`
+  idempotent per intentId, `IntentStore`, append-only `DecisionAudit`
+  with decision-time USD); `GET /api/security/intents/:id/timeline`,
+  `GET /api/security/intents/:id/execution-preview` (unsigned only,
+  latest-decision-wins), `GET /api/health/feeds` (stale/degraded →
+  `feeds_degraded` err envelope, never silent).
+- Contract suite (`dex-aggregator.contract.spec.ts`) asserts quote shape
+  vs shared-types, determinism, slippage floor math, TTL ordering,
+  unsupported-chain domain errors, unsigned-calldata rules, FeedHealth —
+  runs against StaticMockDex now; future 0x/1inch adapters run the same
+  suite before wiring.
+- Tests: 30 suites / 158 tests, incl. a zero-override AppModule
+  integration spec covering wallet → quote → approved decision →
+  timeline → unsigned preview and quote single-use replay rejection.
+- Decisions: one `TransactionIntent` with optional `swap?: SwapContext`
+  (no separate SwapIntent); quote binding happens at decision finalization
+  for every non-rejected outcome (pending approvals hold the quote until
+  TTL); re-saving a deterministic quote id never clears a binding;
+  execution preview lives under `/security/intents/:id` because only the
+  gate can grant it; `feeds_degraded` uses the err envelope (FeedHealth
+  has no 'degraded' status — staleness is per-feed 'stale'/'down').
+- Follow-ups (wave 3+): server-side origin stamping from auth (origin is
+  still client-supplied), Postgres/Prisma swap behind the new ports,
+  SpendLedger recording on execution confirmation, CoinGecko price adapter
+  - real aggregator adapters (both must pass the contract suite),
+    recipient allowlist + cooldown (HITL-3), MFA-gated policy changes
+    (HITL-4).
