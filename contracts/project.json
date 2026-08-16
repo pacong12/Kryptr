@@ -45,10 +45,13 @@
       "cache": false,
       "options": {
         "cwd": "contracts",
-        "command": "slither . --config-file slither.config.json --fail-medium"
+        "commands": [
+          "slither . --config-file slither.config.json --fail-medium",
+          "node tools/check-slither-triage.mjs"
+        ]
       },
       "metadata": {
-        "description": "Slither static analysis; high/medium findings fail (triage baseline: slither.config.json + SLITHER_TRIAGE.md)"
+        "description": "Slither static analysis; high/medium findings fail (triage baseline: slither.config.json + SLITHER_TRIAGE.md); then the never-triage guard asserts slither.db.json records none of the eight T21 §5.3 detectors"
       }
     },
     "fork-test": {

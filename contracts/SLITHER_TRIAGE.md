@@ -32,6 +32,11 @@ under "Accepted findings" below, and no config change may filter these
 detectors. Additionally, every **high-severity** detector outside this set
 blocks unconditionally as well.
 
+Enforcement is MECHANICAL, not just policy: the `slither` Nx target runs
+`tools/check-slither-triage.mjs` after the scan and fails closed if
+`slither.db.json` ever records one of these detectors — a "just this once"
+triage acceptance cannot slip in silently.
+
 Rationale (§5.3 inference): the set matches our structural promises — no
 self-destruct, no upgrade path, no unauthorized value extraction, no
 delegatecall/storage hazards — the exact ways an "immutable" design secretly
