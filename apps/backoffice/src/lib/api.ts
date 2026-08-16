@@ -20,17 +20,21 @@ import type {
 import {
   MOCK_BALANCES,
   MOCK_CHAINS,
+  MOCK_FACTORY_HEALTH,
   MOCK_FEEDS,
   MOCK_INTENTS,
   MOCK_KILL_SWITCH,
   MOCK_KILL_SWITCH_AUDIT,
+  MOCK_LAUNCH_REQUESTS,
   MOCK_ORDER_EXECUTIONS,
   MOCK_ORDERS,
   MOCK_QUOTES,
   MOCK_TIMELINES,
   MOCK_WALLETS,
   MOCK_WORKER_HEALTH,
+  type FactoryHealth,
   type IntentWithStatus,
+  type LaunchRequest,
 } from './fixtures';
 
 /**
@@ -430,4 +434,135 @@ export async function requestKillSwitchMode(
     };
   }
   return { state: null, code: 'worker_unavailable', applied: false };
+}
+
+/**
+ * Wave-5 launch-request review seams (gate #4 freeze consumed verbatim).
+ *
+ * REWIRE NOTE: the launchpad API does not exist yet (deploy-gate branch of
+ * vault). Endpoint paths below are ASSUMED and documented so the rewire is
+ * a path/shape confirmation, not a redesign:
+ *   GET  /launch/requests              — review feed
+ *   GET  /launch/requests/:id          — one request
+ *   POST /launch/requests/:id/decision — HITL approve/reject (audited)
+ *   GET  /health/launchpad             — factory health
+ */
+
+/**
+ * Wave-5 stage guard. The launchpad routes do not exist until the
+ * deploy-gate branch lands, and the live API answers unknown routes with an
+ * envelope 404 (`code: 'http_error'`). That is NOT a launchpad domain error
+ * — it means "endpoint not deployed yet" — so the launch seams treat it
+ * exactly like an unreachable API and fall back to fixtures (mock badge).
+ * Once deploy-gate lands, real envelope data flows through and genuine
+ * launchpad error codes (e.g. launch_request_not_found) render honestly.
+ */
+function launchEndpointMissing(outcome: FetchOutcome<unknown>): boolean {
+  return (
+    outcome.kind === 'unreachable' ||
+    (outcome.kind === 'envelope' &&
+      outcome.envelope.error?.code === 'http_error')
+  );
+}
+
+/** Wave 5: launch requests awaiting review (GET /launch/requests). */
+export async function getLaunchRequests(): Promise<
+  DataSource<LaunchRequest[]>
+> {
+  const outcome = await fetchEnvelope<LaunchRequest[]>('/launch/requests');
+  if (launchEndpointMissing(outcome)) {
+    return { data: MOCK_LAUNCH_REQUESTS, mock: true, apiError: null };
+  }
+  return toDataSource(outcome, MOCK_LAUNCH_REQUESTS);
+}
+
+/**
+ * Wave 5: one launch request by id (GET /launch/requests/:id). Mirrors
+ * getOrder: a live launchpad envelope error surfaces as `apiError` (the
+ * detail page maps `launch_request_not_found` to its 404 and renders every
+ * other code honestly); fixtures cover an unreachable API and the not-yet-
+ * deployed launchpad routes (stage guard above).
+ */
+export async function getLaunchRequest(
+  launchId: string,
+): Promise<DataSource<LaunchRequest | null>> {
+  const outcome = await fetchEnvelope<LaunchRequest>(
+    `/launch/requests/${encodeURIComponent(launchId)}`,
+  );
+  if (launchEndpointMissing(outcome)) {
+    return {
+      data: MOCK_LAUNCH_REQUESTS.find((entry) => entry.id === launchId) ?? null,
+      mock: true,
+      apiError: null,
+    };
+  }
+  if (outcome.kind === 'envelope') {
+    if (outcome.envelope.ok && outcome.envelope.data !== null) {
+      return { data: outcome.envelope.data, mock: false, apiError: null };
+    }
+    return { data: null, mock: false, apiError: outcome.envelope.error };
+  }
+  return { data: null, mock: false, apiError: null };
+}
+
+/** Outcome of a HITL launch decision attempt. */
+export interface LaunchDecisionOutcome {
+  /** Updated request — only present when the API confirmed the decision. */
+  request: LaunchRequest | null;
+  /** Envelope error code, or 'launchpad_unavailable' when unreachable. */
+  code: string | null;
+  /** True only when the API confirmed the decision. */
+  applied: boolean;
+}
+
+/**
+ * Wave-5 HITL mutation: POST /launch/requests/:id/decision with
+ * `{ decision, reason }`. Like the kill switch there is NO fake-success
+ * stub: a deploy approval that cannot reach the launchpad must report
+ * failure honestly — safety-critical decisions never claim success. A
+ * not-yet-deployed route (envelope `http_error`) is reported as
+ * 'launchpad_unavailable', never as a recorded decision.
+ */
+export async function requestLaunchDecision(
+  launchId: string,
+  decision: 'approved' | 'rejected',
+  reason: string,
+): Promise<LaunchDecisionOutcome> {
+  const outcome = await fetchEnvelope<LaunchRequest>(
+    `/launch/requests/${encodeURIComponent(launchId)}/decision`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ decision, reason }),
+      headers: { 'content-type': 'application/json' },
+    },
+    MUTATION_TIMEOUT_MS,
+  );
+  if (
+    outcome.kind === 'envelope' &&
+    outcome.envelope.ok &&
+    outcome.envelope.data !== null
+  ) {
+    return { request: outcome.envelope.data, code: null, applied: true };
+  }
+  if (outcome.kind === 'envelope') {
+    const code = outcome.envelope.error?.code;
+    return {
+      request: null,
+      code:
+        code === 'http_error' || code === undefined
+          ? 'launchpad_unavailable'
+          : code,
+      applied: false,
+    };
+  }
+  return { request: null, code: 'launchpad_unavailable', applied: false };
+}
+
+/** Wave 5: launch-factory health (GET /health/launchpad, assumed). */
+export async function getFactoryHealth(): Promise<DataSource<FactoryHealth>> {
+  const outcome = await fetchEnvelope<FactoryHealth>('/health/launchpad');
+  if (launchEndpointMissing(outcome)) {
+    return { data: MOCK_FACTORY_HEALTH, mock: true, apiError: null };
+  }
+  return toDataSource(outcome, MOCK_FACTORY_HEALTH);
 }

@@ -1,6 +1,7 @@
 import type {
   AgentWallet,
   ChainReaderHealth,
+  DeployContext,
   FeedHealth,
   IntentTimelineStep,
   KillSwitchAuditEntry,
@@ -634,4 +635,262 @@ export const MOCK_WORKER_HEALTH: WorkerHealth = {
   ok: false,
   detail: 'redis_unreachable',
   checkedAt: '2026-08-17T11:41:55.000Z',
+};
+
+/**
+ * Wave-5 launch-request review fixtures.
+ *
+ * Deck-local shapes ONLY where shared-types has no contract yet:
+ * `LaunchRequest` / `LaunchReviewStatus` / `FactoryHealth` are deck-local
+ * until the deploy-gate branch lands its API contract — every frozen field
+ * inside them (DeployContext, VerificationArtifactRef, FeeRecipients,
+ * feeBps mirrors, TokenFeeSchedule) is consumed VERBATIM from
+ * @kryptr/shared-types (gate #4 freeze, PR #62). Fee shares ↔ bps mirrors
+ * satisfy the Q1 ruling: Math.round(share * 10_000) === bps.
+ */
+
+export const LAUNCH_REVIEW_STATUSES = [
+  'pending_review',
+  'approved',
+  'rejected',
+  'deployed',
+] as const;
+export type LaunchReviewStatus = (typeof LAUNCH_REVIEW_STATUSES)[number];
+
+/** One launch request awaiting (or carrying) an operator deploy decision. */
+export interface LaunchRequest {
+  id: string;
+  status: LaunchReviewStatus;
+  chain: string;
+  requestedBy: string;
+  requestedAt: string;
+  /** Frozen wave-5 contract — present for every deploy-kind request. */
+  context: DeployContext;
+  decidedAt: string | null;
+  decidedBy: string | null;
+  decisionReason: string | null;
+}
+
+const LAUNCH_FACTORY = '0xfac70dea1111feed2222cafe3333babe4444d00d';
+
+const FEE_RECIPIENTS_STANDARD = {
+  creator: '0xc2e9a1f4b8d3476590ae12bc7d5f38e4a1b9c6d2',
+  lp: '0x1f2e3d4c5b6a798897a6b5c4d3e2f11029384756',
+  protocol: '0x9d8c7b6a5f4e3d2c1b0a9f8e7d6c5b4a3f2e1d0c',
+  buyback: '0x0a1b2c3d4e5f6789987654321fedcba012345678',
+} as const;
+
+/** Standard platform fee split: 65 / 15 / 15 / 5 bps (1.00% total). */
+const FEE_SCHEDULE_STANDARD = {
+  creatorShare: 0.0065,
+  lpShare: 0.0015,
+  protocolShare: 0.0015,
+  buybackShare: 0.0005,
+} as const;
+const FEE_BPS_STANDARD = { creator: 65, lp: 15, protocol: 15, buyback: 5 };
+
+const VERIFIED_AT = '2026-08-14T08:20:00.000Z';
+
+/** Full T21 battery — every frozen claim kind, each with evidence. */
+const T21_FULL = {
+  id: 't21:factory-base:v1',
+  hash: '0x3d9f2c1e8a7b6d5f4e3c2b1a09876543fedcba9876543210abcdef0123456789',
+  claims: [
+    {
+      claim: 'admin_key_free',
+      evidence: 't21/admin-key.spec.ts#no-admin-keyset',
+      verifiedAt: VERIFIED_AT,
+    },
+    {
+      claim: 'non_upgradeable',
+      evidence: 't21/upgradeability.spec.ts#no-proxy',
+      verifiedAt: VERIFIED_AT,
+    },
+    {
+      claim: 'fee_split_invariant',
+      evidence: 't21/fee-split.spec.ts#shares-sum',
+      verifiedAt: VERIFIED_AT,
+    },
+    {
+      claim: 'bond_accounting',
+      evidence: 't21/bond.spec.ts#escrow-balance',
+      verifiedAt: VERIFIED_AT,
+    },
+  ],
+} as const;
+
+export const MOCK_LAUNCH_REQUESTS: LaunchRequest[] = [
+  {
+    id: 'lr_pending_memecoin',
+    status: 'pending_review',
+    chain: 'base',
+    requestedBy: 'agent:surf-desk-01',
+    requestedAt: '2026-08-16T07:55:00.000Z',
+    context: {
+      tokenName: 'Surf Coin',
+      tokenSymbol: 'SURF',
+      totalSupply: '1000000000000000000000000000',
+      factory: LAUNCH_FACTORY,
+      feeSchedule: { ...FEE_SCHEDULE_STANDARD },
+      feeBps: { ...FEE_BPS_STANDARD },
+      feeRecipients: { ...FEE_RECIPIENTS_STANDARD },
+      bondPaid: true,
+      verification: {
+        id: T21_FULL.id,
+        hash: T21_FULL.hash,
+        claims: T21_FULL.claims.map((entry) => ({ ...entry })),
+      },
+    },
+    decidedAt: null,
+    decidedBy: null,
+    decisionReason: null,
+  },
+  {
+    id: 'lr_pending_noartifact',
+    status: 'pending_review',
+    chain: 'base',
+    requestedBy: 'agent:nightforge-02',
+    requestedAt: '2026-08-16T09:12:00.000Z',
+    context: {
+      tokenName: 'Ghost Token',
+      tokenSymbol: 'GHST',
+      totalSupply: '42000000000000000000000000',
+      factory: LAUNCH_FACTORY,
+      feeSchedule: { ...FEE_SCHEDULE_STANDARD },
+      feeBps: { ...FEE_BPS_STANDARD },
+      feeRecipients: { ...FEE_RECIPIENTS_STANDARD },
+      bondPaid: true,
+      // No verification artifact — the detail card must flag this loudly:
+      // deploy-gate requires one for allowlisted factories.
+    },
+    decidedAt: null,
+    decidedBy: null,
+    decisionReason: null,
+  },
+  {
+    id: 'lr_approved_bluechip',
+    status: 'approved',
+    chain: 'base',
+    requestedBy: 'agent:atlas-desk-03',
+    requestedAt: '2026-08-15T14:02:00.000Z',
+    context: {
+      tokenName: 'Atlas Yield',
+      tokenSymbol: 'ATLS',
+      totalSupply: '500000000000000000000000000',
+      factory: LAUNCH_FACTORY,
+      feeSchedule: {
+        creatorShare: 0.01,
+        lpShare: 0.002,
+        protocolShare: 0.002,
+        buybackShare: 0.001,
+      },
+      feeBps: { creator: 100, lp: 20, protocol: 20, buyback: 10 },
+      feeRecipients: { ...FEE_RECIPIENTS_STANDARD },
+      bondPaid: true,
+      verification: {
+        id: 't21:factory-base:v2',
+        hash: '0x8b42e1d5c7a9f3e6d2b8c4a1f5e9d3b7c2a6f8e4d1b5c9a3f7e2d6b8c4a19f53',
+        claims: [
+          {
+            claim: 'admin_key_free',
+            evidence: 't21/admin-key.spec.ts#no-admin-keyset',
+            verifiedAt: '2026-08-15T10:40:00.000Z',
+          },
+          {
+            claim: 'non_upgradeable',
+            evidence: 't21/upgradeability.spec.ts#no-proxy',
+            verifiedAt: '2026-08-15T10:40:00.000Z',
+          },
+          {
+            claim: 'fee_split_invariant',
+            evidence: 't21/fee-split.spec.ts#shares-sum',
+            verifiedAt: '2026-08-15T10:40:00.000Z',
+          },
+        ],
+      },
+    },
+    decidedAt: '2026-08-15T16:30:00.000Z',
+    decidedBy: 'backoffice:deck',
+    decisionReason: 'Full T21 battery verified; fee split at platform norms.',
+  },
+  {
+    id: 'lr_rejected_feegrab',
+    status: 'rejected',
+    chain: 'base',
+    requestedBy: 'agent:quickmint-04',
+    requestedAt: '2026-08-14T18:44:00.000Z',
+    context: {
+      tokenName: 'Moon Grab',
+      tokenSymbol: 'MGRB',
+      totalSupply: '690000000000000000000000000',
+      factory: LAUNCH_FACTORY,
+      feeSchedule: {
+        creatorShare: 0.05,
+        lpShare: 0.001,
+        protocolShare: 0.001,
+        buybackShare: 0,
+      },
+      feeBps: { creator: 500, lp: 10, protocol: 10, buyback: 0 },
+      feeRecipients: {
+        creator: '0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+        lp: '0x1f2e3d4c5b6a798897a6b5c4d3e2f11029384756',
+        protocol: '0x9d8c7b6a5f4e3d2c1b0a9f8e7d6c5b4a3f2e1d0c',
+        buyback: '0x0a1b2c3d4e5f6789987654321fedcba012345678',
+      },
+      bondPaid: false,
+    },
+    decidedAt: '2026-08-14T19:10:00.000Z',
+    decidedBy: 'backoffice:deck',
+    decisionReason:
+      'Creator fee 5% is far above platform norms, bond unpaid and no T21 artifact.',
+  },
+  {
+    id: 'lr_deployed_wow',
+    status: 'deployed',
+    chain: 'base',
+    requestedBy: 'agent:surf-desk-01',
+    requestedAt: '2026-08-12T11:05:00.000Z',
+    context: {
+      tokenName: 'Wow Token',
+      tokenSymbol: 'WOW',
+      totalSupply: '2100000000000000000000000',
+      factory: LAUNCH_FACTORY,
+      feeSchedule: { ...FEE_SCHEDULE_STANDARD },
+      feeBps: { ...FEE_BPS_STANDARD },
+      feeRecipients: { ...FEE_RECIPIENTS_STANDARD },
+      bondPaid: true,
+      verification: {
+        id: T21_FULL.id,
+        hash: T21_FULL.hash,
+        claims: T21_FULL.claims.map((entry) => ({ ...entry })),
+      },
+    },
+    decidedAt: '2026-08-12T13:20:00.000Z',
+    decidedBy: 'backoffice:deck',
+    decisionReason: 'Clean battery; approved for deploy.',
+  },
+];
+
+/**
+ * Launch-factory health — deck-local shape until the deploy-gate branch
+ * ships GET /api/health/launchpad. Mirrors the WorkerHealth card pattern.
+ */
+export interface FactoryHealth {
+  component: string;
+  ok: boolean;
+  detail: string | null;
+  chain: string;
+  factory: `0x${string}`;
+  pendingReviews: number;
+  checkedAt: string;
+}
+
+export const MOCK_FACTORY_HEALTH: FactoryHealth = {
+  component: 'launchpad-factory',
+  ok: true,
+  detail: null,
+  chain: 'base',
+  factory: LAUNCH_FACTORY,
+  pendingReviews: 2,
+  checkedAt: '2026-08-16T09:30:00.000Z',
 };
