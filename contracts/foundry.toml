@@ -14,12 +14,25 @@ src = "src"
 test = "test"
 script = "script"
 libs = ["lib"]
+# Deploy kit writes its offline transaction JSON under deploy-kit-out/
+# (simulate-only kit; no broadcast, no signing code — script/DeployKit.s.sol).
+fs_permissions = [{ access = "write", path = "./deploy-kit-out/" }]
 
 # T21 §4.4 campaign params (wave5-t21-verification-design.md): runs >= 256,
 # depth >= 100, no fail-on-revert (reverting paths are expected in handlers).
 [profile.default.invariant]
 runs = 256
 depth = 128
+fail_on_revert = false
+
+# Tier F DEEP campaign profile (runbook Appendix A / Main wave-5 closing
+# ruling): the release-tag battery runs the invariant campaigns at
+# runs >= 2000, depth >= 512 — 32x the embryo campaign volume. Entry point:
+# FOUNDRY_PROFILE=battery forge test (nx target battery-g1). Everything else
+# inherits from [profile.default].
+[profile.battery.invariant]
+runs = 2048
+depth = 512
 fail_on_revert = false
 
 [fmt]
