@@ -1,5 +1,6 @@
 export * from './lib/api.js';
 export * from './lib/chains.js';
+export * from './lib/deploy.js';
 export * from './lib/feeds.js';
 export * from './lib/orders.js';
 export * from './lib/security.js';
