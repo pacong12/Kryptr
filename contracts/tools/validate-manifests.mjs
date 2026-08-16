@@ -41,7 +41,13 @@ if (!existsSync(deploymentsDir)) {
   process.exit(0);
 }
 
-const files = readdirSync(deploymentsDir).filter((f) => f.endsWith('.json'));
+// Deploy manifests ({chain}.json) only. G5 verification artifacts
+// ({chain}.verification.json, runbook §7) live in the same directory but
+// carry a different shape — they are verified by tools/verify-content-hash.mjs
+// in the release-tag workflow, never by the manifest schema.
+const files = readdirSync(deploymentsDir).filter(
+  (f) => f.endsWith('.json') && !f.endsWith('.verification.json'),
+);
 if (files.length === 0) {
   console.log(
     '[manifests] deployments/ is empty — nothing to validate (pre-launch state).',

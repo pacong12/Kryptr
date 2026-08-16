@@ -1,0 +1,133 @@
+name: Release-tag battery
+
+# Wave-5 close / release gate (wave5-release-tag-battery-runbook.md):
+# dispatch at a named contracts-v* tag -> run the Tier-F battery
+# (G1 -> G2 -> G3 fail-fast via the `battery` wrapper target, cache off),
+# then INDEPENDENTLY re-derive every G5 artifact's contentHash (never
+# trust the producer's recorded hash — runbook §7 pass criterion).
+#
+# Two SEPARATE gates, never conflated (VaultAPI review of this file):
+#   - job `battery`   — Tier F PASS. Always required.
+#   - job `verify-g5` — G5 artifact presence + hash verification.
+#     G5 assembly itself is a runbook §7 step carried over to wave 6
+#     (Main ruling), so the wave-5 closing tag legitimately has NO
+#     artifacts. `expect_artifacts` defaults TRUE (fail-closed for every
+#     future launch tag); the wave-5 closing run sets it false EXPLICITLY
+#     — an auditable one-time opt-out, never a silent skip. Artifacts
+#     that DO exist are always verified, in both modes.
+#
+# Dispatch-only by design: the opt-out is an input, so an automatic
+# tag-push trigger could never carry it (and a bare tag push must never
+# decide gate semantics). The operator cuts the tag AND explicitly runs
+# the battery at it — two deliberate, audited acts (keyless ruling).
+# Deploy is NOT part of this workflow: factory stays dark until wave 6.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to run the battery at (e.g. contracts-v0.1.0)'
+        required: true
+        type: string
+      expect_artifacts:
+        description: 'Require G5 verification artifacts (fail-closed). Wave-5 closing only: set false explicitly.'
+        required: true
+        type: boolean
+        default: true
+      fork_block_base:
+        description: 'Optional Base mainnet fork block pin. Empty = latest.'
+        required: false
+        default: ''
+        type: string
+      fork_block_base_sepolia:
+        description: 'Optional Base Sepolia fork block pin (rehearsal B_fork). Empty = latest.'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  battery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          # Run the battery at exactly the named tag (single-commit
+          # provenance — same principle as B_pin).
+          ref: refs/tags/${{ github.event.inputs.tag }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - run: npm ci
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          # Exact pin — matches the contracts CI job; never float.
+          version: v1.7.1
+
+      - name: Install Slither
+        run: python3 -m pip install --user slither-analyzer==0.11.6
+
+      # Vault's Tier-F harness defines battery-g1/g2/g3 + the `battery`
+      # wrapper (G1 -> G2 -> G3, fail-fast, all cache:false — the battery
+      # must be a real execution, Main ruling). G3 is the keyless Base
+      # Sepolia fork leg (unit-only per the 429 ruling).
+      - name: Tier-F battery (G1 -> G2 -> G3, fail-fast)
+        run: npx nx run @kryptr/contracts:battery
+        env:
+          RPC_URL_BASE: https://mainnet.base.org
+          RPC_URL_BASE_SEPOLIA: https://sepolia.base.org
+          FORK_BLOCK_BASE: ${{ github.event.inputs.fork_block_base || vars.FORK_BLOCK_BASE }}
+          FORK_BLOCK_BASE_SEPOLIA: ${{ github.event.inputs.fork_block_base_sepolia || vars.FORK_BLOCK_BASE_SEPOLIA }}
+
+  verify-g5:
+    needs: battery
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          ref: refs/tags/${{ github.event.inputs.tag }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      # Independent re-canonicalization (Web3Intel rule): strip each
+      # artifact's contentHash, canonicalize per the pinned in-repo RFC
+      # 8785 tool, sha256, compare. Any mismatch fails the release.
+      # Presence requirement is separate from verification: existing
+      # artifacts are ALWAYS verified; expect_artifacts only governs
+      # whether zero artifacts is allowed.
+      - name: Independent contentHash verification
+        run: |
+          shopt -s nullglob
+          artifacts=(contracts/deployments/*.verification.json)
+          if [ ${#artifacts[@]} -eq 0 ]; then
+            if [ "${{ github.event.inputs.expect_artifacts }}" = "false" ]; then
+              echo "No G5 artifacts and expect_artifacts=false — audited one-time opt-out."
+              echo "Wave-5 closing: G5 assembly is a wave-6 carry-over (runbook §7)."
+              exit 0
+            fi
+            echo "No G5 verification artifacts and expect_artifacts=true — fail closed."
+            exit 1
+          fi
+          node contracts/tools/verify-content-hash.mjs "${artifacts[@]}"
+
+      - name: Upload G5 artifacts
+        if: ${{ hashFiles('contracts/deployments/*.verification.json') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: g5-release-artifacts
+          path: |
+            contracts/deployments/*.json
+            contracts/deployments/*.verification.json
+          if-no-files-found: error
