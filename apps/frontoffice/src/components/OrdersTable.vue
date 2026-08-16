@@ -8,11 +8,40 @@ import {
   TableRow,
 } from '@kryptr/shared-ui/vue/table';
 import { Badge } from '@kryptr/shared-ui/vue/badge';
-import type { Order } from '@kryptr/shared-types';
-import { shortAddress, formatTimestamp, CHAIN_LABELS } from '@/lib/format';
+import { Button } from '@kryptr/shared-ui/vue/button';
+import type {
+  ApiError,
+  Order,
+  OrderExecution,
+  WalletBalance,
+} from '@kryptr/shared-types';
+import { List } from '@lucide/vue';
+import {
+  CHAIN_LABELS,
+  formatTimestamp,
+  formatUnits,
+  resolveAssetMeta,
+  shortAddress,
+} from '@/lib/format';
+import type { OrderExecutionsState } from '@/composables/useOrderExecutions';
+import OrderExecutionPanel from '@/components/OrderExecutionPanel.vue';
 import OrderStatusBadge from '@/components/OrderStatusBadge.vue';
 
-defineProps<{ orders: Order[]; workerDown: boolean }>();
+const props = defineProps<{
+  orders: Order[];
+  workerDown: boolean;
+  /** Used to format raw-unit amounts; unknown assets render raw. */
+  balances: WalletBalance[];
+  /** Executions expansion state (owned by the page). */
+  expandedOrderId: string | null;
+  executionsState: OrderExecutionsState;
+  executions: OrderExecution[];
+  executionsError: ApiError | null;
+}>();
+
+const emit = defineEmits<{
+  (event: 'toggle-executions', orderId: string): void;
+}>();
 
 const TYPE_LABELS: Record<Order['type'], string> = {
   limit: 'Limit',
@@ -24,6 +53,17 @@ const TYPE_LABELS: Record<Order['type'], string> = {
 /** Assets render as "Native" or a shortened address; no symbol guessing. */
 function assetLabel(address: `0x${string}` | null): string {
   return address === null ? 'Native' : shortAddress(address);
+}
+
+/**
+ * Format the raw-unit amount via the wallet's known asset metadata
+ * (#52 follow-up). An unknown asset falls back to the raw string — the
+ * table never invents decimals or symbols.
+ */
+function amountLabel(order: Order): string {
+  const meta = resolveAssetMeta(order.chain, order.baseAsset, props.balances);
+  if (meta === null) return order.amount;
+  return `${formatUnits(order.amount, meta.decimals)} ${meta.symbol}`;
 }
 
 /** Trigger condition column: limit price or DCA cadence. */
@@ -66,41 +106,62 @@ function triggerLabel(order: Order): string {
           <TableHead>Trigger</TableHead>
           <TableHead>Status</TableHead>
           <TableHead>Created</TableHead>
+          <TableHead class="w-10">
+            <span class="sr-only">Executions</span>
+          </TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
-        <TableRow
-          v-for="order in orders"
-          :key="order.id"
-          :data-order-id="order.id"
-        >
-          <TableCell>
-            <Badge variant="outline">{{ TYPE_LABELS[order.type] }}</Badge>
-          </TableCell>
-          <TableCell class="capitalize">{{ order.side }}</TableCell>
-          <TableCell class="font-mono text-xs">
-            {{ assetLabel(order.baseAsset) }} →
-            {{ assetLabel(order.quoteAsset) }}
-            <span class="text-muted-foreground">
-              ({{ CHAIN_LABELS[order.chain] }})
-            </span>
-          </TableCell>
-          <!--
-            TODO(rewire): format with resolveAssetMeta + formatUnits once the
-            real order endpoints land (#47 review follow-up). Unreachable while
-            the fail-closed stub returns no orders.
-          -->
-          <TableCell class="font-mono text-xs">{{ order.amount }}</TableCell>
-          <TableCell class="font-mono text-xs">{{
-            triggerLabel(order)
-          }}</TableCell>
-          <TableCell>
-            <OrderStatusBadge :status="order.status" />
-          </TableCell>
-          <TableCell class="text-muted-foreground text-xs">
-            {{ formatTimestamp(order.createdAt) }}
-          </TableCell>
-        </TableRow>
+        <template v-for="order in orders" :key="order.id">
+          <TableRow :data-order-id="order.id">
+            <TableCell>
+              <Badge variant="outline">{{ TYPE_LABELS[order.type] }}</Badge>
+            </TableCell>
+            <TableCell class="capitalize">{{ order.side }}</TableCell>
+            <TableCell class="font-mono text-xs">
+              {{ assetLabel(order.baseAsset) }} →
+              {{ assetLabel(order.quoteAsset) }}
+              <span class="text-muted-foreground">
+                ({{ CHAIN_LABELS[order.chain] }})
+              </span>
+            </TableCell>
+            <TableCell class="font-mono text-xs">
+              {{ amountLabel(order) }}
+            </TableCell>
+            <TableCell class="font-mono text-xs">{{
+              triggerLabel(order)
+            }}</TableCell>
+            <TableCell>
+              <OrderStatusBadge :status="order.status" />
+            </TableCell>
+            <TableCell class="text-muted-foreground text-xs">
+              {{ formatTimestamp(order.createdAt) }}
+            </TableCell>
+            <TableCell>
+              <Button
+                variant="ghost"
+                size="icon"
+                :aria-label="`Show executions for order ${order.id}`"
+                :aria-expanded="expandedOrderId === order.id"
+                @click="emit('toggle-executions', order.id)"
+              >
+                <List aria-hidden="true" />
+              </Button>
+            </TableCell>
+          </TableRow>
+          <TableRow
+            v-if="expandedOrderId === order.id"
+            :data-executions-row="order.id"
+          >
+            <TableCell colspan="8">
+              <OrderExecutionPanel
+                :state="executionsState"
+                :executions="executions"
+                :error="executionsError"
+              />
+            </TableCell>
+          </TableRow>
+        </template>
       </TableBody>
     </Table>
   </div>

@@ -12,6 +12,7 @@ function healthSource(
     list: async () => err({ code: 'worker_unavailable', message: '' }),
     health,
     create: async () => err({ code: 'worker_unavailable', message: '' }),
+    executions: async () => err({ code: 'worker_unavailable', message: '' }),
   };
 }
 

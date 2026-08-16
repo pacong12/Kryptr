@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { effectScope } from 'vue';
-import type { Order } from '@kryptr/shared-types';
-import { ok } from '@kryptr/shared-types';
+import type { Order, OrderExecution } from '@kryptr/shared-types';
+import { err, ok } from '@kryptr/shared-types';
 import { useCreateOrder } from './useCreateOrder';
 import {
   createStubOrdersSource,
@@ -39,6 +39,8 @@ describe('useCreateOrder (fail-closed creation)', () => {
       health: async () =>
         ok({ component: 'order-worker', ok: true, checkedAt: '' }),
       create: createSpy as OrdersSource['create'],
+      executions: async () =>
+        err<OrderExecution[]>({ code: 'worker_unavailable', message: '' }),
     };
     const { api, stop } = mountComposable(source);
 
@@ -76,6 +78,8 @@ describe('useCreateOrder (fail-closed creation)', () => {
       health: async () =>
         ok({ component: 'order-worker', ok: true, checkedAt: '' }),
       create: async () => ok(created),
+      executions: async () =>
+        err<OrderExecution[]>({ code: 'worker_unavailable', message: '' }),
     };
     const { api, stop } = mountComposable(source);
 

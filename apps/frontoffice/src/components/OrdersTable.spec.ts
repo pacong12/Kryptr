@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { mount } from '@vue/test-utils';
-import type { Order } from '@kryptr/shared-types';
+import type { Order, WalletBalance } from '@kryptr/shared-types';
 import OrdersTable from './OrdersTable.vue';
 
 const USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
@@ -23,10 +23,19 @@ function makeOrder(overrides: Partial<Order> = {}): Order {
   };
 }
 
+const BASE_PROPS = {
+  balances: [] as WalletBalance[],
+  expandedOrderId: null as string | null,
+  executionsState: 'idle' as const,
+  executions: [],
+  executionsError: null,
+};
+
 describe('OrdersTable (lifecycle list)', () => {
   it('renders one row per order with status badges', () => {
     const wrapper = mount(OrdersTable, {
       props: {
+        ...BASE_PROPS,
         orders: [
           makeOrder(),
           makeOrder({
@@ -56,9 +65,62 @@ describe('OrdersTable (lifecycle list)', () => {
     );
   });
 
+  it('formats amounts via known asset metadata (#52 follow-up)', () => {
+    const wrapper = mount(OrdersTable, {
+      props: {
+        ...BASE_PROPS,
+        orders: [
+          makeOrder({
+            baseAsset: USDC,
+            quoteAsset: null,
+            side: 'sell',
+            amount: '3000000000',
+          }),
+        ],
+        balances: [
+          {
+            walletId: 'wallet-base-demo',
+            chain: 'base',
+            nativeBalance: '0',
+            tokens: [
+              {
+                contractAddress: USDC,
+                symbol: 'USDC',
+                decimals: 6,
+                amount: '3000000000',
+              },
+            ],
+          },
+        ],
+        workerDown: false,
+      },
+    });
+
+    expect(wrapper.text()).toContain('3000 USDC');
+    expect(wrapper.text()).not.toContain('3000000000');
+  });
+
+  it('falls back to the raw amount when the asset metadata is unknown', () => {
+    const wrapper = mount(OrdersTable, {
+      props: {
+        ...BASE_PROPS,
+        orders: [
+          makeOrder({
+            baseAsset: '0x000000000000000000000000000000000000dEaD',
+          }),
+        ],
+        workerDown: false,
+      },
+    });
+
+    // Unknown token, no balances loaded — raw units render, never invented
+    // decimals.
+    expect(wrapper.text()).toContain('500000000000000000');
+  });
+
   it('shows an honest empty state — no fabricated rows', () => {
     const wrapper = mount(OrdersTable, {
-      props: { orders: [], workerDown: false },
+      props: { ...BASE_PROPS, orders: [], workerDown: false },
     });
     expect(wrapper.text()).toContain('No orders yet');
     expect(wrapper.findAll('[data-order-id]')).toHaveLength(0);
@@ -67,12 +129,44 @@ describe('OrdersTable (lifecycle list)', () => {
 
   it('flags statuses as potentially stale while the worker is down', () => {
     const wrapper = mount(OrdersTable, {
-      props: { orders: [makeOrder()], workerDown: true },
+      props: { ...BASE_PROPS, orders: [makeOrder()], workerDown: true },
     });
     const note = wrapper.find('[data-testid="orders-stale-note"]');
     expect(note.exists()).toBe(true);
     expect(note.text()).toContain('may be stale');
     // Orders remain visible despite the degradation.
     expect(wrapper.findAll('[data-order-id]')).toHaveLength(1);
+  });
+
+  it('emits toggle-executions with the order id', async () => {
+    const wrapper = mount(OrdersTable, {
+      props: { ...BASE_PROPS, orders: [makeOrder()], workerDown: false },
+    });
+
+    await wrapper
+      .find('button[aria-label^="Show executions"]')
+      .trigger('click');
+
+    expect(wrapper.emitted('toggle-executions')).toEqual([['order-1']]);
+  });
+
+  it('renders the executions panel only for the expanded order', () => {
+    const wrapper = mount(OrdersTable, {
+      props: {
+        ...BASE_PROPS,
+        orders: [makeOrder(), makeOrder({ id: 'order-2' })],
+        expandedOrderId: 'order-1',
+        executionsState: 'ready',
+        workerDown: false,
+      },
+    });
+
+    expect(wrapper.find('[data-executions-row="order-1"]').exists()).toBe(true);
+    expect(wrapper.find('[data-executions-row="order-2"]').exists()).toBe(
+      false,
+    );
+    expect(
+      wrapper.find('[data-testid="order-executions-panel"]').exists(),
+    ).toBe(true);
   });
 });

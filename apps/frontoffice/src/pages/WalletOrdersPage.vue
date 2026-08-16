@@ -23,6 +23,7 @@ import WorkerHealthBanner from '@/components/WorkerHealthBanner.vue';
 import { useBalances } from '@/composables/useBalances';
 import { useCreateOrder } from '@/composables/useCreateOrder';
 import { useOrders } from '@/composables/useOrders';
+import { useOrderExecutions } from '@/composables/useOrderExecutions';
 import { useWallets } from '@/composables/useWallets';
 import { NATIVE_ASSET, parseUnits, resolveAssetMeta } from '@/lib/format';
 import { ORDERS_SOURCE_KEY } from '@/lib/orders';
@@ -47,6 +48,29 @@ const {
   create,
   reset: resetCreate,
 } = useCreateOrder(ordersSource);
+const {
+  state: executionsState,
+  orderId: executionsOrderId,
+  executions,
+  error: executionsError,
+  load: loadExecutions,
+  reset: resetExecutions,
+} = useOrderExecutions(ordersSource);
+
+/** Expand/collapse the executions ledger of one order row. */
+function toggleExecutions(orderId: string): void {
+  if (executionsOrderId.value === orderId && executionsState.value !== 'idle') {
+    resetExecutions();
+    return;
+  }
+  void loadExecutions(orderId);
+}
+
+/** Manual refresh also drops any expanded ledger — it may be stale. */
+async function handleRefresh(): Promise<void> {
+  resetExecutions();
+  await refreshOrders();
+}
 
 const wallet = computed(
   () =>
@@ -126,6 +150,7 @@ async function handleSubmit(): Promise<void> {
       description: 'The order worker will evaluate it on the next tick.',
     });
     resetForm();
+    resetExecutions();
     await refreshOrders();
   }
   // Failures surface as the inline Alert (createMeta) — never a stack trace.
@@ -212,7 +237,7 @@ async function handleSubmit(): Promise<void> {
             variant="outline"
             size="sm"
             :disabled="ordersState === 'loading'"
-            @click="refreshOrders"
+            @click="handleRefresh"
           >
             <RefreshCw aria-hidden="true" />
             Refresh
@@ -238,7 +263,17 @@ async function handleSubmit(): Promise<void> {
             </AlertDescription>
           </Alert>
 
-          <OrdersTable v-else :orders="orders" :worker-down="workerDown" />
+          <OrdersTable
+            v-else
+            :orders="orders"
+            :worker-down="workerDown"
+            :balances="balances"
+            :expanded-order-id="executionsOrderId"
+            :executions-state="executionsState"
+            :executions="executions"
+            :executions-error="executionsError"
+            @toggle-executions="toggleExecutions"
+          />
         </CardContent>
       </Card>
     </template>
