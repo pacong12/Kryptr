@@ -20,6 +20,7 @@ function workerSource(health: WorkerHealth): OrdersSource {
     list: async () => err({ code: 'worker_unavailable', message: '' }),
     health: async () => ok(health),
     create: async () => err({ code: 'worker_unavailable', message: '' }),
+    executions: async () => err({ code: 'worker_unavailable', message: '' }),
   };
 }
 
@@ -127,7 +128,8 @@ describe('HomePage (honest landing: current state, no overclaims)', () => {
     expect(apiChip.text()).toContain('Wallet API: unreachable');
     expect(apiChip.text()).toContain('mock fallback');
 
-    // Default stub health card reports ok:false → unavailable, never guessed.
+    // No source provided: the real API source cannot reach the worker
+    // in jsdom → error envelope → "unavailable", never guessed healthy.
     const workerChip = wrapper.find('[data-testid="order-worker-status"]');
     expect(workerChip.text()).toBe('Order worker: unavailable');
   });
@@ -173,7 +175,7 @@ describe('HomePage (honest landing: current state, no overclaims)', () => {
 
     expect(text).toContain('Not live yet');
     expect(text).toContain('dry-run only');
-    expect(text).toContain('Order-worker endpoints are pending');
+    expect(text).toContain('Order executions stop at the unsigned dry-run');
     expect(text).toContain('Robinhood Chain is shown but disabled');
     expect(text).toContain('WalletConnect is not integrated');
   });
