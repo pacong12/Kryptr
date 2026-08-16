@@ -1,5 +1,6 @@
 import type { ChainId } from './chains.js';
 import type { SwapContext } from './trading.js';
+import type { DeployContext } from './deploy.js';
 
 export const TX_STATUSES = [
   'pending_approval',
@@ -30,6 +31,13 @@ export interface TransactionIntent {
   origin: string;
   /** Present iff kind === 'swap'; binds the intent to one quote. */
   swap?: SwapContext;
+  /**
+   * Present iff kind === 'deploy' (wave 5, gate #4 freeze). Carries the
+   * consent-frozen launch context the gate validates pre-sign; see
+   * lib/deploy.ts. Interactive + HITL only — automation origins can
+   * never produce deploy intents (launchpad-decision.md condition 3).
+   */
+  deploy?: DeployContext;
   createdAt: string;
 }
 
