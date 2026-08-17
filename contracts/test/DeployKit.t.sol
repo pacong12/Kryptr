@@ -84,6 +84,83 @@ contract DeployKitTest is Test {
             keccak256(DeployKitLib.factoryDeployData(impl, sink))
         );
     }
+
+    // ------------------------------------------------- S2 §4: round-trip decode
+
+    /// Round-trip decode (S2 §4 item 1): the values parsed back from the exact
+    /// creation bytes equal the operator inputs — the rendered summary IS the
+    /// bytes being sent, by construction.
+    function test_kitDecode_roundTripMatchesInputs() public {
+        address impl = makeAddr("templatePlaceholder");
+        bytes memory data = DeployKitLib.factoryDeployData(impl, sink);
+        DeployKitLib.FactoryArgs memory decoded = DeployKitLib.decodeFactoryArgs(data);
+        assertEq(decoded.template, impl, "decoded template != input");
+        assertEq(uint256(decoded.totalFeeBps), 175, "decoded RATE != frozen 175");
+        assertEq(decoded.bondAmount, 0.01 ether, "decoded bondAmount != frozen 0.01 ETH");
+        assertEq(decoded.bondSink, sink, "decoded bondSink != input");
+    }
+
+    /// Fail-closed decode guards (external seams — library reverts are only
+    /// observable through external calls): truncated args segment and a
+    /// tampered creation-code prefix both revert BEFORE anything is emitted.
+    function test_kitDecode_guardsRevert() public {
+        address impl = makeAddr("templatePlaceholder");
+        bytes memory data = DeployKitLib.factoryDeployData(impl, sink);
+
+        bytes memory truncated = new bytes(data.length - 1);
+        for (uint256 i = 0; i < truncated.length; i++) truncated[i] = data[i];
+        vm.expectRevert(bytes("kit: creation data truncated"));
+        this._decodeExt(truncated);
+
+        bytes memory tampered = data;
+        tampered[0] = bytes1(uint8(tampered[0]) ^ 0xff); // flip a code-prefix byte
+        vm.expectRevert(bytes("kit: creation code prefix drift"));
+        this._decodeExt(tampered);
+    }
+
+    function _decodeExt(bytes memory data)
+        external
+        pure
+        returns (DeployKitLib.FactoryArgs memory)
+    {
+        return DeployKitLib.decodeFactoryArgs(data);
+    }
+
+    /// Fail-closed tripwire (S2 §4 item 2, Web3Intel c.2): EVERY drifted field
+    /// reverts; the clean combination passes. Display alone is never enough.
+    function test_kitAssert_driftReverts() public {
+        address impl = makeAddr("templatePlaceholder");
+        DeployKitLib.FactoryArgs memory clean =
+            DeployKitLib.FactoryArgs(impl, 175, 0.01 ether, sink);
+        DeployKitLib.assertFactoryArgs(clean, impl, sink); // no revert
+
+        // Fresh struct per case — memory struct assignment ALIASES (no
+        // copy), so reusing one `drifted` would corrupt `clean`.
+        DeployKitLib.FactoryArgs memory drifted =
+            DeployKitLib.FactoryArgs(makeAddr("otherTemplate"), 175, 0.01 ether, sink);
+        vm.expectRevert(bytes("kit: decoded template drift"));
+        this._assertExt(drifted, impl, sink);
+
+        drifted = DeployKitLib.FactoryArgs(impl, 176, 0.01 ether, sink);
+        vm.expectRevert(bytes("kit: decoded totalFeeBps drift"));
+        this._assertExt(drifted, impl, sink);
+
+        drifted = DeployKitLib.FactoryArgs(impl, 175, 0.02 ether, sink);
+        vm.expectRevert(bytes("kit: decoded bondAmount drift"));
+        this._assertExt(drifted, impl, sink);
+
+        drifted = DeployKitLib.FactoryArgs(impl, 175, 0.01 ether, makeAddr("otherSink"));
+        vm.expectRevert(bytes("kit: decoded bondSink drift"));
+        this._assertExt(drifted, impl, sink);
+    }
+
+    function _assertExt(
+        DeployKitLib.FactoryArgs memory decoded,
+        address templateAddr,
+        address bondSinkAddr
+    ) external pure {
+        DeployKitLib.assertFactoryArgs(decoded, templateAddr, bondSinkAddr);
+    }
 }
 
 /// @notice F2 (Review54): run()-level proof — drive DeployKit.run() through the
@@ -102,6 +179,18 @@ contract DeployKitRunTest is Test {
         assertEq(j.readString(".value"), "0x0");
         assertTrue(vm.keyExists(j, ".to"), "to field must be present");
         assertEq(j.readBytes(".data"), DeployKitLib.templateDeployData(), "tx1 data drift");
+        // S2 §4 emitters: stage echo + calldataKeccak + decoded bytecodeSha256
+        assertEq(j.readString(".stage"), "template");
+        assertEq(
+            j.readBytes32(".calldataKeccak"),
+            keccak256(DeployKitLib.templateDeployData()),
+            "calldataKeccak != keccak of emitted bytes"
+        );
+        assertEq(
+            j.readBytes32(".decoded.bytecodeSha256"),
+            sha256(DeployKitLib.templateDeployData()),
+            "bytecodeSha256 != sha256 of creation code"
+        );
     }
 
     function test_run_factoryStage_emitsExactJson() public {
@@ -113,11 +202,29 @@ contract DeployKitRunTest is Test {
         string memory j = vm.readFile("deploy-kit-out/factory-deploy.json");
         assertEq(j.readString(".kind"), "factory-deploy");
         assertEq(j.readString(".value"), "0x0");
-        assertEq(j.readAddress(".constructorArgs.template"), tmpl);
-        assertEq(j.readUint(".constructorArgs.totalFeeBps"), 175);
-        assertEq(j.readUint(".constructorArgs.bondAmountWei"), 0.01 ether);
-        assertEq(j.readAddress(".constructorArgs.bondSink"), sink);
-        assertEq(j.readBytes(".data"), DeployKitLib.factoryDeployData(tmpl, sink), "tx2 data drift");
+        assertEq(
+            j.readBytes(".data"),
+            DeployKitLib.factoryDeployData(tmpl, sink),
+            "tx2 data drift"
+        );
+        // S2 §4: decoded block is the round-trip parse of the SAME bytes (the
+        // old top-level constructorArgs moved under .decoded per the ceremony
+        // payload format).
+        assertEq(j.readString(".stage"), "factory");
+        assertEq(j.readAddress(".decoded.constructorArgs.template"), tmpl);
+        assertEq(j.readUint(".decoded.constructorArgs.totalFeeBps"), 175);
+        assertEq(j.readUint(".decoded.constructorArgs.bondAmountWei"), 0.01 ether);
+        assertEq(j.readAddress(".decoded.constructorArgs.bondSink"), sink);
+        assertEq(
+            j.readBytes32(".calldataKeccak"),
+            keccak256(DeployKitLib.factoryDeployData(tmpl, sink)),
+            "calldataKeccak != keccak of emitted bytes"
+        );
+        // frozen-constants echo: constants -> payload -> decoded args must
+        // match on one screen without re-derivation.
+        assertEq(j.readUint(".frozenConstants.totalFeeBps"), 175);
+        assertEq(j.readUint(".frozenConstants.bondAmountWei"), 0.01 ether);
+        assertEq(j.readAddress(".frozenConstants.bondSink"), sink);
     }
 
     function test_run_invalidStage_reverts() public {
