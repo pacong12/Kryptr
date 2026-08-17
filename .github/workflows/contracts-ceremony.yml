@@ -1,0 +1,506 @@
+name: Contracts ceremony (S3)
+
+# Wave-6 S3 signing-ceremony automation — PREPARE + PUBLISH and POST-BROADCAST
+# VERIFY only (wave6-s2-signing-ceremony.md §5/§6/§8; Main dispatch ruling
+# 2026-08-17). Frozen posture, inherited:
+#
+#   - NO signing key anywhere: no PRIVATE_KEY is ever wired into this
+#     workflow, and a key-shaped-env guard step refuses to run if one ever
+#     appears (fail-closed). Signing remains the ONLY manual step, on the
+#     operator's own device (§6).
+#   - NO broadcast from CI: this workflow assembles and publishes the exact
+#     calldata; the operator signs and broadcasts from their own wallet
+#     (wallet -> operator's RPC). There is no broadcast code in this repo.
+#   - P5 verbatim discipline: the kit's `data` and `calldataKeccak` fields
+#     flow into the ceremony payload VERBATIM — never re-rendered, never
+#     re-encoded, never re-hashed after publication.
+#   - P1: calldataKeccak is published (committed payload + job summary)
+#     BEFORE any signing happens.
+#   - P7: every payload is TESTNET-stamped with an explicit chainId;
+#     testnet PASS != mainnet PASS.
+#   - Robinhood RPC quirk (#98 runbook note): this RPC rejects JSON-RPC
+#     batch arrays with HTTP 403 — every RPC call below is a SINGLE call,
+#     never a batch.
+#   - Provenance records releaseTag and toolingCommit SEPARATELY
+#     (#96 §10.1): the kit source comes from the tag checkout; the
+#     assembly tooling comes from the dispatching ref (github.sha).
+#
+# Two dispatch actions (each a separate, deliberate act — same dispatch-only
+# philosophy as release-tag.yml):
+#
+#   action=prepare : checkout the release tag -> run the offline kit emitter
+#     -> keyless nonce read (advisory) -> assemble the ceremony payload ->
+#     commit it on a ceremony branch (official channel, never overwritten:
+#     a re-issue after an abort is a NEW file via a new `attempt`) ->
+#     publish calldataKeccak.
+#
+#   action=verify : post-broadcast backstop, dispatched manually AFTER the
+#     operator broadcasts. Checks the scoped Main subset of §8:
+#     P3  keccak256(tx.input)      == payload.calldataKeccak (THE gate)
+#     P4  receipt.from             == payload.pinnedSender
+#     P6  tx.nonce                 == payload.expectedNonce
+#     +   receipt.status           == success
+#     The full §8 g4-readback (code identity, immutable readbacks,
+#     transcript) is a separate job; REJECT here severs nothing on its own
+#     but is recorded.
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'prepare = build+publish payload; verify = post-broadcast checks'
+        required: true
+        type: choice
+        options:
+          - prepare
+          - verify
+      release_tag:
+        description: 'Contracts release tag to run the kit at (e.g. contracts-v0.1.0)'
+        required: true
+        type: string
+      chain:
+        description: 'Rehearsal chain (claims stay per-chain, P7)'
+        required: true
+        type: choice
+        options:
+          - base-sepolia
+          - robinhood-46630
+      stage:
+        description: 'template (tx1) or factory (tx2; needs template_address from the stage-1 RECEIPT)'
+        required: true
+        type: choice
+        options:
+          - template
+          - factory
+      template_address:
+        description: 'factory stage only: live template address from the stage-1 RECEIPT (never from a commit)'
+        required: false
+        default: ''
+        type: string
+      bond_sink:
+        description: 'factory stage: must equal the pinned rehearsal sink (fail-closed otherwise)'
+        required: false
+        default: ''
+        type: string
+      attempt:
+        description: '1 = first issue; after an abort use the next number (re-issue = NEW file, never overwrite)'
+        required: true
+        default: '1'
+        type: string
+      deploy_tx_hash:
+        description: 'verify only: the broadcast tx hash reported by the operator'
+        required: false
+        default: ''
+        type: string
+      payload_ref:
+        description: 'verify only: ref carrying the committed ceremony payload (ceremony branch or main after merge)'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: write # prepare pushes the ceremony branch carrying the payload commit
+
+jobs:
+  prepare:
+    if: ${{ github.event.inputs.action == 'prepare' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          ref: refs/tags/${{ github.event.inputs.release_tag }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.7.1
+
+      # Key guard: this workflow must never run with key-shaped material in
+      # the environment. Fail closed BEFORE anything else executes.
+      - name: Key guard (fail-closed)
+        run: |
+          set -euo pipefail
+          if env | cut -d= -f1 | grep -qiE 'PRIVATE_KEY|SECRET_KEY|SIGNING_KEY|MNEMONIC|HD_SEED'; then
+            echo "key-shaped environment variable present — ceremony workflow refuses to run."
+            exit 1
+          fi
+          echo "key guard: no key-shaped environment variables present"
+
+      - name: Validate inputs and resolve chain constants
+        run: |
+          set -euo pipefail
+          CHAIN="${{ github.event.inputs.chain }}"
+          STAGE="${{ github.event.inputs.stage }}"
+          TAG="${{ github.event.inputs.release_tag }}"
+          PINNED_SENDER="0x00e7bE21b70DD57bA2AAC3C32657304dDA6863C2"
+
+          case "$CHAIN" in
+            base-sepolia)    CHAIN_ID=84532; RPC="https://sepolia.base.org" ;;
+            robinhood-46630) CHAIN_ID=46630; RPC="https://rpc.testnet.chain.robinhood.com" ;;
+            *) echo "unknown chain: $CHAIN"; exit 1 ;;
+          esac
+
+          case "$TAG" in
+            contracts-v*) ;;
+            *) echo "release tag must look like contracts-v* (got: $TAG)"; exit 1 ;;
+          esac
+
+          if [ "$STAGE" = "factory" ]; then
+            TA="${{ github.event.inputs.template_address }}"
+            if ! [[ "$TA" =~ ^0x[0-9a-fA-F]{40}$ ]]; then
+              echo "factory stage requires template_address — the live address from the stage-1 RECEIPT."
+              exit 1
+            fi
+            if [ -z "${{ github.event.inputs.bond_sink }}" ]; then
+              echo "factory stage requires bond_sink (pinned rehearsal sink: $PINNED_SENDER)."
+              exit 1
+            fi
+          fi
+
+          BS="${{ github.event.inputs.bond_sink }}"
+          if [ -n "$BS" ] && [ "${BS,,}" != "${PINNED_SENDER,,}" ]; then
+            echo "bond_sink differs from the pinned rehearsal sink — fail closed."
+            exit 1
+          fi
+
+          AT="${{ github.event.inputs.attempt }}"
+          if ! [[ "$AT" =~ ^[1-9][0-9]*$ ]]; then
+            echo "attempt must be a positive integer (got: $AT)"
+            exit 1
+          fi
+
+          {
+            echo "CHAIN_ID=$CHAIN_ID"
+            echo "RPC=$RPC"
+            echo "PINNED_SENDER=$PINNED_SENDER"
+            echo "ATTEMPT=$AT"
+            echo "TAG_SHA=$(git rev-parse HEAD)"
+          } >> "$GITHUB_ENV"
+          echo "inputs OK — chain=$CHAIN ($CHAIN_ID) stage=$STAGE tag=$TAG attempt=$AT"
+
+      # The kit is offline by construction: no vm.broadcast, no chain reads,
+      # no signing code. Run from the contracts/ subdir (fork-env lesson
+      # does not apply offline, but the subdir keeps paths identical to the
+      # battery targets).
+      - name: Run kit emitter (offline)
+        run: |
+          set -euo pipefail
+          cd contracts
+          if [ "${{ github.event.inputs.stage }}" = "template" ]; then
+            KIT_STAGE=template forge script script/DeployKit.s.sol --offline
+            OUT=deploy-kit-out/template-deploy.json
+          else
+            KIT_STAGE=factory \
+            TEMPLATE_ADDRESS="${{ github.event.inputs.template_address }}" \
+            BOND_SINK="${{ github.event.inputs.bond_sink }}" \
+            forge script script/DeployKit.s.sol --offline
+            OUT=deploy-kit-out/factory-deploy.json
+          fi
+          test -s "$OUT"
+          echo "KIT_JSON=contracts/$OUT" >> "$GITHUB_ENV"
+
+      # Keyless nonce read — ONE single JSON-RPC call (never a batch array:
+      # Robinhood RPC rejects batches with HTTP 403, #98). Advisory only:
+      # the operator's wallet nonce at submit time is authoritative (P6
+      # abort rule stays with the human).
+      - name: Keyless nonce read (single call, advisory)
+        run: |
+          set -euo pipefail
+          RESP=$(curl -sS -m 30 -X POST "$RPC" -H 'Content-Type: application/json' \
+            --data '{"jsonrpc":"2.0","id":1,"method":"eth_getTransactionCount","params":["'"$PINNED_SENDER"'","latest"]}')
+          echo "rpc response: $RESP"
+          NONCE=$(printf '%s' "$RESP" | jq -r '.result // empty')
+          if ! [[ "$NONCE" =~ ^0x[0-9a-f]+$ ]]; then
+            echo "nonce read failed or malformed — fail closed (no payload publication)."
+            exit 1
+          fi
+          echo "EXPECTED_NONCE=$NONCE" >> "$GITHUB_ENV"
+          echo "pinned-sender nonce at $(date -u +%Y-%m-%dT%H:%M:%SZ): $NONCE"
+
+      # Advisory CREATE address prediction — pure local computation
+      # (rlp(sender, nonce) -> keccak -> last 20 bytes), no chain reads.
+      # Receipt stays the truth; prediction is for the human checklist.
+      - name: Predict address (offline, advisory)
+        run: |
+          set -euo pipefail
+          NONCE_DEC=$(printf '%d' "$EXPECTED_NONCE") # cast takes decimal; payload keeps hex
+          PRED=$(cast compute-address "$PINNED_SENDER" --nonce "$NONCE_DEC" | awk '{print $NF}')
+          if ! [[ "$PRED" =~ ^0x[0-9a-fA-F]{40}$ ]]; then
+            echo "cast compute-address produced no address — fail closed."
+            exit 1
+          fi
+          echo "PREDICTED_ADDRESS=$PRED" >> "$GITHUB_ENV"
+          echo "advisory predicted address rlp(sender, $EXPECTED_NONCE): $PRED"
+
+      # Assembly is inline tooling (ships with THIS workflow file, so the
+      # toolingCommit recorded in provenance = github.sha, per #96 §10.1).
+      # Kit fields `data` / `calldataKeccak` / `decoded` / `frozenConstants`
+      # are copied VERBATIM — never re-rendered, never re-hashed (P5).
+      - name: Assemble ceremony payload
+        run: |
+          set -euo pipefail
+          cat > /tmp/ceremony-assemble.mjs <<'EOF'
+          import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+          import { dirname } from 'node:path';
+
+          const env = process.env;
+          const need = (k) => {
+            const v = env[k];
+            if (!v) {
+              console.error(`assemble: missing ${k}`);
+              process.exit(1);
+            }
+            return v;
+          };
+
+          const PINNED = '0x00e7bE21b70DD57bA2AAC3C32657304dDA6863C2';
+          const CHAIN_IDS = { 'base-sepolia': 84532, 'robinhood-46630': 46630 };
+          const RPCS = {
+            'base-sepolia': 'https://sepolia.base.org',
+            'robinhood-46630': 'https://rpc.testnet.chain.robinhood.com',
+          };
+
+          const stage = need('C_STAGE');
+          const chain = need('C_CHAIN');
+          const tag = need('C_TAG');
+          const kit = JSON.parse(readFileSync(need('C_KIT_JSON'), 'utf8'));
+
+          const fail = (why) => {
+            console.error(`assemble: FAIL-CLOSED — ${why}`);
+            process.exit(1);
+          };
+
+          if (kit.stage !== stage) fail(`kit stage ${kit.stage} != requested ${stage}`);
+          if (kit.to !== null) fail('deploy tx must be a contract creation (to: null)');
+          if (kit.value !== '0x0') fail('deploy tx must carry value 0x0');
+          if (!/^0x[0-9a-f]{2,}$/.test(kit.data ?? '')) fail('kit data is not lowercase hex');
+          if (!/^0x[0-9a-f]{64}$/.test(kit.calldataKeccak ?? '')) fail('kit calldataKeccak malformed');
+          if (typeof kit.decoded !== 'object' || kit.decoded === null) fail('kit decoded block missing');
+          if (kit.decoded.kind !== `${stage}-deploy`) fail('decoded.kind mismatch');
+
+          if (stage === 'factory') {
+            const args = kit.decoded.constructorArgs;
+            const fc = kit.frozenConstants;
+            if (!args || !fc) fail('factory payload missing constructorArgs/frozenConstants');
+            if (args.totalFeeBps !== 175 || fc.totalFeeBps !== 175) fail('totalFeeBps != frozen 175');
+            if (args.bondAmountWei !== '10000000000000000' || fc.bondAmountWei !== '10000000000000000') {
+              fail('bondAmount != frozen 0.01 ETH');
+            }
+            if ((args.bondSink ?? '').toLowerCase() !== PINNED.toLowerCase()) fail('bondSink != pinned rehearsal sink');
+            if ((fc.bondSink ?? '').toLowerCase() !== PINNED.toLowerCase()) fail('frozenConstants.bondSink != pinned rehearsal sink');
+            if (!/^0x[0-9a-f]{40}$/.test(args.template ?? '')) fail('template address malformed');
+          } else if (!Array.isArray(kit.decoded.constructorArgs) || kit.decoded.constructorArgs.length !== 0) {
+            fail('template stage must have empty constructorArgs');
+          }
+
+          const attempt = Number(need('C_ATTEMPT'));
+          const ceremonyId = `s2:${chain}:${tag}:${stage}` + (attempt > 1 ? `:attempt${attempt}` : '');
+          const payload = {
+            ceremonyId,
+            claim: 'TESTNET',
+            releaseTag: tag,
+            chain: { chainId: CHAIN_IDS[chain], name: chain, rpc: RPCS[chain] },
+            pinnedSender: PINNED,
+            expectedNonce: need('C_NONCE'),
+            predictedAddress: {
+              address: need('C_PREDICTED'),
+              basis: 'rlp(sender, expectedNonce)',
+              advisory: true,
+            },
+            tx: { kind: kit.kind, to: kit.to, value: kit.value, data: kit.data },
+            calldataKeccak: kit.calldataKeccak,
+            decoded: kit.decoded,
+            ...(kit.frozenConstants ? { frozenConstants: kit.frozenConstants } : {}),
+            provenance: {
+              releaseTag: tag,
+              commitSha: need('C_TAG_SHA'),
+              toolingCommit: need('C_TOOLING_COMMIT'),
+              foundry: 'v1.7.1',
+              solc: '0.8.24',
+              generatedAt: new Date().toISOString(),
+            },
+          };
+
+          const out = need('C_OUT');
+          mkdirSync(dirname(out), { recursive: true });
+          writeFileSync(out, JSON.stringify(payload, null, 2) + '\n');
+          console.log(`[ceremony] wrote ${out}`);
+          console.log(`[ceremony] calldataKeccak ${kit.calldataKeccak}`);
+          EOF
+
+          STAGE="${{ github.event.inputs.stage }}"
+          CHAIN="${{ github.event.inputs.chain }}"
+          TAG="${{ github.event.inputs.release_tag }}"
+          SUFFIX=""
+          if [ "$ATTEMPT" -gt 1 ]; then SUFFIX="-attempt$ATTEMPT"; fi
+          PAYLOAD="contracts/deployments/ceremony/${CHAIN}-${TAG}-${STAGE}${SUFFIX}.ceremony.json"
+
+          C_STAGE="$STAGE" C_CHAIN="$CHAIN" C_TAG="$TAG" \
+          C_KIT_JSON="$KIT_JSON" C_NONCE="$EXPECTED_NONCE" C_PREDICTED="$PREDICTED_ADDRESS" \
+          C_ATTEMPT="$ATTEMPT" C_TAG_SHA="$TAG_SHA" C_TOOLING_COMMIT="${{ github.sha }}" \
+          C_OUT="$PAYLOAD" node /tmp/ceremony-assemble.mjs
+
+          echo "PAYLOAD=$PAYLOAD" >> "$GITHUB_ENV"
+          echo "CEREMONY_ID=s2:${CHAIN}:${TAG}:${STAGE}$([ "$ATTEMPT" -gt 1 ] && echo ":attempt${ATTEMPT}" || true)" >> "$GITHUB_ENV"
+
+      # Official channel: commit the payload on a dedicated ceremony branch
+      # (never force-pushed, never overwritten). If the branch already
+      # exists (earlier attempt), base on it so every attempt stays visible
+      # — re-issue after an abort is a NEW file, never an overwrite.
+      - name: Commit payload to ceremony branch
+        run: |
+          set -euo pipefail
+          BRANCH="ceremony/${{ github.event.inputs.chain }}-${{ github.event.inputs.release_tag }}-${{ github.event.inputs.stage }}"
+          echo "CEREMONY_BRANCH=$BRANCH" >> "$GITHUB_ENV"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            git fetch origin "$BRANCH"
+            git checkout -b "$BRANCH" "origin/$BRANCH"
+            if [ -e "$PAYLOAD" ]; then
+              echo "payload file already exists on $BRANCH — a re-issue needs a NEW attempt number (never overwrite)."
+              exit 1
+            fi
+          else
+            git checkout -b "$BRANCH"
+          fi
+
+          git add "$PAYLOAD"
+          git commit -m "ceremony(${CEREMONY_ID}): commit payload for signing (pre-sign publication, P1)"
+          git push origin "HEAD:refs/heads/$BRANCH"
+          echo "payload committed to branch $BRANCH"
+
+      - name: Publish calldataKeccak (P1 — before any signing)
+        run: |
+          set -euo pipefail
+          KECCAK=$(jq -r '.calldataKeccak' "$PAYLOAD")
+          {
+            echo "## S3 ceremony payload — ${CEREMONY_ID}"
+            echo ""
+            echo "- releaseTag: \`${{ github.event.inputs.release_tag }}\` (commit ${TAG_SHA})"
+            echo "- toolingCommit: \`${{ github.sha }}\` (recorded separately, #96 §10.1)"
+            echo "- chain: ${{ github.event.inputs.chain }} (chainId ${CHAIN_ID}) — claim TESTNET (P7)"
+            echo "- stage: ${{ github.event.inputs.stage }} | attempt: ${ATTEMPT} | expectedNonce: ${EXPECTED_NONCE} (advisory, P6)"
+            echo "- predicted address: ${PREDICTED_ADDRESS} (ADVISORY — plain CREATE; receipt is truth)"
+            echo "- payload: \`${PAYLOAD}\` on branch \`${CEREMONY_BRANCH}\`"
+            echo ""
+            echo "**calldataKeccak (published BEFORE signing — P1):** \`${KECCAK}\`"
+            echo ""
+            echo "Next (manual, sole signing step): operator pulls the payload from the branch,"
+            echo "runs the offline verifier + byte-diff checklist (§6), signs and broadcasts from"
+            echo "their own wallet, then dispatches action=verify with the reported tx hash."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload ceremony payload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ceremony-payload-${{ github.event.inputs.chain }}-${{ github.event.inputs.stage }}
+          path: ${{ env.PAYLOAD }}
+          if-no-files-found: error
+
+  verify:
+    if: ${{ github.event.inputs.action == 'verify' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Validate verify inputs
+        run: |
+          set -euo pipefail
+          if [ -z "${{ github.event.inputs.payload_ref }}" ]; then
+            echo "verify requires payload_ref (the ref carrying the committed ceremony payload)."
+            exit 1
+          fi
+          if ! [[ "${{ github.event.inputs.deploy_tx_hash }}" =~ ^0x[0-9a-fA-F]{64}$ ]]; then
+            echo "verify requires deploy_tx_hash (0x + 64 hex chars)."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.payload_ref }}
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.7.1
+
+      # Post-broadcast backstop (scoped Main subset of §8). Single JSON-RPC
+      # calls only — Robinhood RPC rejects batch arrays with 403 (#98).
+      # The full g4-readback (code identity, immutable readbacks,
+      # transcript) is a separate job.
+      - name: Post-broadcast checks (P3 hash-compare, P4 sender pin, P6 nonce, status)
+        run: |
+          set -euo pipefail
+          CHAIN="${{ github.event.inputs.chain }}"
+          STAGE="${{ github.event.inputs.stage }}"
+          TAG="${{ github.event.inputs.release_tag }}"
+          AT="${{ github.event.inputs.attempt }}"
+          TX="${{ github.event.inputs.deploy_tx_hash }}"
+          PINNED_SENDER="0x00e7bE21b70DD57bA2AAC3C32657304dDA6863C2"
+
+          case "$CHAIN" in
+            base-sepolia)    RPC="https://sepolia.base.org" ;;
+            robinhood-46630) RPC="https://rpc.testnet.chain.robinhood.com" ;;
+            *) echo "unknown chain: $CHAIN"; exit 1 ;;
+          esac
+
+          SUFFIX=""
+          if [ "$AT" != "1" ]; then SUFFIX="-attempt$AT"; fi
+          PAYLOAD="contracts/deployments/ceremony/${CHAIN}-${TAG}-${STAGE}${SUFFIX}.ceremony.json"
+          if [ ! -s "$PAYLOAD" ]; then
+            echo "committed payload not found at $PAYLOAD on this ref — fail closed."
+            exit 1
+          fi
+
+          PUB_KECCAK=$(jq -r '.calldataKeccak' "$PAYLOAD")
+          PUB_SENDER=$(jq -r '.pinnedSender' "$PAYLOAD")
+          PUB_NONCE=$(jq -r '.expectedNonce' "$PAYLOAD")
+          if [ "${PUB_SENDER,,}" != "${PINNED_SENDER,,}" ]; then
+            echo "payload pinnedSender != rehearsal pin — fail closed."
+            exit 1
+          fi
+
+          TXRESP=$(curl -sS -m 30 -X POST "$RPC" -H 'Content-Type: application/json' \
+            --data '{"jsonrpc":"2.0","id":1,"method":"eth_getTransactionByHash","params":["'"$TX"'"]}')
+          RCRESP=$(curl -sS -m 30 -X POST "$RPC" -H 'Content-Type: application/json' \
+            --data '{"jsonrpc":"2.0","id":2,"method":"eth_getTransactionReceipt","params":["'"$TX"'"]}')
+
+          INPUT=$(printf '%s' "$TXRESP" | jq -r '.result.input // empty')
+          TX_NONCE=$(printf '%s' "$TXRESP" | jq -r '.result.nonce // empty')
+          FROM=$(printf '%s' "$RCRESP" | jq -r '.result.from // empty')
+          STATUS=$(printf '%s' "$RCRESP" | jq -r '.result.status // empty')
+
+          if [ -z "$INPUT" ] || [ -z "$FROM" ]; then
+            echo "tx $TX not found on $CHAIN — wrong chain, or not yet broadcast/confirmed."
+            exit 1
+          fi
+
+          ACTUAL_KECCAK=$(cast keccak "$INPUT")
+          VERDICT=0
+          check() {
+            if [ "$2" = "$3" ]; then
+              echo "PASS  $1: $2"
+            else
+              echo "REJECT $1: expected $2, got $3"
+              VERDICT=1
+            fi
+          }
+          echo "post-broadcast checks for $TX on $CHAIN (chainId-scoped claim, P7):"
+          check "P3 keccak256(tx.input) == published calldataKeccak" "${PUB_KECCAK,,}" "${ACTUAL_KECCAK,,}"
+          check "P4 receipt.from == pinnedSender" "${PUB_SENDER,,}" "${FROM,,}"
+          check "P6 tx.nonce == expectedNonce" "${PUB_NONCE,,}" "${TX_NONCE,,}"
+          check "receipt.status == success" "0x1" "${STATUS,,}"
+
+          if [ "$VERDICT" -ne 0 ]; then
+            echo "VERDICT: REJECT — what hit the chain does NOT match the published ceremony payload."
+            exit 1
+          fi
+          echo "VERDICT: PASS — on-chain bytes match the published payload (this chain only)."
