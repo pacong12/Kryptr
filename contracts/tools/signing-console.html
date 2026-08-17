@@ -1,0 +1,791 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Kryptr Ceremony Signing Console</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!--
+  Kryptr ceremony signing console — wave 6, S3 manual signing step.
+
+  DESIGN RULES (binding, per OPSI ruling):
+  - Single self-contained file. ZERO external dependencies, ZERO network
+    fetches, ZERO analytics. The only network activity is what the wallet
+    extension itself performs in response to EIP-1193 provider requests.
+  - Private keys / seeds are NEVER touched by this page. Signing happens
+    inside the wallet extension; this page only prepares and submits an
+    eth_sendTransaction request.
+  - Deploy transaction: `to` is ABSENT (contract creation), value is 0x0,
+    data is the payload calldata VERBATIM.
+  - The button is enabled only when:
+      keccak256(tx.data) == payload.calldataKeccak   (computed locally)
+      tx.to === null and tx.value === '0x0'
+      wallet chainId === payload.chain.chainId
+      eth_getTransactionCount(pinnedSender) === payload.expectedNonce
+      pinnedSender is an account the wallet controls
+  - The keccak256 implementation below is minimal BigInt Keccak-f[1600]
+    (Keccak padding 0x01, NOT SHA-3 0x06) and self-tests against two
+    public vectors on load; any failure disables everything.
+-->
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        background: #0d1117;
+        color: #e6edf3;
+        margin: 0;
+        padding: 24px;
+      }
+      .wrap {
+        max-width: 960px;
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: 20px;
+        margin: 0 0 4px;
+      }
+      h2 {
+        font-size: 14px;
+        margin: 24px 0 8px;
+        color: #8b949e;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+      .sub {
+        color: #8b949e;
+        font-size: 13px;
+        margin-bottom: 20px;
+      }
+      .card {
+        background: #161b22;
+        border: 1px solid #30363d;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 16px;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .k {
+        color: #8b949e;
+        min-width: 210px;
+        font-size: 13px;
+      }
+      .v {
+        font-size: 13px;
+        word-break: break-all;
+      }
+      .ok {
+        color: #3fb950;
+        font-weight: bold;
+      }
+      .bad {
+        color: #f85149;
+        font-weight: bold;
+      }
+      .warn {
+        color: #d29922;
+        font-weight: bold;
+      }
+      .pending {
+        color: #8b949e;
+      }
+      .chip {
+        display: inline-block;
+        padding: 2px 10px;
+        border-radius: 12px;
+        font-size: 12px;
+        border: 1px solid #30363d;
+        background: #0d1117;
+        margin: 2px 4px 2px 0;
+      }
+      input[type='file'] {
+        color: #8b949e;
+      }
+      button {
+        font-family: inherit;
+        font-size: 15px;
+        padding: 12px 24px;
+        border-radius: 8px;
+        border: 1px solid #30363d;
+        background: #21262d;
+        color: #e6edf3;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      button.primary {
+        background: #238636;
+        border-color: #2ea043;
+        font-weight: bold;
+      }
+      button.primary:disabled {
+        background: #21262d;
+        border-color: #30363d;
+      }
+      .hash {
+        font-size: 18px;
+        color: #3fb950;
+        word-break: break-all;
+      }
+      pre {
+        background: #0d1117;
+        border: 1px solid #30363d;
+        border-radius: 6px;
+        padding: 10px;
+        font-size: 12px;
+        overflow-x: auto;
+      }
+      .banner {
+        padding: 12px 16px;
+        border-radius: 8px;
+        margin-bottom: 16px;
+        font-size: 14px;
+      }
+      .banner.red {
+        background: #3d1214;
+        border: 1px solid #f85149;
+      }
+      .banner.green {
+        background: #0f2d16;
+        border: 1px solid #2ea043;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Kryptr Ceremony Signing Console</h1>
+      <div class="sub">
+        Manual signing step — the ONLY human gate. Offline tool: this page makes
+        no network requests; all RPC happens inside your wallet extension. Never
+        paste a private key or seed anywhere.
+      </div>
+
+      <div id="keccakBanner" class="banner red">
+        keccak256 self-test running…
+      </div>
+
+      <div class="card">
+        <h2 style="margin-top: 0">1. Load ceremony payload</h2>
+        <div class="row">
+          <input type="file" id="payloadFile" accept=".json,application/json" />
+          <span id="fileName" class="pending">no file loaded</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 style="margin-top: 0">2. Wallet</h2>
+        <div class="row">
+          <button id="connectBtn" disabled>Connect wallet</button>
+          <span id="walletState" class="pending">checking for provider…</span>
+        </div>
+        <div class="row" style="margin-top: 8px">
+          <span class="k">wallet chainId</span
+          ><span id="walletChain" class="v pending">—</span>
+        </div>
+        <div class="row">
+          <span class="k">wallet accounts</span
+          ><span id="walletAccounts" class="v pending">—</span>
+        </div>
+        <div class="row">
+          <span class="k">pinnedSender nonce (latest)</span
+          ><span id="walletNonce" class="v pending">—</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 style="margin-top: 0">3. Payload review (single screen)</h2>
+        <div id="review" class="pending">Load a payload to begin.</div>
+      </div>
+
+      <div class="card">
+        <h2 style="margin-top: 0">4. Gates</h2>
+        <div id="gates" class="pending">—</div>
+      </div>
+
+      <div class="card">
+        <h2 style="margin-top: 0">5. Sign &amp; broadcast</h2>
+        <div class="row">
+          <button id="signBtn" class="primary" disabled>
+            Sign &amp; broadcast (contract creation)
+          </button>
+          <span id="signState" class="pending"></span>
+        </div>
+        <div id="txResult" style="margin-top: 12px"></div>
+      </div>
+
+      <div class="card">
+        <h2 style="margin-top: 0">Appendix A — keccak256 self-test (audit)</h2>
+        <div class="sub" style="margin-bottom: 8px">
+          Minimal BigInt Keccak-f[1600], Keccak padding 0x01 (NOT SHA-3 0x06).
+          Both vectors below are public; the page recomputes them on load and
+          disables all signing on any mismatch.
+        </div>
+        <pre id="vectors"></pre>
+      </div>
+    </div>
+
+    <script>
+      'use strict';
+      /* ===== CORE-CRYPTO-BEGIN =====
+   Minimal Keccak-256 (Ethereum variant) over BigInt lanes.
+   Auditable: no imports, no wasm, ~60 lines of logic. ===== */
+      const MASK64 = (1n << 64n) - 1n;
+      const KECCAK_RC = [
+        0x0000000000000001n,
+        0x0000000000008082n,
+        0x800000000000808an,
+        0x8000000080008000n,
+        0x000000000000808bn,
+        0x0000000080000001n,
+        0x8000000080008081n,
+        0x8000000000008009n,
+        0x000000000000008an,
+        0x0000000000000088n,
+        0x0000000080008009n,
+        0x000000008000000an,
+        0x000000008000808bn,
+        0x800000000000008bn,
+        0x8000000000008089n,
+        0x8000000000008003n,
+        0x8000000000008002n,
+        0x8000000000000080n,
+        0x000000000000800an,
+        0x800000008000000an,
+        0x8000000080008081n,
+        0x8000000000008080n,
+        0x0000000080000001n,
+        0x8000000080008008n,
+      ];
+      const KECCAK_ROT = [
+        0, 1, 62, 28, 27, 36, 44, 6, 55, 20, 3, 10, 43, 25, 39, 41, 45, 15, 21,
+        8, 18, 2, 61, 56, 14,
+      ];
+      function rot64(x, n) {
+        const b = BigInt(n);
+        return ((x << b) | (x >> (64n - b))) & MASK64;
+      }
+      function keccakF1600(A) {
+        for (let round = 0; round < 24; round++) {
+          // theta
+          const C = [
+            A[0] ^ A[5] ^ A[10] ^ A[15] ^ A[20],
+            A[1] ^ A[6] ^ A[11] ^ A[16] ^ A[21],
+            A[2] ^ A[7] ^ A[12] ^ A[17] ^ A[22],
+            A[3] ^ A[8] ^ A[13] ^ A[18] ^ A[23],
+            A[4] ^ A[9] ^ A[14] ^ A[19] ^ A[24],
+          ];
+          for (let x = 0; x < 5; x++) {
+            const D = C[(x + 4) % 5] ^ rot64(C[(x + 1) % 5], 1);
+            A[x] ^= D;
+            A[x + 5] ^= D;
+            A[x + 10] ^= D;
+            A[x + 15] ^= D;
+            A[x + 20] ^= D;
+          }
+          // rho + pi
+          const B = new Array(25);
+          for (let x = 0; x < 5; x++) {
+            for (let y = 0; y < 5; y++) {
+              B[y + 5 * ((2 * x + 3 * y) % 5)] = rot64(
+                A[x + 5 * y],
+                KECCAK_ROT[x + 5 * y],
+              );
+            }
+          }
+          // chi
+          for (let x = 0; x < 5; x++) {
+            for (let y = 0; y < 5; y++) {
+              A[x + 5 * y] =
+                B[x + 5 * y] ^
+                (~B[((x + 1) % 5) + 5 * y] & MASK64 & B[((x + 2) % 5) + 5 * y]);
+            }
+          }
+          // iota
+          A[0] ^= KECCAK_RC[round];
+        }
+        return A;
+      }
+      function keccak256(bytes) {
+        // Uint8Array -> Uint8Array(32)
+        const rate = 136; // 1088-bit rate for 256-bit output
+        const rem = bytes.length % rate;
+        const padLen = rate - rem;
+        const padded = new Uint8Array(bytes.length + padLen);
+        padded.set(bytes);
+        padded[bytes.length] = 0x01; // Keccak (Ethereum) domain/pad start
+        padded[padded.length - 1] |= 0x80; // final pad bit (may share the 0x01 byte)
+        const A = new Array(25).fill(0n);
+        for (let off = 0; off < padded.length; off += rate) {
+          for (let i = 0; i < rate; i += 8) {
+            let lane = 0n;
+            for (let b = 7; b >= 0; b--)
+              lane = (lane << 8n) | BigInt(padded[off + i + b]);
+            A[i >> 3] ^= lane;
+          }
+          keccakF1600(A);
+        }
+        const out = new Uint8Array(32);
+        for (let i = 0; i < 32; i++)
+          out[i] = Number((A[i >> 3] >> BigInt(8 * (i & 7))) & 0xffn);
+        return out;
+      }
+      function bytesToHex(b) {
+        return Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+      }
+      function hexToBytes(h) {
+        if (!/^0x(?:[0-9a-f]{2})+$/i.test(h))
+          throw new Error('strict-hex: malformed input');
+        const s = h.slice(2).toLowerCase();
+        const out = new Uint8Array(s.length / 2);
+        for (let i = 0; i < out.length; i++)
+          out[i] = parseInt(s.substr(2 * i, 2), 16);
+        return out;
+      }
+      /* ===== CORE-CRYPTO-END ===== */
+
+      /* ===== SELF-TEST (public vectors) ===== */
+      const VECTORS = [
+        {
+          name: 'keccak256("")',
+          input: new Uint8Array(0),
+          expected:
+            'c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470',
+        },
+        {
+          name: 'keccak256("abc")',
+          input: new Uint8Array([0x61, 0x62, 0x63]),
+          expected:
+            '4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45',
+        },
+      ];
+      let keccakSelfTestOk = false;
+      (function selfTest() {
+        const lines = [];
+        keccakSelfTestOk = true;
+        for (const v of VECTORS) {
+          const got = bytesToHex(keccak256(v.input));
+          const pass = got === v.expected;
+          if (!pass) keccakSelfTestOk = false;
+          lines.push(
+            `${v.name}\n  expected: ${v.expected}\n  computed: ${got}\n  result:   ${pass ? 'PASS' : 'FAIL'}`,
+          );
+        }
+        document.getElementById('vectors').textContent = lines.join('\n\n');
+        const banner = document.getElementById('keccakBanner');
+        if (keccakSelfTestOk) {
+          banner.className = 'banner green';
+          banner.textContent =
+            'keccak256 self-test: PASS (both public vectors). Local hashing is trustworthy.';
+        } else {
+          banner.className = 'banner red';
+          banner.textContent =
+            'keccak256 self-test: FAIL — signing is permanently disabled on this page. Do NOT proceed.';
+        }
+      })();
+
+      /* ===== STATE ===== */
+      let payload = null;
+      let wallet = {
+        connected: false,
+        chainId: null,
+        accounts: [],
+        nonce: null,
+        nonceError: null,
+      };
+      const $ = (id) => document.getElementById(id);
+      function esc(s) {
+        return String(s).replace(
+          /[&<>"']/g,
+          (c) =>
+            ({
+              '&': '&amp;',
+              '<': '&lt;',
+              '>': '&gt;',
+              '"': '&quot;',
+              "'": '&#39;',
+            })[c],
+        );
+      }
+
+      function row(k, v, cls) {
+        return `<div class="row"><span class="k">${k}</span><span class="v ${cls || ''}">${v}</span></div>`;
+      }
+      function gateChip(label, state, detail) {
+        const cls = state === true ? 'ok' : state === false ? 'bad' : 'pending';
+        const sym =
+          state === true ? 'PASS' : state === false ? 'FAIL' : 'pending';
+        return `<div class="row"><span class="chip ${cls}">${sym}</span><span class="k">${label}</span><span class="v ${cls}">${esc(detail ?? '')}</span></div>`;
+      }
+
+      /* ===== PAYLOAD LOAD ===== */
+      $('payloadFile').addEventListener('change', async (ev) => {
+        const f = ev.target.files[0];
+        if (!f) return;
+        $('fileName').textContent = f.name;
+        try {
+          payload = JSON.parse(await f.text());
+        } catch (e) {
+          payload = null;
+          $('review').innerHTML =
+            `<span class="bad">Not valid JSON: ${esc(e.message)}</span>`;
+          renderGates();
+          return;
+        }
+        renderReview();
+        renderGates();
+        await refreshWalletChecks();
+      });
+
+      function reviewProblem(msg) {
+        $('review').innerHTML =
+          `<span class="bad">${esc(msg)}</span><div class="sub">Signing is disabled. Do not modify the payload by hand — re-run the ceremony workflow.</div>`;
+      }
+
+      function renderReview() {
+        if (!payload) return;
+        const p = payload;
+        if (
+          typeof p.calldataKeccak !== 'string' ||
+          !p.tx ||
+          typeof p.tx.data !== 'string'
+        ) {
+          reviewProblem(
+            'Payload missing calldataKeccak / tx.data — wrong file?',
+          );
+          return;
+        }
+        const tx = p.tx;
+        const dataLen = (tx.data.length - 2) / 2;
+        const pred = p.predictedAddress || {};
+        const chain = p.chain || {};
+        const prov = p.provenance || {};
+        $('review').innerHTML =
+          row('ceremonyId', esc(p.ceremonyId ?? '?')) +
+          row('claim', esc(p.claim ?? '?')) +
+          row('releaseTag', esc(p.releaseTag ?? '?')) +
+          row(
+            'chain / chainId',
+            `${esc(chain.name ?? '?')} / ${esc(chain.chainId ?? '?')}`,
+          ) +
+          row('chain rpc (reference only)', esc(chain.rpc ?? '?')) +
+          row('pinnedSender', esc(p.pinnedSender ?? '?')) +
+          row('expectedNonce', esc(p.expectedNonce ?? '?')) +
+          row(
+            'predictedAddress (advisory)',
+            `${esc(pred.address ?? '?')} <span class="pending">(${esc(pred.basis ?? '?')}${pred.advisory ? ', advisory' : ''})</span>`,
+          ) +
+          row(
+            'tx.to',
+            tx.to === null
+              ? '(absent — contract creation)'
+              : `<span class="bad">${esc(tx.to)} — MUST be absent</span>`,
+          ) +
+          row(
+            'tx.value',
+            tx.value === '0x0'
+              ? '0x0'
+              : `<span class="bad">${esc(tx.value)} — MUST be 0x0</span>`,
+          ) +
+          row(
+            'tx.data length',
+            `${dataLen} bytes (${tx.data.length} hex chars)`,
+          ) +
+          row('payload calldataKeccak', esc(p.calldataKeccak)) +
+          row(
+            'local keccak256(tx.data)',
+            `<span id="localKeccak" class="pending">computing…</span>`,
+          ) +
+          row('provenance.commitSha (tag)', esc(prov.commitSha ?? '?')) +
+          row('provenance.toolingCommit', esc(prov.toolingCommit ?? '?')) +
+          row('enrichment.emitter', esc((p.enrichment || {}).emitter ?? '?')) +
+          row(
+            'enrichment.tagJsonSha256',
+            esc((p.enrichment || {}).tagJsonSha256 ?? '?'),
+          );
+        // compute local keccak async to keep UI responsive on big data
+        setTimeout(() => {
+          const g = gates();
+          const el = $('localKeccak');
+          if (el) {
+            el.textContent = g.localKeccakHex ?? 'ERROR';
+            el.className =
+              'v ' +
+              (g.keccakMatch === true
+                ? 'ok'
+                : g.keccakMatch === false
+                  ? 'bad'
+                  : 'pending');
+          }
+        }, 0);
+      }
+
+      /* ===== GATES ===== */
+      function gates() {
+        const g = {
+          keccakMatch: null,
+          shapeOk: null,
+          chainMatch: null,
+          nonceMatch: null,
+          accountMatch: null,
+          localKeccakHex: null,
+        };
+        if (!keccakSelfTestOk) return g;
+        if (!payload || !payload.tx || typeof payload.tx.data !== 'string')
+          return g;
+        const tx = payload.tx;
+        g.shapeOk = tx.to === null && tx.value === '0x0';
+        try {
+          g.localKeccakHex = '0x' + bytesToHex(keccak256(hexToBytes(tx.data)));
+          g.keccakMatch =
+            g.localKeccakHex.toLowerCase() ===
+            String(payload.calldataKeccak).toLowerCase();
+        } catch (e) {
+          g.keccakMatch = false; // malformed data hex -> fail closed
+        }
+        if (
+          wallet.chainId !== null &&
+          payload.chain &&
+          payload.chain.chainId != null
+        ) {
+          g.chainMatch =
+            BigInt(wallet.chainId) === BigInt(payload.chain.chainId);
+        }
+        if (
+          wallet.nonce !== null &&
+          typeof payload.expectedNonce === 'string'
+        ) {
+          try {
+            g.nonceMatch =
+              BigInt(wallet.nonce) === BigInt(payload.expectedNonce);
+          } catch (e) {
+            g.nonceMatch = false;
+          }
+        }
+        if (
+          wallet.accounts.length &&
+          typeof payload.pinnedSender === 'string'
+        ) {
+          g.accountMatch = wallet.accounts.some(
+            (a) => a.toLowerCase() === payload.pinnedSender.toLowerCase(),
+          );
+        }
+        return g;
+      }
+
+      function renderGates() {
+        const g = gates();
+        if (!keccakSelfTestOk) {
+          $('gates').innerHTML =
+            '<span class="bad">keccak256 self-test failed — gates unavailable.</span>';
+          $('signBtn').disabled = true;
+          return;
+        }
+        if (!payload) {
+          $('gates').innerHTML =
+            '<span class="pending">Load a payload to evaluate gates.</span>';
+          $('signBtn').disabled = true;
+          return;
+        }
+        const dataBytes =
+          payload.tx && typeof payload.tx.data === 'string'
+            ? (payload.tx.data.length - 2) / 2
+            : '?';
+        $('gates').innerHTML =
+          gateChip(
+            'keccak256(tx.data) == payload.calldataKeccak (computed locally)',
+            g.keccakMatch,
+            g.keccakMatch === false
+              ? 'MISMATCH — do not sign'
+              : g.keccakMatch
+                ? `${dataBytes} bytes hashed`
+                : '',
+          ) +
+          gateChip(
+            'contract creation shape (to absent, value 0x0)',
+            g.shapeOk,
+          ) +
+          gateChip(
+            'wallet chainId == payload chain.chainId',
+            g.chainMatch,
+            wallet.chainId !== null ? `wallet ${BigInt(wallet.chainId)}` : '',
+          ) +
+          gateChip(
+            'wallet nonce(pinnedSender) == expectedNonce',
+            g.nonceMatch,
+            wallet.nonceError
+              ? wallet.nonceError
+              : wallet.nonce !== null
+                ? `wallet nonce ${BigInt(wallet.nonce)}`
+                : '',
+          ) +
+          gateChip('pinnedSender is a wallet account', g.accountMatch);
+        const ready =
+          g.keccakMatch === true &&
+          g.shapeOk === true &&
+          g.chainMatch === true &&
+          g.nonceMatch === true &&
+          g.accountMatch === true;
+        $('signBtn').disabled = !ready;
+        if (ready) {
+          $('signState').innerHTML =
+            '<span class="ok">All gates PASS — signing enabled.</span>';
+        } else {
+          $('signState').innerHTML =
+            '<span class="pending">Button stays disabled until every gate is PASS.</span>';
+        }
+      }
+
+      /* ===== WALLET ===== */
+      function provider() {
+        return window.ethereum || null;
+      }
+
+      async function refreshWalletChecks() {
+        const eth = provider();
+        if (!eth) return;
+        try {
+          wallet.chainId = await eth.request({ method: 'eth_chainId' });
+        } catch (e) {
+          wallet.chainId = null;
+        }
+        $('walletChain').textContent =
+          wallet.chainId !== null
+            ? String(BigInt(wallet.chainId))
+            : 'unavailable';
+        $('walletChain').className = 'v';
+        try {
+          const accs = await eth.request({ method: 'eth_accounts' });
+          wallet.accounts = accs || [];
+          $('walletAccounts').textContent = wallet.accounts.length
+            ? wallet.accounts.join(', ')
+            : '(not connected yet)';
+        } catch (e) {
+          /* keep prior list */
+        }
+        if (payload && payload.pinnedSender && eth.request) {
+          try {
+            wallet.nonce = await eth.request({
+              method: 'eth_getTransactionCount',
+              params: [payload.pinnedSender, 'latest'],
+            });
+            wallet.nonceError = null;
+            $('walletNonce').textContent = String(BigInt(wallet.nonce));
+          } catch (e) {
+            wallet.nonce = null;
+            wallet.nonceError = 'nonce query failed (wrong network?)';
+            $('walletNonce').textContent = wallet.nonceError;
+          }
+          $('walletNonce').className = 'v';
+        }
+        renderGates();
+      }
+
+      (function detectProvider() {
+        const eth = provider();
+        if (!eth) {
+          $('walletState').innerHTML =
+            '<span class="bad">no EIP-1193 provider (window.ethereum) — install/enable a wallet extension and reload</span>';
+          return;
+        }
+        $('walletState').innerHTML =
+          '<span class="ok">provider detected</span>';
+        $('connectBtn').disabled = false;
+        eth
+          .request({ method: 'eth_accounts' })
+          .then((accs) => {
+            wallet.accounts = accs || [];
+            $('walletAccounts').textContent = wallet.accounts.length
+              ? wallet.accounts.join(', ')
+              : '(not connected yet)';
+            refreshWalletChecks();
+          })
+          .catch(() => {});
+        if (eth.on) {
+          eth.on('chainChanged', () => refreshWalletChecks());
+          eth.on('accountsChanged', (accs) => {
+            wallet.accounts = accs || [];
+            refreshWalletChecks();
+          });
+        }
+      })();
+
+      $('connectBtn').addEventListener('click', async () => {
+        const eth = provider();
+        if (!eth) return;
+        try {
+          const accs = await eth.request({ method: 'eth_requestAccounts' });
+          wallet.accounts = accs || [];
+          wallet.connected = true;
+          $('walletAccounts').textContent = wallet.accounts.join(', ');
+          $('walletState').innerHTML = '<span class="ok">connected</span>';
+        } catch (e) {
+          $('walletState').innerHTML =
+            `<span class="bad">connection rejected: ${esc(e.message || e)}</span>`;
+        }
+        await refreshWalletChecks();
+      });
+
+      /* ===== SIGN & BROADCAST ===== */
+      $('signBtn').addEventListener('click', async () => {
+        const g = gates();
+        if (!(
+          g.keccakMatch &&
+          g.shapeOk &&
+          g.chainMatch &&
+          g.nonceMatch &&
+          g.accountMatch
+        ))
+          return;
+        const eth = provider();
+        $('signBtn').disabled = true;
+        $('signState').innerHTML =
+          '<span class="warn">Waiting for wallet confirmation…</span>';
+        try {
+          // Contract creation: `to` is deliberately ABSENT. Value fixed 0x0.
+          // Data is the payload calldata VERBATIM. No nonce/gas overrides: the
+          // wallet owns those. This page never sees a private key.
+          const txHash = await eth.request({
+            method: 'eth_sendTransaction',
+            params: [
+              {
+                from: payload.pinnedSender,
+                value: '0x0',
+                data: payload.tx.data,
+              },
+            ],
+          });
+          $('txResult').innerHTML =
+            `<div class="k">Broadcast SUCCESS — report this tx hash to the conductor:</div>
+       <div class="hash" id="txHash"></div>
+       <div class="row" style="margin-top:8px"><button id="copyBtn">Copy tx hash</button></div>
+       <div class="sub" style="margin-top:8px">The G4 readback job will compare on-chain tx.input against this hash line. Do not close until reported.</div>`;
+          $('txHash').textContent = String(txHash);
+          $('signState').innerHTML =
+            '<span class="ok">broadcast accepted</span>';
+          document
+            .getElementById('copyBtn')
+            .addEventListener('click', async () => {
+              try {
+                await navigator.clipboard.writeText(txHash);
+                document.getElementById('copyBtn').textContent = 'copied';
+              } catch (e) {
+                document.getElementById('copyBtn').textContent = 'copy failed';
+              }
+            });
+        } catch (e) {
+          $('signState').innerHTML =
+            `<span class="bad">rejected/failed: ${esc(e.message || e)}</span>`;
+          $('signBtn').disabled = false;
+          renderGates();
+        }
+      });
+    </script>
+  </body>
+</html>

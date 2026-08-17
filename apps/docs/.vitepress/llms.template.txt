@@ -38,7 +38,8 @@ go beyond "passed the verification battery — this is not a warranty".
   switch (off / pause_new / cancel_active). Status: preview.
 - [Launchpad consent]({{DOCS_URL}}/features/launchpad-consent.html):
   token launches with consent-frozen fees (reference 175 bps), on-chain bond,
-  T21 verification. Status: planned — no factory deployed, launchpad dark.
+  T21 verification. Status: planned — factory and template are testnet
+  rehearsal deploys only (84532, 46630); launchpad dark until Tier D.
 
 ## Honest edges
 

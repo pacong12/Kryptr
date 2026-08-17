@@ -8,11 +8,16 @@ title: Launchpad consent
 <StatusBanner />
 
 ::: warning Phase status: planned — the launchpad is dark
-No token factory is deployed, the deploy manifest is empty, and therefore no
-token can be launched today. The deploy gate, the consent screen, and the
-verification surface are built; the factory that would make launches possible
-is not live. Until a factory passes verification and lands in the deploy
-manifest, every deploy intent is rejected fail-closed.
+The token template (`0xAf816eC9018D2290E711D4e927acc7962702D35B`) and factory
+(`0xd3153acff69909e5844130B4735feb7525750A5B`) exist only as TESTNET rehearsal
+deploys — the S3 ceremony landed on Base Sepolia (chainId 84532) and Robinhood
+Chain testnet (chainId 46630), manually signed with full post-deploy readback
+green on both chains. That is a rehearsal, not a launch: the deploy manifest
+is still empty and no T21 verification artifact exists, so no token can be
+launched today. The deploy gate, the consent screen, and the verification
+surface are built; the factory stays dark until the Tier D battery passes and
+the factory lands in the deploy manifest. Until then, every deploy intent is
+rejected fail-closed.
 :::
 
 The Kryptr launchpad lets a human launch a token through the same security
@@ -94,13 +99,13 @@ that support is confirmed.
 
 ## What exists today vs. what does not
 
-| Piece                                                  | State today                                                      |
-| ------------------------------------------------------ | ---------------------------------------------------------------- |
-| Deploy gate (HITL, firewall, allowlist)                | Live in the API — rejects everything while the manifest is empty |
-| Launch consent screen (fee preview, verification card) | Built — blocks until T21 verification passes                     |
-| Token factory contract                                 | **Not deployed**                                                 |
-| T21 verification artifact                              | **Does not exist yet**                                           |
-| Bond mechanics, fee accrual                            | Factory era — not live                                           |
+| Piece                                                  | State today                                                                                                                                  |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Deploy gate (HITL, firewall, allowlist)                | Live in the API — rejects everything while the manifest is empty                                                                             |
+| Launch consent screen (fee preview, verification card) | Built — blocks until T21 verification passes                                                                                                 |
+| Token factory contract                                 | **Testnet rehearsal only** — template + factory deployed on Base Sepolia (84532) and Robinhood Chain testnet (46630); dark until Tier D PASS |
+| T21 verification artifact                              | **Does not exist yet**                                                                                                                       |
+| Bond mechanics, fee accrual                            | Factory era — not live                                                                                                                       |
 
 ::: tip Sources
 Decision and binding conditions: `docs/research/launchpad-decision.md`.

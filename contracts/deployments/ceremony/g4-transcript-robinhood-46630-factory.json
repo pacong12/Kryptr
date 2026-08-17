@@ -1,0 +1,82 @@
+{
+  "ceremonyId": "s2:robinhood-46630:contracts-v0.1.0:factory",
+  "claim": "TESTNET",
+  "chain": {
+    "chainId": 46630,
+    "name": "robinhood-46630"
+  },
+  "stage": "factory",
+  "deployTxHash": "0x5baa1f04b88dad186cac95700f971cdde150a3874ece73316c339b85b72927b2",
+  "contractAddress": "0xd3153acff69909e5844130b4735feb7525750a5b",
+  "verdict": "PASS",
+  "readbackAt": "2026-08-17T12:06:07Z",
+  "provenance": {
+    "rpc": "https://rpc.testnet.chain.robinhood.com",
+    "blockNumber": "0x61f83b7",
+    "releaseTag": "contracts-v0.1.0",
+    "commitSha": "c0fcbcaa9ca9395570914a4450a12473ac34af66",
+    "toolingCommit": "8b335093a43f6f04370e758130e92a629f2e9538"
+  },
+  "checks": [
+    {
+      "name": "P3 keccak256(tx.input) == calldataKeccak",
+      "expected": "0x1066da0cccf92e6e664db989ec46bd371304ad8acae52a43208fbb78d253d2d8",
+      "actual": "0x1066da0cccf92e6e664db989ec46bd371304ad8acae52a43208fbb78d253d2d8",
+      "pass": true
+    },
+    {
+      "name": "P4 receipt.from == pinnedSender",
+      "expected": "0x00e7be21b70dd57ba2aac3c32657304dda6863c2",
+      "actual": "0x00e7be21b70dd57ba2aac3c32657304dda6863c2",
+      "pass": true
+    },
+    {
+      "name": "P6 tx.nonce == expectedNonce",
+      "expected": "0x1",
+      "actual": "0x1",
+      "pass": true
+    },
+    {
+      "name": "receipt.status == success",
+      "expected": "0x1",
+      "actual": "0x1",
+      "pass": true
+    },
+    {
+      "name": "predictedAddress (advisory) == contractAddress",
+      "expected": "0xd3153acff69909e5844130b4735feb7525750a5b",
+      "actual": "0xd3153acff69909e5844130b4735feb7525750a5b",
+      "pass": true
+    },
+    {
+      "name": "code identity: keccak(masked on-chain runtime) == keccak(masked at-tag runtime)",
+      "expected": "0x5dd4057bfb738b5adbdd65d688bfbf6ad9bdf08ec4e01aecc88af6119c84e49f",
+      "actual": "0x5dd4057bfb738b5adbdd65d688bfbf6ad9bdf08ec4e01aecc88af6119c84e49f",
+      "pass": true
+    },
+    {
+      "name": "readback template() == decoded template",
+      "expected": "0xaf816ec9018d2290e711d4e927acc7962702d35b",
+      "actual": "0xaf816ec9018d2290e711d4e927acc7962702d35b",
+      "pass": true
+    },
+    {
+      "name": "readback totalFeeBps() == decoded totalFeeBps",
+      "expected": "175",
+      "actual": "175",
+      "pass": true
+    },
+    {
+      "name": "readback bondAmount() == decoded bondAmountWei",
+      "expected": "10000000000000000",
+      "actual": "10000000000000000",
+      "pass": true
+    },
+    {
+      "name": "readback bondSink() == decoded bondSink",
+      "expected": "0x00e7be21b70dd57ba2aac3c32657304dda6863c2",
+      "actual": "0x00e7be21b70dd57ba2aac3c32657304dda6863c2",
+      "pass": true
+    }
+  ]
+}

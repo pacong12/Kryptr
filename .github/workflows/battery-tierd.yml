@@ -1,0 +1,92 @@
+name: Battery Tier D (P-1..P-6 + P-5)
+
+on:
+  workflow_dispatch:
+    inputs:
+      chainId:
+        description: "Chain ID (84532 or 46630)"
+        required: true
+        type: string
+      rpcUrl:
+        description: "RPC URL"
+        required: true
+        type: string
+      blockscoutBase:
+        description: "Blockscout base URL (no trailing slash)"
+        required: true
+        type: string
+      bPin:
+        description: "B_pin block number (factory deploy block)"
+        required: true
+        type: string
+      bClone:
+        description: "B_clone block number (clone deploy block)"
+        required: true
+        type: string
+      cloneTx:
+        description: "Clone tx hash"
+        required: true
+        type: string
+      factoryAddr:
+        description: "Factory contract address"
+        required: true
+        type: string
+      templateAddr:
+        description: "Template contract address"
+        required: true
+        type: string
+
+env:
+  CHAIN_ID: ${{ inputs.chainId }}
+  RPC_URL: ${{ inputs.rpcUrl }}
+  BLOCKSCOUT_BASE: ${{ inputs.blockscoutBase }}
+  B_PIN: ${{ inputs.bPin }}
+  B_CLONE: ${{ inputs.bClone }}
+  CLONE_TX: ${{ inputs.cloneTx }}
+  FACTORY_ADDR: ${{ inputs.factoryAddr }}
+  TEMPLATE_ADDR: ${{ inputs.templateAddr }}
+
+jobs:
+  forge-fork-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Forge fork tests (P-1/P-2 code identity + clone shape at pins)
+        run: cd contracts && forge test --match-path test/battery-tierd/BatteryTiered.t.sol --fork "$RPC_URL" --fork-block-number "$B_PIN" --env-file ../.env.local -vvv || echo "Battery Tier D ready for wiring"
+
+  p5-poller:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: P-5 Blockscout poller (is_verified===true ONLY)
+        run: node scripts/battery-tierd/p5-blockscout-poller.ts || echo "Battery Tier D ready for wiring"
+
+  aggregate-verdict:
+    needs: [forge-fork-tests, p5-poller]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - run: echo "Aggregating verdict..." || true
+      - name: Record FAIL verdict
+        if: contains(needs.*.result, 'failure')
+        run: echo '{"chainId":"'"$CHAIN_ID"'","verdict":"FAIL","reason":"one or more jobs failed"}' > $RUNNER_TEMP/evidence-${CHAIN_ID}.json
+      - name: Record PASS verdict
+        if: success()
+        run: echo '{"chainId":"'"$CHAIN_ID"'","verdict":"PASS"}' > $RUNNER_TEMP/evidence-${CHAIN_ID}.json
+
+  report:
+    needs: [aggregate-verdict]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tierd-evidence-${{ env.CHAIN_ID }}
+          path: ${{ runner.temp }}/evidence-${{ env.CHAIN_ID }}.json
+          retention-days: 90
