@@ -72,7 +72,20 @@ jobs:
         with:
           version: v1.7.1
       - name: G1 deep invariant — bondLedger reconciles with sink
-        run: npx nx run @kryptr/contracts:battery-g1-campaign
+        run: |
+          set -euo pipefail
+          # Tag compat: battery-g1-campaign exists only from #92 onward, but
+          # workflow_dispatch takes THIS file from main while the code is
+          # checked out at the tag. Resolve from the tag's own project.json;
+          # pre-#92 tags fall back to the equivalent direct forge command
+          # (same per-campaign isolation, no nx naming dependency).
+          if jq -e '.targets["battery-g1-campaign"]' contracts/project.json >/dev/null 2>&1; then
+            npx nx run @kryptr/contracts:battery-g1-campaign
+          else
+            echo "tag predates battery-g1-campaign (#92) — running campaign via forge directly"
+            cd contracts
+            FOUNDRY_PROFILE=battery forge test --match-test "$INVARIANT_CAMPAIGN" -vv
+          fi
         env:
           INVARIANT_CAMPAIGN: invariant_bondLedger_reconcilesWithSink
 
@@ -94,7 +107,15 @@ jobs:
         with:
           version: v1.7.1
       - name: G1 deep invariant — bondParams immutable
-        run: npx nx run @kryptr/contracts:battery-g1-campaign
+        run: |
+          set -euo pipefail
+          if jq -e '.targets["battery-g1-campaign"]' contracts/project.json >/dev/null 2>&1; then
+            npx nx run @kryptr/contracts:battery-g1-campaign
+          else
+            echo "tag predates battery-g1-campaign (#92) — running campaign via forge directly"
+            cd contracts
+            FOUNDRY_PROFILE=battery forge test --match-test "$INVARIANT_CAMPAIGN" -vv
+          fi
         env:
           INVARIANT_CAMPAIGN: invariant_bondParams_immutable
 
@@ -116,7 +137,15 @@ jobs:
         with:
           version: v1.7.1
       - name: G1 deep invariant — clones supply and schedule frozen
-        run: npx nx run @kryptr/contracts:battery-g1-campaign
+        run: |
+          set -euo pipefail
+          if jq -e '.targets["battery-g1-campaign"]' contracts/project.json >/dev/null 2>&1; then
+            npx nx run @kryptr/contracts:battery-g1-campaign
+          else
+            echo "tag predates battery-g1-campaign (#92) — running campaign via forge directly"
+            cd contracts
+            FOUNDRY_PROFILE=battery forge test --match-test "$INVARIANT_CAMPAIGN" -vv
+          fi
         env:
           INVARIANT_CAMPAIGN: invariant_clones_supplyAndScheduleFrozen
 
@@ -138,7 +167,15 @@ jobs:
         with:
           version: v1.7.1
       - name: G1 deep invariant — clones never reinitializable
-        run: npx nx run @kryptr/contracts:battery-g1-campaign
+        run: |
+          set -euo pipefail
+          if jq -e '.targets["battery-g1-campaign"]' contracts/project.json >/dev/null 2>&1; then
+            npx nx run @kryptr/contracts:battery-g1-campaign
+          else
+            echo "tag predates battery-g1-campaign (#92) — running campaign via forge directly"
+            cd contracts
+            FOUNDRY_PROFILE=battery forge test --match-test "$INVARIANT_CAMPAIGN" -vv
+          fi
         env:
           INVARIANT_CAMPAIGN: invariant_clones_neverReinitializable
 
