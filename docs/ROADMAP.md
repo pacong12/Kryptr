@@ -44,15 +44,7 @@ ambiguities are bugs — report them, don't guess.
 
 ## Phase 3 — Token launchpad
 
-Status (wave 6, TESTNET-keyed): the S3 deploy rehearsal is complete — the
-token template and factory are deployed on Base Sepolia (84532) and Robinhood
-Chain testnet (46630), signed manually by the operator, with post-deploy
-readback green on both chains (see
-docs/research/wave6-s2-signing-ceremony.md,
-docs/research/wave5-release-tag-battery-runbook.md). The rehearsal changes
-nothing user-facing: the launchpad stays dark until the Tier D battery
-passes, the verification artifact is written, and the factory lands in the
-deploy manifest. No mainnet schedule.
+Status (wave 6): S1 Persistence ✓ Complete (#105, #108), S2 Signing Ceremony ✓ Complete (#94, #102), S3 Deploy Rehearsal ✓✓✓ Complete & Green (8/8 jobs on Base Sepolia + Robinhood testnet). Tier D ⏸️ Postponed pending decision; Soak Clock ⏸️ Not Started (requires Tier D PASS); S4 Venue Marketplace ⏸️ Not Started (waiting user decision); S6 Mainnet Gate ⏸️ Pending soak completion. The rehearsal changes nothing user-facing: launchpad stays dark until tier d battery passes, verification artifact is written, and factory lands in deploy manifest. No mainnet schedule.
 
 - [ ] Token factory contract (deploy via natural-language-safe structured
       intents only)

@@ -11,8 +11,8 @@ This page is rendered from the site's single status manifest
 (`apps/docs/status-manifest.json`) at build time, so it cannot drift from the
 per-page banners.
 
-**Global phase boundary:** Kryptr is in Phase 1. Signing is dry-run only —
-nothing is broadcast on-chain yet. Every feature below inherits that boundary.
+**Global phase boundary (Wave 6):** S1-S3 complete; Tier D postponed pending decision. Factory remains DARK until Tier D PASS + soak completion. No mainnet deployment ETA announced.
+**Phase 1 boundary:** Signing is dry-run only — nothing is broadcast on-chain yet. Every feature below inherits that boundary.
 
 <script setup>
 import { data as manifest } from './status-manifest.data';
