@@ -10,6 +10,8 @@ import { QUOTE_STORE } from './domain/quote-store.port';
 import { StaticMockDexAdapter } from './infrastructure/static-mock-dex.adapter';
 import { ZeroExDexAdapter } from './infrastructure/zero-ex-dex.adapter';
 import { InMemoryQuoteStore } from './infrastructure/in-memory-quote-store';
+import { PostgresQuoteStore } from './infrastructure/postgres-quote-store';
+import { isPostgresPersistence } from '../persistence/prisma-client';
 
 /**
  * Composition root for trading. DEX_SOURCE (wiring-time env) selects
@@ -37,7 +39,13 @@ import { InMemoryQuoteStore } from './infrastructure/in-memory-quote-store';
         return new StaticMockDexAdapter();
       },
     },
-    { provide: QUOTE_STORE, useClass: InMemoryQuoteStore },
+    {
+      provide: QUOTE_STORE,
+      useFactory: () =>
+        isPostgresPersistence()
+          ? new PostgresQuoteStore()
+          : new InMemoryQuoteStore(),
+    },
   ],
   exports: [DEX_AGGREGATOR, QUOTE_STORE, PreviewSwapExecutionUseCase],
 })

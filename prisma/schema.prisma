@@ -1,0 +1,207 @@
+// Kryptr S1 persistence schema — wave-6 S1 design (docs/research/wave6-s1-persistence-design.md).
+//
+// Migration 0001_init creates the FULL schema; adapters come online per phase:
+//   Phase 1: SignRequest, DecisionAudit, SignEvent, SpendLedger, TransactionIntent,
+//            Quote, DeployRecord, VerificationArtifact
+//   Phase 2: Order, OrderExecution, KillSwitchState, KillSwitchAudit
+//   Phase 3: Wallet, SecurityPolicy
+//
+// Money is integer micro-USD (1 USD = 1_000_000 µ, CHECK usd_micros >= 0);
+// float USD only exists at port boundaries (see apps/api/src/common/micro-usd.ts).
+// Append-only tables (DecisionAudit, SignEvent, KillSwitchAudit) carry no
+// update/delete paths in the API layer — Postgres grants are tightened later.
+// String id columns accept the API's uuid4 ids verbatim; uuid(7) defaults are
+// only used for rows the API itself originates (sign_requests, audits, events).
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../apps/api/src/generated/prisma"
+  runtime      = "nodejs"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ── Phase 1 ──────────────────────────────────────────────────────────────────
+
+model SignRequest {
+  id         String   @id @default(uuid(7))
+  intentId   String   @unique @map("intent_id")
+  status     String // 'dry_run' | 'pending' | 'signed' | 'rejected' (CHECK in SQL)
+  unsignedTx Json     @map("unsigned_tx")
+  digest     String?
+  note       String?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("sign_requests")
+}
+
+model DecisionAudit {
+  id               BigInt   @id @default(autoincrement())
+  intentId         String   @map("intent_id")
+  result           String
+  reason           String
+  decisionUsdMicros BigInt? @map("decision_usd_micros")
+  decidedAt        DateTime @default(now()) @map("decided_at") @db.Timestamptz(6)
+
+  @@map("decision_audit")
+}
+
+model SignEvent {
+  id       BigInt   @id @default(autoincrement())
+  intentId String   @map("intent_id")
+  step     String
+  detail   String?
+  at       DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("sign_events")
+}
+
+model SpendLedger {
+  walletId    String   @map("wallet_id")
+  utcDay      String   @map("utc_day") // 'YYYY-MM-DD'
+  intentId    String   @map("intent_id")
+  usdMicros   BigInt   @map("usd_micros") // CHECK (usd_micros >= 0) in SQL
+  recordedAt  DateTime @default(now()) @map("recorded_at") @db.Timestamptz(6)
+  reclaimedAt DateTime? @map("reclaimed_at") @db.Timestamptz(6)
+  reclaimOf   String?  @map("reclaim_of")
+
+  @@id([walletId, utcDay, intentId])
+  @@map("spend_ledger")
+}
+
+model TransactionIntent {
+  id        String   @id
+  walletId  String   @map("wallet_id")
+  kind      String // 'swap' | 'deploy' (CHECK in SQL)
+  payload   Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("intents")
+}
+
+// Keyed by QUOTE id (not intent id — deviation from the §4 DDL sketch,
+// recorded in the design doc): the merged QuoteStore port saves quotes
+// BEFORE any intent exists (get-quote / order-slot flows) and binds them
+// to at most one intent afterwards. The StoredQuote payload (quote +
+// boundIntentId) lives in the jsonb column; single-use binding survives
+// re-saves via COALESCE at the adapter (§5.3 analogue).
+model Quote {
+  quoteId  String   @id @map("quote_id")
+  payload  Json
+  storedAt DateTime @default(now()) @map("stored_at") @db.Timestamptz(6)
+
+  @@map("quotes")
+}
+
+model DeployRecord {
+  id              String    @id
+  stage           String
+  chain           String
+  releaseTag      String    @map("release_tag")
+  commitSha       String    @map("commit_sha")
+  payloadFile     String    @map("payload_file")
+  calldataKeccak  String    @map("calldata_keccak")
+  expectedNonce   Int?      @map("expected_nonce")
+  decodedArgs     Json?     @map("decoded_args")
+  frozenConstants Json?     @map("frozen_constants")
+  status          String // 'published' | 'signed_offchain' | 'broadcast' | 'readback_passed' | 'readback_rejected' (CHECK in SQL)
+  txHash          String?   @map("tx_hash")
+  deployedAddress String?   @map("deployed_address")
+  readbackAt      DateTime? @map("readback_at") @db.Timestamptz(6)
+  rejectionReason String?   @map("rejection_reason")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("deploy_records")
+}
+
+model VerificationArtifact {
+  verificationId String   @id @map("verification_id")
+  artifact       Json
+  seededAt       DateTime @default(now()) @map("seeded_at") @db.Timestamptz(6)
+
+  @@map("verification_artifacts")
+}
+
+// ── Phase 2 ──────────────────────────────────────────────────────────────────
+
+model Order {
+  id        String   @id
+  payload   Json
+  status    String
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  executions OrderExecution[]
+
+  @@map("orders")
+}
+
+model OrderExecution {
+  id         String    @id
+  orderId    String    @map("order_id")
+  slotKey    String    @map("slot_key")
+  status     String
+  intentId   String?   @map("intent_id")
+  claimedAt  DateTime  @default(now()) @map("claimed_at") @db.Timestamptz(6)
+  finishedAt DateTime? @map("finished_at") @db.Timestamptz(6)
+  detail     String?
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([orderId, slotKey])
+  @@map("order_executions")
+}
+
+model KillSwitchState {
+  id          Int       @id @default(1) // CHECK (id = 1) in SQL — singleton
+  mode        String
+  activatedAt DateTime? @map("activated_at") @db.Timestamptz(6)
+  reason      String?
+  version     Int       @default(0)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy   String?   @map("updated_by")
+
+  @@map("kill_switch_state")
+}
+
+model KillSwitchAudit {
+  id       BigInt   @id @default(autoincrement())
+  fromMode String   @map("from_mode")
+  toMode   String   @map("to_mode")
+  actor    String
+  reason   String?
+  at       DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("kill_switch_audit")
+}
+
+// ── Phase 3 ──────────────────────────────────────────────────────────────────
+
+model Wallet {
+  address           String    @id
+  ownerId           String    @map("owner_id")
+  chains            String[]
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastKeyRotationAt DateTime? @map("last_key_rotation_at") @db.Timestamptz(6)
+
+  policy SecurityPolicy?
+
+  @@map("wallets")
+}
+
+model SecurityPolicy {
+  walletAddress           String   @id @map("wallet_address")
+  allowedOrigins          String[] @map("allowed_origins")
+  dailyCapMicros          BigInt   @map("daily_cap_micros")
+  approvalThresholdMicros BigInt   @map("approval_threshold_micros")
+  allowedChains           String[] @map("allowed_chains")
+  rejectEncodedPayloads   Boolean  @map("reject_encoded_payloads")
+  updatedAt               DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  wallet Wallet @relation(fields: [walletAddress], references: [address], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("security_policies")
+}

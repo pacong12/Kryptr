@@ -76,7 +76,7 @@ decision_audit        (id bigserial PK, intent_id, result, reason, decided_at, d
 sign_events           (id bigserial PK, intent_id, step, detail, at)                                    -- APPEND-ONLY
 spend_ledger          (wallet_id, utc_day, intent_id, usd_micros CHECK (usd_micros >= 0), recorded_at,
                        PRIMARY KEY (wallet_id, utc_day, intent_id))               -- last-wins upsert per port contract
-quotes                (intent_id PK UNIQUE, payload jsonb, stored_at)
+quotes                (quote_id PK, payload jsonb, stored_at)                     -- keyed by QUOTE id: the merged QuoteStore port saves quotes before any intent exists and binds at most one intent afterwards (StoredQuote payload carries boundIntentId)
 orders                (id PK, payload jsonb, status, updated_at)                  -- status column indexed; terminal-guard at app layer
 order_executions      (id PK = '<orderId>:<slotKey>', order_id, slot_key, status, intent_id,
                        finished_at, detail, UNIQUE (order_id, slot_key))          -- claim primitive (§5.2)

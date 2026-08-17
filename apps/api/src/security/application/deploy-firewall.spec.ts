@@ -99,6 +99,7 @@ function makeGate() {
   const spendLedger: jest.Mocked<SpendLedger> = {
     getSpentUsdToday: jest.fn().mockResolvedValue(0),
     record: jest.fn().mockResolvedValue(undefined),
+    reserveSpend: jest.fn().mockResolvedValue(0n),
   };
   const policyProvider: jest.Mocked<SecurityPolicyProvider> = {
     getPolicyForWallet: jest.fn().mockResolvedValue(PERMISSIVE_POLICY),
