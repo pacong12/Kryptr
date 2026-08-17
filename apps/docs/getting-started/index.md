@@ -18,12 +18,12 @@ built around one rule: **gate before sign.**
 Kryptr ships in phases, and each phase ships with its security requirements —
 never bolted on afterwards.
 
-| Phase   | Scope                                                                  | State                                   |
-| ------- | ---------------------------------------------------------------------- | --------------------------------------- |
-| Phase 1 | Wallet connect, balances, gated transfers and swaps, monitoring        | **Current phase**                       |
-| Phase 2 | Order automation (limit, DCA) with operator-controlled execution       | Built — preview (worker ships disabled) |
-| Phase 3 | Token launchpad with consent-frozen fees                               | Planned — no factory deployed           |
-| Phase 4 | Natural-language requests become gated intents, with injection defense | Planned                                 |
+| Phase   | Scope                                                                  | State                                           |
+| ------- | ---------------------------------------------------------------------- | ----------------------------------------------- |
+| Phase 1 | Wallet connect, balances, gated transfers and swaps, monitoring        | **Current phase**                               |
+| Phase 2 | Order automation (limit, DCA) with operator-controlled execution       | Built — preview (worker ships disabled)         |
+| Phase 3 | Token launchpad with consent-frozen fees                               | Planned — factory dark (testnet rehearsal only) |
+| Phase 4 | Natural-language requests become gated intents, with injection defense | Planned                                         |
 
 **The honest one-liner for today:** you can connect, watch, plan, and approve —
 but signing is dry-run only, so nothing is broadcast on-chain yet.
@@ -45,7 +45,8 @@ but signing is dry-run only, so nothing is broadcast on-chain yet.
 ## What you cannot do yet
 
 - Nothing executes on-chain: there is **no live signer** in this phase.
-- The token launchpad is dark (planned, no factory deployed).
+- The token launchpad is dark (planned; the factory exists only as testnet
+  rehearsal deploys).
 - There is no conversational interface yet — Kryptr is dashboard + approve.
 
 The full list, per phase, lives in
