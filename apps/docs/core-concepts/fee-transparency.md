@@ -35,7 +35,8 @@ rejected fail-closed and your order stays open.
 
 ## Planned: launchpad fee schedules freeze at launch
 
-The token launchpad is **planned** (no factory is deployed — see
+The token launchpad is **planned** (the factory exists only as TESTNET
+rehearsal deploys — see
 [Launchpad consent](/features/launchpad-consent)), but its fee rules are
 already frozen by design:
 

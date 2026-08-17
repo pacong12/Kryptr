@@ -46,9 +46,12 @@ Signing is a dedicated future phase (see
 
 ## Launchpad
 
-- **The launchpad is dark.** No factory is deployed, the deploy manifest is
-  empty, and no T21 verification artifact exists — so every deploy intent is
-  rejected. See [Launchpad consent](/features/launchpad-consent).
+- **The launchpad is dark.** The factory and its token template exist only as
+  TESTNET rehearsal deploys (Base Sepolia 84532 and Robinhood Chain testnet
+  46630); the deploy manifest is empty, and no T21 verification artifact
+  exists — so every deploy intent is rejected. The factory goes live only
+  after the Tier D battery passes. See
+  [Launchpad consent](/features/launchpad-consent).
 - No token pages, fee accrual views, or graduation mechanics exist yet.
 
 ## Interface

@@ -55,7 +55,7 @@
       "path": "/features/launchpad-consent.html",
       "title": "Launchpad consent",
       "status": "planned",
-      "summary": "Token launches with consent-frozen fees (reference 175 bps), an on-chain bond, and T21 verification. No factory is deployed — the launchpad stays dark."
+      "summary": "Token launches with consent-frozen fees (reference 175 bps), an on-chain bond, and T21 verification. The factory exists only as testnet rehearsal deploys — the launchpad stays dark until Tier D."
     },
     {
       "path": "/honest-edges/limitations.html",
