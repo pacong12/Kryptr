@@ -14,7 +14,7 @@
  * OpsCI confirms the final `docs.*` domain before the first deploy and
  * updates it HERE — nowhere else. Do not hardcode docs URLs in apps.
  */
-export const CANONICAL_DOCS_DOMAIN = 'docs.kryptr.app'; // TODO(OpsCI): confirm the final docs.* domain before first deploy
+export const CANONICAL_DOCS_DOMAIN = 'docs.robinmood.xyz'; // interim domain provided by the user (verified & attached to the Vercel project `kryptr-docs`); replace here — and only here — when the final domain lands
 
 export const CANONICAL_DOCS_URL = `https://${CANONICAL_DOCS_DOMAIN}`;
 
