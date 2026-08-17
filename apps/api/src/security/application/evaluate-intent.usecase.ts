@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { SecurityDecision, TransactionIntent } from '@kryptr/shared-types';
 import { inspectIntentPayload } from '../domain/payload-inspection';
 import { validateDeployPreconditions } from '../domain/deploy-preconditions';
-import { KeyedMutex } from '../../common/keyed-mutex';
+import { usdToMicros } from '../../common/micro-usd';
 import {
   DECISION_AUDIT,
   DEPLOY_ALLOWLIST,
@@ -63,10 +63,6 @@ export class EvaluateIntentUseCase {
     @Inject(VERIFICATION_STORE)
     private readonly verificationStore: VerificationArtifactStore,
   ) {}
-
-  /** Per-wallet serialization of the cap path (F1). Per-instance by
-   * design — one gate instance, one lock table. */
-  private readonly walletLocks = new KeyedMutex();
 
   async execute(intent: TransactionIntent): Promise<SecurityDecision> {
     await this.intentStore.save(intent);
@@ -180,40 +176,38 @@ export class EvaluateIntentUseCase {
       );
     }
 
-    // F1: the read-check-record cap path is serialized per wallet. Two
-    // concurrent intents on one wallet must not both read the same
-    // spent-today and both record — single-instance guard (async mutex);
-    // the Postgres era moves this to an atomic compare-and-reserve.
-    return this.walletLocks.runExclusive(intent.walletId, async () => {
-      const spentUsdToday = await this.spendLedger.getSpentUsdToday(
-        intent.walletId,
-      );
-      if (policy.dailyCapUsd <= 0 && valueUsd > 0) {
-        return this.finish(
-          intent,
-          valueUsd,
-          'rejected',
-          'rejected: daily cap is zero; no outbound value allowed',
-        );
-      }
-      if (spentUsdToday + valueUsd > policy.dailyCapUsd) {
-        return this.finish(
-          intent,
-          valueUsd,
-          'rejected',
-          `rejected: daily cap exceeded (spent $${spentUsdToday.toFixed(
-            2,
-          )} + $${valueUsd.toFixed(2)} > cap $${policy.dailyCapUsd.toFixed(2)})`,
-        );
-      }
-
+    // Wave-6 S1 (persistence design §5.1, Review54 F1): the cap path is an
+    // atomic compare-and-reserve in integer micro-USD. reserveSpend checks
+    // the cap AND records the spend as one unit (one synchronous tick in
+    // the in-memory ledger; pg_advisory_xact_lock inside one pinned
+    // connection in Postgres), replacing the KeyedMutex-guarded
+    // read-check-record path. Cap math stays end-to-end in micros.
+    if (policy.dailyCapUsd <= 0 && valueUsd > 0) {
       return this.finish(
         intent,
         valueUsd,
-        'approved',
-        'approved: within policy',
+        'rejected',
+        'rejected: daily cap is zero; no outbound value allowed',
       );
+    }
+    const reserved = await this.spendLedger.reserveSpend({
+      intentId: intent.id,
+      walletId: intent.walletId,
+      usdMicros: usdToMicros(valueUsd),
+      capMicros: usdToMicros(policy.dailyCapUsd),
     });
+    if (reserved === null) {
+      return this.finish(
+        intent,
+        valueUsd,
+        'rejected',
+        `rejected: daily cap exceeded (value $${valueUsd.toFixed(
+          2,
+        )} does not fit under cap $${policy.dailyCapUsd.toFixed(2)})`,
+      );
+    }
+
+    return this.finish(intent, valueUsd, 'approved', 'approved: within policy');
   }
 
   /**
@@ -258,11 +252,15 @@ export class EvaluateIntentUseCase {
    *  1. F2 — non-rejected swaps take the quote's single-use binding
    *     FIRST and honor its result: bind() === false means a concurrent
    *     intent won the quote, so the decision downgrades to rejected.
-   *  2. F5 — approved spend is recorded BEFORE the audit entry, so a
-   *     failed record aborts the decision (fail-closed); an approved
-   *     intent must never exist without consuming the cap.
+   *     (A cap reservation already taken by reserveSpend stays consumed
+   *     for the day in that race — over-counting is the accepted
+   *     fail-safe direction, never under-count.)
+   *  2. S1 — approved spend is reserved by the reserveSpend seam BEFORE
+   *     finish() runs, so an approved intent can never exist without
+   *     consuming the cap; a failed reservation aborts the decision
+   *     (fail-closed, F5).
    *  3. The immutable audit entry is appended last (USD fixed at
-   *     decision time; dedupe delegated to the SpendLedger port
+   *     decision time; ledger dedupe delegated to the SpendLedger port
    *     contract — per UTC day, last decision wins).
    */
   private async finish(
@@ -279,13 +277,6 @@ export class EvaluateIntentUseCase {
         finalResult = 'rejected';
         finalReason = `rejected: quote "${intent.swap.quoteId}" already bound to another intent`;
       }
-    }
-    if (finalResult === 'approved' && decisionUsd !== null) {
-      await this.spendLedger.record({
-        intentId: intent.id,
-        walletId: intent.walletId,
-        usd: decisionUsd,
-      });
     }
     const decision: SecurityDecision = {
       intentId: intent.id,

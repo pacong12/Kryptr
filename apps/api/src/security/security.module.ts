@@ -24,12 +24,18 @@ import { InMemorySecurityPolicyProvider } from './infrastructure/in-memory-polic
 import { InMemoryIntentStore } from './infrastructure/in-memory-intent-store';
 import { InMemoryDecisionAudit } from './infrastructure/in-memory-decision-audit';
 import { ManifestDeployAllowlist } from './infrastructure/manifest-deploy-allowlist';
+import { PostgresSpendLedger } from './infrastructure/postgres-spend-ledger';
+import { PostgresIntentStore } from './infrastructure/postgres-intent-store';
+import { PostgresDecisionAudit } from './infrastructure/postgres-decision-audit';
+import { isPostgresPersistence } from '../persistence/prisma-client';
 
 /**
  * Composition root for the security gate. Wave-2 ports bind in-memory
- * implementations here; the Postgres persistence task swaps the
- * bindings in this file only. forwardRef breaks the cycle with
- * TradingModule (evaluate binds quotes; feed health reads the dex).
+ * implementations by default; wave-6 S1 swaps SPEND_LEDGER / INTENT_STORE /
+ * DECISION_AUDIT to Postgres when PERSISTENCE_MODE=postgres (port-swap
+ * only — decision logic untouched). POLICY_PROVIDER stays in-memory until
+ * S1 phase 3. forwardRef breaks the cycle with TradingModule (evaluate
+ * binds quotes; feed health reads the dex).
  *
  * PRICE_FEED_MODE (wiring-time env): 'static' is the explicit dev
  * opt-in; the default is CoinGecko-configured-or-fail-closed — an
@@ -59,10 +65,28 @@ import { ManifestDeployAllowlist } from './infrastructure/manifest-deploy-allowl
         });
       },
     },
-    { provide: SPEND_LEDGER, useClass: InMemorySpendLedger },
+    {
+      provide: SPEND_LEDGER,
+      useFactory: () =>
+        isPostgresPersistence()
+          ? new PostgresSpendLedger()
+          : new InMemorySpendLedger(),
+    },
     { provide: POLICY_PROVIDER, useClass: InMemorySecurityPolicyProvider },
-    { provide: INTENT_STORE, useClass: InMemoryIntentStore },
-    { provide: DECISION_AUDIT, useClass: InMemoryDecisionAudit },
+    {
+      provide: INTENT_STORE,
+      useFactory: () =>
+        isPostgresPersistence()
+          ? new PostgresIntentStore()
+          : new InMemoryIntentStore(),
+    },
+    {
+      provide: DECISION_AUDIT,
+      useFactory: () =>
+        isPostgresPersistence()
+          ? new PostgresDecisionAudit()
+          : new InMemoryDecisionAudit(),
+    },
     {
       // Wave-5 layer-2 factory allowlist: pinned from the ops deploy
       // manifests at wiring time, fail-closed (empty ⇒ launchpad dark).

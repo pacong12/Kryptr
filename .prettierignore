@@ -7,3 +7,5 @@
 # vendored third-party agent skills (installed via npx skills)
 /.agents/skills/
 /.claude/skills/
+# generated Prisma client (prisma generate output — never hand-edited)
+apps/api/src/generated/

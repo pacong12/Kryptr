@@ -152,6 +152,7 @@ describe('EvaluateIntentUseCase', () => {
     spendLedger = {
       getSpentUsdToday: jest.fn().mockResolvedValue(0),
       record: jest.fn().mockResolvedValue(undefined),
+      reserveSpend: jest.fn().mockResolvedValue(50_000_000n),
     };
     policyProvider = {
       getPolicyForWallet: jest.fn().mockResolvedValue(POLICY),
@@ -250,7 +251,7 @@ describe('EvaluateIntentUseCase', () => {
     });
 
     it('rejects when spent-today plus value would exceed the daily cap', async () => {
-      spendLedger.getSpentUsdToday.mockResolvedValue(960);
+      spendLedger.reserveSpend.mockResolvedValue(null);
       const decision = await useCase.execute(makeIntent({}));
       expect(decision.result).toBe('rejected');
       expect(decision.reason).toContain('cap');
@@ -557,14 +558,15 @@ describe('EvaluateIntentUseCase', () => {
   });
 
   describe('wave-4 prep: spend recording at decision time', () => {
-    it('records approved spend once with the decision-time USD', async () => {
+    it('reserves approved spend once with the decision-time USD', async () => {
       const decision = await useCase.execute(makeIntent({}));
       expect(decision.result).toBe('approved');
-      expect(spendLedger.record).toHaveBeenCalledTimes(1);
-      expect(spendLedger.record).toHaveBeenCalledWith({
+      expect(spendLedger.reserveSpend).toHaveBeenCalledTimes(1);
+      expect(spendLedger.reserveSpend).toHaveBeenCalledWith({
         intentId: 'intent-1',
         walletId: 'wallet-1',
-        usd: 50,
+        usdMicros: 50_000_000n,
+        capMicros: 1_000_000_000n,
       });
     });
 
@@ -576,18 +578,18 @@ describe('EvaluateIntentUseCase', () => {
       await useCase.execute(
         makeIntent({ id: 'intent-3', origin: 'agent:rogue' }),
       );
-      expect(spendLedger.record).not.toHaveBeenCalled();
+      expect(spendLedger.reserveSpend).not.toHaveBeenCalled();
     });
 
     it('records nothing on cap-rejection or deploy escalation (audit still valued)', async () => {
-      spendLedger.getSpentUsdToday.mockResolvedValue(960);
+      spendLedger.reserveSpend.mockResolvedValue(null);
       const capDecision = await useCase.execute(makeIntent({})); // $50
       expect(capDecision.result).toBe('rejected');
       expect(capDecision.reason).toContain('daily cap');
       expect(decisionAudit.append).toHaveBeenLastCalledWith(
         expect.objectContaining({ result: 'rejected', decisionUsd: 50 }),
       );
-      expect(spendLedger.record).not.toHaveBeenCalled();
+      expect(spendLedger.reserveSpend).toHaveBeenCalledTimes(1);
 
       await useCase.execute(
         makeDeployIntent({
@@ -600,7 +602,7 @@ describe('EvaluateIntentUseCase', () => {
           decisionUsd: null,
         }),
       );
-      expect(spendLedger.record).not.toHaveBeenCalled();
+      expect(spendLedger.reserveSpend).toHaveBeenCalledTimes(1);
     });
 
     it('double-approve of the same intent never double-counts the daily cap', async () => {
@@ -727,8 +729,8 @@ describe('EvaluateIntentUseCase', () => {
   });
 
   describe('wave-4 gate hardening (security review entry criteria)', () => {
-    it('F5: a record failure aborts the decision BEFORE the audit', async () => {
-      spendLedger.record.mockRejectedValue(new Error('ledger down'));
+    it('F5 (S1 seam): a reservation failure aborts the decision BEFORE the audit', async () => {
+      spendLedger.reserveSpend.mockRejectedValue(new Error('ledger down'));
       await expect(useCase.execute(makeIntent({}))).rejects.toThrow(
         'ledger down',
       );
@@ -744,7 +746,10 @@ describe('EvaluateIntentUseCase', () => {
       const decision = await useCase.execute(makeSwapIntent(QUOTE));
       expect(decision.result).toBe('rejected');
       expect(decision.reason).toContain('bound');
-      expect(spendLedger.record).not.toHaveBeenCalled();
+      // S1: the cap reservation was already taken atomically before the
+      // quote-binding race was observed; it stays consumed for the day
+      // (over-counting is the accepted fail-safe direction, never under).
+      expect(spendLedger.reserveSpend).toHaveBeenCalledTimes(1);
     });
 
     it('F1: concurrent intents on one wallet never overdraw the daily cap', async () => {

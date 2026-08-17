@@ -10,15 +10,18 @@ const swcJestConfig = JSON.parse(
 swcJestConfig.swcrc = false;
 
 module.exports = {
-  displayName: '@kryptr/api',
+  displayName: '@kryptr/api-postgres',
   preset: '../../jest.preset.js',
   testEnvironment: 'node',
-  // S1 Postgres integration suites run via jest.postgres.cts (serial,
-  // DATABASE_URL-gated); the default hermetic run never touches a DB.
-  testPathIgnorePatterns: ['/node_modules/', '\\.integration\\.spec\\.ts$'],
+  testMatch: ['**/*.integration.spec.ts'],
+  // S1 Postgres suites share ONE database and truncate between tests:
+  // they MUST run serially (--runInBand at the target), never in
+  // parallel workers — a concurrent truncate wipes in-flight rows.
+  maxWorkers: 1,
+  // Real Postgres round trips incl. 8-racer concurrency proofs.
+  testTimeout: 60_000,
   transform: {
     '^.+\\.[tj]s$': ['@swc/jest', swcJestConfig],
   },
   moduleFileExtensions: ['ts', 'js', 'html'],
-  coverageDirectory: 'test-output/jest/coverage',
 };

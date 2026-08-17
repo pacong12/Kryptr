@@ -53,6 +53,27 @@ export interface SpendLedger {
     walletId: string;
     usd: number;
   }): Promise<void>;
+  /**
+   * Wave-6 S1 seam (persistence design §5.1, Review54 F1): atomic
+   * compare-and-reserve in integer micro-USD. Sums the wallet's recorded
+   * spend for the current UTC day, adds `usdMicros`, and — ONLY when the
+   * total fits within `capMicros` — records the entry and returns the
+   * post-reserve day total in micro-USD. Returns null when the reservation
+   * would breach the cap; NOTHING is recorded in that case. The check and
+   * the write are one atomic unit (Postgres: pg_advisory_xact_lock inside
+   * one interactive transaction — never spans pooler connections), which
+   * replaces the KeyedMutex-guarded read-check-record path.
+   *
+   * Idempotency follows `record`: per (walletId, UTC day, intentId), last
+   * value wins — a repeated reservation for the same intent replaces its
+   * own prior contribution instead of stacking on top of it.
+   */
+  reserveSpend(entry: {
+    intentId: string;
+    walletId: string;
+    usdMicros: bigint;
+    capMicros: bigint;
+  }): Promise<bigint | null>;
 }
 
 /** Where SecurityPolicy objects come from. */

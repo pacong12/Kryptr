@@ -106,6 +106,17 @@
           "description": "Worker/queue suites (*.workers.ts) against a real Redis; redis-gated skip without REDIS_URL"
         }
       },
+      "test-postgres": {
+        "executor": "nx:run-commands",
+        "cache": false,
+        "options": {
+          "cwd": "apps/api",
+          "command": "npx jest --config jest.postgres.cts --runInBand --passWithNoTests"
+        },
+        "metadata": {
+          "description": "S1 Postgres adapter suites (*.integration.spec.ts) against a real Postgres; DATABASE_URL-gated skip without a database, serial (shared DB + truncate-between-tests)"
+        }
+      },
       "test:live": {
         "executor": "nx:run-commands",
         "cache": false,

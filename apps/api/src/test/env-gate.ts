@@ -9,6 +9,8 @@
  * Canonical env names live here (single source of truth):
  *   ZEROX_API_KEY      — 0x swap aggregator
  *   COINGECKO_API_KEY  — CoinGecko price feed
+ *   DATABASE_URL       — wave-6 S1 Postgres adapters (describePostgres;
+ *                        POSTGRES_TEST_URL overrides the connection URL)
  *
  * Usage:
  *   describeKeyed('ZEROX_API_KEY', '0x adapter (keyed)', () => { ... });
@@ -95,6 +97,55 @@ export function itRedis(
   timeoutMs?: number,
 ): void {
   if (hasRedisUrl()) {
+    it(title, fn, timeoutMs);
+    return;
+  }
+  it.skip(title, fn);
+}
+
+export const POSTGRES_ENV_NAME = 'DATABASE_URL';
+/** Optional override for S1 integration suites. Dev machines with a
+ *  dual-purpose .env (Supabase pooler + local compose) point this at the
+ *  session-mode compose DB; CI service containers set DATABASE_URL only. */
+export const POSTGRES_TEST_URL_NAME = 'POSTGRES_TEST_URL';
+
+function hasPostgresUrl(): boolean {
+  return typeof postgresTestUrl() === 'string';
+}
+
+/** The URL S1 integration suites connect with: POSTGRES_TEST_URL wins,
+ *  else DATABASE_URL. */
+export function postgresTestUrl(): string | undefined {
+  for (const name of [POSTGRES_TEST_URL_NAME, POSTGRES_ENV_NAME]) {
+    const value = process.env[name];
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+/** Runs the suite only when DATABASE_URL is set; otherwise skips with a
+ *  logged reason. Wave-6 S1 Postgres adapter suites: hermetic CI without a
+ *  database skips cleanly; coordinated Postgres CI (OpsCI) sets the URL. */
+export function describePostgres(title: string, fn: () => void): void {
+  if (hasPostgresUrl()) {
+    describe(title, fn);
+    return;
+  }
+  process.stdout.write(
+    `[env-gate] skipped "${title}": ${POSTGRES_ENV_NAME} not set (S1 postgres test)\n`,
+  );
+  describe.skip(title, fn);
+}
+
+/** Runs one test only when DATABASE_URL is set; otherwise skips it. */
+export function itPostgres(
+  title: string,
+  fn: jest.ProvidesCallback,
+  timeoutMs?: number,
+): void {
+  if (hasPostgresUrl()) {
     it(title, fn, timeoutMs);
     return;
   }
