@@ -140,6 +140,91 @@ uses, and the relationship is one-directional:
   fuzzing (`max_time_delay`, `max_block_delay`) for any timestamp-sensitive logic `[F4]`.
 - **Optimization probes:** maximize `|Σ accruals − fee collected|` and `factory balance − Σ
 bonds` to hunt rounding leaks and bond extraction paths `[F4]` **[inference]** — these turn
+
+## 4.5 Rounding / dust policy **[Review54 ruling: APPROVED, binding conditions C1–C3]**
+
+Ruled policy, stated so INV-FEE-2 becomes an EXACT identity:
+
+- Per-trade fee `f = floor(amount × 175 / 10_000)` (truncate toward zero — never round
+  up, so no trader ever pays more than RATE; the floor direction is fail-safe for the
+  overcharge claim).
+- Recipient accruals `a_i = floor(f × share_i / 175)` in schedule order; the residual
+  `f − Σa_i` (bounded by 3 wei for four recipients) accrues to the **last recipient in
+  fixed order** (deterministic sink, no silent socialization; the ≤3 wei/trade privilege
+  is bounded, deterministic, disclosed, and carries no strategic space since order is
+  fixed by the schedule).
+- Dust residual from `f` vs real-amount rounding stays with the trader.
+
+**Binding conditions (Review54, first-pass):**
+
+- **C1:** conservation is asserted EXACT — integer equality, zero tolerance (line "any other residue = test failure" is hereby binding).
+- **C2:** implementation is overflow-safe: `amount × 175` overflows above 2^256/175 and
+  so does `f × share_i` — mulDiv-style arithmetic with floor semantics preserved.
+- **C3:** the policy (fee formula + split rule + sink order) is frozen as in-code
+  constants and echoed into the battery as frozen constants (§4.6 pattern). Fail-closed throughout: any single failure ⇒ no Tier V claim, no launch.
+
+### 4.5.1 Formal conservation identities (INV-FEE-2 / INV-FEE-4)
+
+#### INV-FEE-4: Fee rate identity
+
+For every trade execution at fee rate `RATE = 175 bps`:
+
+```solidity
+// Contract-level invariant
+f = floor(amount × RATE / 10_000)
+```
+
+**Properties:**
+
+(a) **Exact floor arithmetic:** Fee calculation uses integer division that truncates toward zero — never rounds up. Fail-safe direction for overcharge claim.
+
+(b) **Overflow guard:** Implementation must use mulDiv-style arithmetic with overflow checks: `amount × 175` can overflow above `(2^256 - 1) / 175`. Safe implementation requires:
+   - 256-bit intermediate representation
+   - Explicit overflow detection or unchecked blocks only where overflow impossible by construction
+
+(c) **Deterministic rounding:** Given same `amount`, `fee` is deterministic and reproducible across all nodes, testnets, and local forks.
+
+(d) **Tolerance policy:** No tolerance band around rate identity. Any deviation from exact floor math constitutes test failure, not acceptable drift.
+
+#### INV-FEE-2: Conservation identity
+
+Total collected fee `f` must equal sum of accrued amounts to schedule recipients (`Σ a_i`) by construction:
+
+```solidity
+// Four recipient accruals in fixed order (creator/LP/protocol/sink)
+a_0 = floor(f × share_0 / 175)
+a_1 = floor(f × share_1 / 175)
+a_2 = floor(f × share_2 / 175)
+a_3 = floor((f - Σ_{j=0}^{2} a_j) × share_3 / 175) // sink gets residual
+
+// EXACT conservation theorem
+f = Σ_{i=0}^{3} a_i ✓
+```
+
+**Theorem (residual bound):**
+
+δ ≡ f − Σ a_i ≤ 3 wei per trade
+
+This is NOT a tolerance window but a THEOREM about floor function behavior. The residual δ is bounded by 3 wei because:
+- Each floor operation drops less than 1 wei
+- At most 4 floor operations per trade (1 rate × 4 shares)
+- Last-absorbs-policy concentrates remainder deterministically
+
+**Implications:**
+
+1. Optimization probe MUST return exactly 0 for perfect conservation tests
+2. Residual optimization probe MAY return ≤ 3 wei if implementing "dust redistribution" feature
+3. Any result > 3 wei indicates implementation bug or state corruption
+
+**Cross-invariant consistency proof:**
+
+INV-FEE-1 (schedule well-formedness) + INV-FEE-4 (rate identity) + INV-FEE-2 (conservation) + INV-FEE-3 (schedule immutability) ⇒ closed system proving:
+- Every wei accounted for
+- Correct recipients
+- Correct rate
+- Forever (schedule immutable)
+
+---
   "find a violation" into "push the imbalance as high as possible", which surfaces edge dust
   that plain assertions accept.
 
