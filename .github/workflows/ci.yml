@@ -17,6 +17,13 @@ jobs:
     # redis:7-alpine mirrors docker-compose.yml parity, healthcheck-gated so
     # no readiness sleeps are ever needed, reachable at localhost:6379
     # because the job runs directly on the runner.
+    #
+    # Wave-6 S1 persistence (OpsCI item, wave6-s1-persistence-design.md §10):
+    # postgres:16-alpine mirrors docker-compose.yml; DIRECT_URL == DATABASE_URL
+    # because this is a plain server (no pgbouncer). prisma migrate deploy
+    # runs once before nx affected so every Postgres-backed integration harness
+    # finds a migrated schema. Hermetic unit suites are unaffected — they use
+    # in-memory adapters and ignore DATABASE_URL.
     services:
       redis:
         image: redis:7-alpine
@@ -27,8 +34,23 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: kryptr
+          POSTGRES_PASSWORD: kryptr_dev
+          POSTGRES_DB: kryptr
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kryptr"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
     env:
       REDIS_URL: redis://localhost:6379
+      DATABASE_URL: postgresql://kryptr:kryptr_dev@localhost:5432/kryptr
+      DIRECT_URL: postgresql://kryptr:kryptr_dev@localhost:5432/kryptr
     steps:
       - uses: actions/checkout@v5
         with:
@@ -41,6 +63,11 @@ jobs:
 
       - run: npm ci
 
+      # Run pending migrations before any test that exercises Postgres-backed
+      # adapters. DIRECT_URL == DATABASE_URL (plain server, no pooler in CI).
+      - name: Apply Prisma migrations
+        run: npx prisma migrate deploy
+
       # Pick the diff base per event. PRs compare against origin/main; on
       # pushes to main, origin/main == HEAD so `nx affected` would see an
       # empty set — use HEAD~1 to validate exactly what was just merged
@@ -50,7 +77,7 @@ jobs:
         run: |
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
             echo "base=origin/main" >> "$GITHUB_OUTPUT"
-          elif git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+          elif git rev-parse --verify HEAD~1 > /dev/null 2>&1; then
             echo "base=HEAD~1" >> "$GITHUB_OUTPUT"
           else
             echo "base=$(git rev-list --max-parents=0 HEAD)" >> "$GITHUB_OUTPUT"
@@ -109,6 +136,23 @@ jobs:
       # NOTE: no --projects flag — nx would forward it to the commands.
       - name: Contracts gates (forge-build/forge-test/fmt/slither/manifests/canonicalize)
         run: npx nx affected --base="${{ steps.nx_base.outputs.base }}" -t forge-build forge-test fmt slither manifests canonicalize
+
+      # Wave-6 S4 venue registry validation (wave6-s4-venue-design.md §2.2):
+      # fail-closed on any malformed entry when venue files exist; graceful
+      # no-op when contracts/deployments/venues/ is absent or empty (S4 build
+      # not yet landed). Pattern mirrors manifests/verify-content-hash steps:
+      # presence check first, then validation, never trust-but-skip.
+      - name: Venue registry validation (S4, no-op until venue files land)
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          venue_files=(contracts/deployments/venues/*.venues.json)
+          if [ ${#venue_files[@]} -eq 0 ]; then
+            echo "No venue files found — S4 venue registry not yet deployed (expected). Gate passes."
+            exit 0
+          fi
+          echo "Validating ${#venue_files[@]} venue file(s)..."
+          node contracts/tools/validate-venues.mjs "${venue_files[@]}"
 
   # Fork tests against real Base RPC: OPT-IN via the `fork-tests` PR label
   # (public RPC rate limits/flakes must never gate default CI). Nightly
