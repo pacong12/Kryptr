@@ -76,6 +76,17 @@
         "description": "Fork tests against Base Sepolia (84532) — wave-5 rehearsal stage 1 (runbook §3, Main ruling): the full unit-only suite is chain-agnostic (deploys into forked state; no venue dependency), proven 49/49 keyless. Nightly + release-tag only; same unit-only/invariant exclusion and B_pin env pattern as fork-test. Stage 2 (Robinhood Chain 46630) lands by ruling once the user RPC arrives."
       }
     },
+    "fork-test-robinhood": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "cwd": "contracts",
+        "command": "forge test --fork-url \"$RPC_URL_ROBINHOOD\" --fork-retry-backoff 500 ${FORK_BLOCK_ROBINHOOD:+--fork-block-number \"$FORK_BLOCK_ROBINHOOD\"} --no-match-path \"test/invariant/*\" -vv"
+      },
+      "metadata": {
+        "description": "Fork tests against Robinhood Chain testnet (46630) — wave-6 rehearsal stage 2 (Main wave-6 opening: user RPC delivered, chainId verified live 0xb626). Same chain-agnostic unit-only suite, proven 56/56 keyless against the delivered RPC. Nightly + release-tag only; same unit-only/invariant exclusion and B_fork env pattern as fork-test/fork-test-sepolia."
+      }
+    },
     "manifests": {
       "executor": "nx:run-commands",
       "cache": true,
