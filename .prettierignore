@@ -4,3 +4,6 @@
 /.nx/cache
 /.nx/workspace-data
 .nx/self-healing
+# vendored third-party agent skills (installed via npx skills)
+/.agents/skills/
+/.claude/skills/
