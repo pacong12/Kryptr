@@ -48,20 +48,25 @@ name: Contracts ceremony (S3)
 #     P4  receipt.from             == payload.pinnedSender
 #     P6  tx.nonce                 == payload.expectedNonce
 #     +   receipt.status           == success
-#     The full §8 g4-readback (code identity, immutable readbacks,
-#     transcript) is a separate job; REJECT here severs nothing on its own
-#     but is recorded.
+#     The FULL §8 gate is the third action:
+#   action=g4-readback : the complete §8 ordered checks — P3, P4,
+#     P6 (+ predicted-address structural check), receipt status, CODE
+#     IDENTITY (on-chain runtime vs at-tag recompile; factory immutable
+#     regions zero-masked, their VALUES verified by readback instead),
+#     immutable readbacks (factory stage), and a transcript with full
+#     provenance. REJECT = no stage PASS; recorded, never silently retried.
 
 on:
   workflow_dispatch:
     inputs:
       action:
-        description: 'prepare = build+publish payload; verify = post-broadcast checks'
+        description: 'prepare = build+publish payload; verify = quick post-broadcast checks; g4-readback = full §8 gate'
         required: true
         type: choice
         options:
           - prepare
           - verify
+          - g4-readback
       release_tag:
         description: 'Contracts release tag to run the kit at (e.g. contracts-v0.1.0)'
         required: true
@@ -429,7 +434,7 @@ jobs:
   # after passing here (Review54 #104 hardening). Everything is validated
   # as data, in bash, before any checkout of an operator-named ref.
   validate-verify-inputs:
-    if: ${{ github.event.inputs.action == 'verify' }}
+    if: ${{ github.event.inputs.action == 'verify' || github.event.inputs.action == 'g4-readback' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
@@ -590,3 +595,327 @@ jobs:
             exit 1
           fi
           echo "VERDICT: PASS — on-chain bytes match the published payload (this chain only)."
+
+  # FULL §8 gate (g4-readback) — ordered checks, any failure = REJECT:
+  #   1 P3 keccak256(tx.input) == payload.calldataKeccak
+  #   2 P4 receipt.from == pinnedSender
+  #   3 P6 tx.nonce == expectedNonce; nonce matched but address differs
+  #     from the advisory prediction => structural REJECT (§8 item 3)
+  #   4 receipt.status success + contractAddress present
+  #   5 CODE IDENTITY: keccak256(eth_getCode(addr)) vs the runtime of an
+  #     at-tag recompile. Factory immutables are zero-masked on BOTH sides
+  #     — their VALUES are verified by check 6 readbacks, never trusted
+  #     from the hash. Template has no immutables (direct compare).
+  #   6 immutable readbacks (factory only): template() / totalFeeBps() /
+  #     bondAmount() / bondSink() == payload decoded values
+  #   7 TRANSCRIPT: every read recorded with provenance (RPC URL, block
+  #     number, tx hash, timestamp) and uploaded as an artifact —
+  #     evidence for the Tier D claims (frozen vocabulary, P7 stamp).
+  # All RPC traffic is single JSON-RPC calls (Robinhood batch-403, #98).
+  g4-readback:
+    if: ${{ github.event.inputs.action == 'g4-readback' }}
+    needs: validate-verify-inputs
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      IN_RELEASE_TAG: ${{ github.event.inputs.release_tag }}
+      IN_CHAIN: ${{ github.event.inputs.chain }}
+      IN_STAGE: ${{ github.event.inputs.stage }}
+      IN_ATTEMPT: ${{ github.event.inputs.attempt }}
+      IN_DEPLOY_TX_HASH: ${{ github.event.inputs.deploy_tx_hash }}
+      IN_PAYLOAD_REF: ${{ github.event.inputs.payload_ref }}
+      TOOLING_COMMIT: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          # Shape-validated in the validate-verify-inputs job.
+          ref: ${{ github.event.inputs.payload_ref }}
+          path: payload-ws
+
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          ref: refs/tags/${{ github.event.inputs.release_tag }}
+          path: tag-ws
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.7.1
+
+      - name: Collect on-chain evidence (single JSON-RPC calls only)
+        run: |
+          set -euo pipefail
+          case "$IN_CHAIN" in
+            base-sepolia)    RPC="https://sepolia.base.org" ;;
+            robinhood-46630) RPC="https://rpc.testnet.chain.robinhood.com" ;;
+            *) echo "unknown chain: $IN_CHAIN"; exit 1 ;;
+          esac
+          echo "RPC=$RPC" >> "$GITHUB_ENV"
+          echo "VERDICT=0" >> "$GITHUB_ENV"
+          : > "$RUNNER_TEMP/checks.jsonl"
+
+          SUFFIX=""
+          if [ "$IN_ATTEMPT" != "1" ]; then SUFFIX="-attempt$IN_ATTEMPT"; fi
+          PAYLOAD="payload-ws/contracts/deployments/ceremony/${IN_CHAIN}-${IN_RELEASE_TAG}-${IN_STAGE}${SUFFIX}.ceremony.json"
+          if [ ! -s "$PAYLOAD" ]; then
+            echo "committed payload not found at $PAYLOAD on ref $IN_PAYLOAD_REF — fail closed."
+            exit 1
+          fi
+          echo "PAYLOAD=$PAYLOAD" >> "$GITHUB_ENV"
+
+          TXRESP=$(curl -sS -m 30 -X POST "$RPC" -H 'Content-Type: application/json' \
+            --data '{"jsonrpc":"2.0","id":1,"method":"eth_getTransactionByHash","params":["'"$IN_DEPLOY_TX_HASH"'"]}')
+          RCRESP=$(curl -sS -m 30 -X POST "$RPC" -H 'Content-Type: application/json' \
+            --data '{"jsonrpc":"2.0","id":2,"method":"eth_getTransactionReceipt","params":["'"$IN_DEPLOY_TX_HASH"'"]}')
+
+          INPUT=$(printf '%s' "$TXRESP" | jq -r '.result.input // empty')
+          TX_NONCE=$(printf '%s' "$TXRESP" | jq -r '.result.nonce // empty')
+          FROM=$(printf '%s' "$RCRESP" | jq -r '.result.from // empty')
+          STATUS=$(printf '%s' "$RCRESP" | jq -r '.result.status // empty')
+          CONTRACT_ADDR=$(printf '%s' "$RCRESP" | jq -r '.result.contractAddress // empty')
+          BLOCK_NUMBER=$(printf '%s' "$RCRESP" | jq -r '.result.blockNumber // empty')
+
+          if [ -z "$INPUT" ] || [ -z "$FROM" ] || [ -z "$CONTRACT_ADDR" ]; then
+            echo "tx $IN_DEPLOY_TX_HASH not found / not mined on $IN_CHAIN — wrong chain, or not yet broadcast/confirmed."
+            exit 1
+          fi
+
+          CODERESP=$(curl -sS -m 30 -X POST "$RPC" -H 'Content-Type: application/json' \
+            --data '{"jsonrpc":"2.0","id":3,"method":"eth_getCode","params":["'"$CONTRACT_ADDR"'","latest"]}')
+          CHAIN_CODE=$(printf '%s' "$CODERESP" | jq -r '.result // empty')
+          if [ -z "$CHAIN_CODE" ] || [ "$CHAIN_CODE" = "0x" ]; then
+            echo "no code at $CONTRACT_ADDR — fail closed."
+            exit 1
+          fi
+
+          {
+            echo "INPUT=$INPUT"
+            echo "TX_NONCE=$TX_NONCE"
+            echo "FROM=$FROM"
+            echo "STATUS=$STATUS"
+            echo "CONTRACT_ADDR=$CONTRACT_ADDR"
+            echo "BLOCK_NUMBER=$BLOCK_NUMBER"
+          } >> "$GITHUB_ENV"
+          printf '%s' "$CHAIN_CODE" > "$RUNNER_TEMP/chain-code.hex"
+          echo "evidence collected — contract $CONTRACT_ADDR at block $BLOCK_NUMBER"
+
+      - name: Checks 1–4 (P3, P4, P6, status + predicted-address structural check)
+        run: |
+          set -euo pipefail
+          PUB_KECCAK=$(jq -r '.calldataKeccak' "$PAYLOAD")
+          PUB_SENDER=$(jq -r '.pinnedSender' "$PAYLOAD")
+          PUB_NONCE=$(jq -r '.expectedNonce' "$PAYLOAD")
+          PRED_ADDR=$(jq -r '.predictedAddress.address // empty' "$PAYLOAD")
+
+          record() { # name expected actual pass(1|0)
+            jq -n --arg name "$1" --arg expected "$2" --arg actual "$3" --argjson pass "$4" \
+              '{name:$name, expected:$expected, actual:$actual, pass:($pass==1)}' >> "$RUNNER_TEMP/checks.jsonl"
+            if [ "$4" -ne 1 ]; then
+              echo "VERDICT=1" >> "$GITHUB_ENV"
+              echo "REJECT $1: expected $2, got $3"
+            else
+              echo "PASS  $1: $2"
+            fi
+          }
+
+          ACTUAL_KECCAK=$(cast keccak "$INPUT")
+          record "P3 keccak256(tx.input) == calldataKeccak" "${PUB_KECCAK,,}" "${ACTUAL_KECCAK,,}" "$([ "${PUB_KECCAK,,}" = "${ACTUAL_KECCAK,,}" ] && echo 1 || echo 0)"
+          record "P4 receipt.from == pinnedSender" "${PUB_SENDER,,}" "${FROM,,}" "$([ "${PUB_SENDER,,}" = "${FROM,,}" ] && echo 1 || echo 0)"
+          record "P6 tx.nonce == expectedNonce" "${PUB_NONCE,,}" "${TX_NONCE,,}" "$([ "${PUB_NONCE,,}" = "${TX_NONCE,,}" ] && echo 1 || echo 0)"
+          record "receipt.status == success" "0x1" "${STATUS,,}" "$([ "${STATUS,,}" = "0x1" ] && echo 1 || echo 0)"
+
+          # §8 item 3: nonce matched but the deployed address differs from
+          # the advisory prediction => something structurally wrong.
+          if [ -n "$PRED_ADDR" ]; then
+            record "predictedAddress (advisory) == contractAddress" "${PRED_ADDR,,}" "${CONTRACT_ADDR,,}" "$([ "${PRED_ADDR,,}" = "${CONTRACT_ADDR,,}" ] && echo 1 || echo 0)"
+          fi
+          echo "checks 1–4 recorded"
+
+      - name: Recompile at the tag (code-identity basis)
+        run: |
+          set -euo pipefail
+          cd tag-ws/contracts
+          forge build
+          echo "TAG_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          if [ "$IN_STAGE" = "template" ]; then
+            echo "ARTIFACT=tag-ws/contracts/out/TokenTemplate.sol/KryptrLaunchTokenTemplate.json" >> "$GITHUB_ENV"
+          else
+            echo "ARTIFACT=tag-ws/contracts/out/TokenFactory.sol/KryptrTokenFactory.json" >> "$GITHUB_ENV"
+          fi
+
+      - name: Check 5 — code identity (immutable regions zero-masked on both sides)
+        run: |
+          set -euo pipefail
+          cat > /tmp/mask-runtime.mjs <<'EOF'
+          import { readFileSync, writeFileSync } from 'node:fs';
+
+          const [artifactPath, chainCodePath, outDir] = process.argv.slice(2);
+          const art = JSON.parse(readFileSync(artifactPath, 'utf8'));
+          let obj = art.deployedBytecode?.object ?? '';
+          if (obj.startsWith('0x')) obj = obj.slice(2);
+          if (!/^[0-9a-f]+$/i.test(obj)) {
+            console.error('artifact deployedBytecode.object malformed — fail closed');
+            process.exit(1);
+          }
+          const local = Buffer.from(obj, 'hex');
+
+          const refs = art.deployedBytecode?.immutableReferences ?? {};
+          const regions = Object.values(refs).flat();
+
+          let chainHex = readFileSync(chainCodePath, 'utf8').trim();
+          if (chainHex.startsWith('0x')) chainHex = chainHex.slice(2);
+          if (!/^[0-9a-f]+$/i.test(chainHex)) {
+            console.error('chain code malformed — fail closed');
+            process.exit(1);
+          }
+          const chain = Buffer.from(chainHex, 'hex');
+
+          if (chain.length !== local.length) {
+            console.error(`runtime length mismatch: chain ${chain.length} != tag-artifact ${local.length} — fail closed`);
+            process.exit(1);
+          }
+          for (const r of regions) {
+            if (!Number.isInteger(r.start) || !Number.isInteger(r.length) || r.start + r.length > local.length) {
+              console.error('immutableReference region outside bytecode — fail closed');
+              process.exit(1);
+            }
+            local.fill(0, r.start, r.start + r.length);
+            chain.fill(0, r.start, r.start + r.length);
+          }
+          writeFileSync(`${outDir}/masked-local.hex`, local.toString('hex'));
+          writeFileSync(`${outDir}/masked-chain.hex`, chain.toString('hex'));
+          console.log(`masked ${regions.length} immutable region(s); runtime ${local.length} bytes`);
+          EOF
+
+          OUTDIR="$RUNNER_TEMP/g4"
+          mkdir -p "$OUTDIR"
+          node /tmp/mask-runtime.mjs "$ARTIFACT" "$RUNNER_TEMP/chain-code.hex" "$OUTDIR"
+
+          HASH_LOCAL=$(cast keccak "0x$(cat "$OUTDIR/masked-local.hex")")
+          HASH_CHAIN=$(cast keccak "0x$(cat "$OUTDIR/masked-chain.hex")")
+          PASS=$([ "${HASH_LOCAL,,}" = "${HASH_CHAIN,,}" ] && echo 1 || echo 0)
+          jq -n --arg name "code identity: keccak(masked on-chain runtime) == keccak(masked at-tag runtime)" \
+            --arg expected "$HASH_LOCAL" --arg actual "$HASH_CHAIN" --argjson pass "$PASS" \
+            '{name:$name, expected:$expected, actual:$actual, pass:($pass==1)}' >> "$RUNNER_TEMP/checks.jsonl"
+          if [ "$PASS" -ne 1 ]; then
+            echo "VERDICT=1" >> "$GITHUB_ENV"
+            echo "REJECT code identity: $HASH_CHAIN != $HASH_LOCAL"
+          else
+            echo "PASS  code identity: $HASH_LOCAL"
+          fi
+
+      - name: Check 6 — immutable readbacks (factory stage only)
+        run: |
+          set -euo pipefail
+          export ETH_RPC_URL="$RPC" # cast call needs an explicit RPC — it does NOT read $RPC (#106 Review54 HIGH)
+          if [ "$IN_STAGE" = "template" ]; then
+            echo "template stage has no readback surface (§8 item 6) — readback = code identity only."
+            exit 0
+          fi
+
+          record() { # name expected actual pass(1|0)
+            jq -n --arg name "$1" --arg expected "$2" --arg actual "$3" --argjson pass "$4" \
+              '{name:$name, expected:$expected, actual:$actual, pass:($pass==1)}' >> "$RUNNER_TEMP/checks.jsonl"
+            if [ "$4" -ne 1 ]; then
+              echo "VERDICT=1" >> "$GITHUB_ENV"
+              echo "REJECT $1: expected $2, got $3"
+            else
+              echo "PASS  $1: $2"
+            fi
+          }
+
+          EXP_TEMPLATE=$(jq -r '.decoded.constructorArgs.template' "$PAYLOAD")
+          EXP_FEE=$(jq -r '.decoded.constructorArgs.totalFeeBps' "$PAYLOAD")
+          EXP_BOND=$(jq -r '.decoded.constructorArgs.bondAmountWei' "$PAYLOAD")
+          EXP_SINK=$(jq -r '.decoded.constructorArgs.bondSink' "$PAYLOAD")
+
+          RB_TEMPLATE=$(cast call "$CONTRACT_ADDR" "template()" | tr -d '[:space:]')
+          RB_FEE=$(cast call "$CONTRACT_ADDR" "totalFeeBps()" | tr -d '[:space:]')
+          RB_BOND=$(cast call "$CONTRACT_ADDR" "bondAmount()" | tr -d '[:space:]')
+          RB_SINK=$(cast call "$CONTRACT_ADDR" "bondSink()" | tr -d '[:space:]')
+
+          GOT_TEMPLATE="0x${RB_TEMPLATE: -40}"
+          GOT_FEE=$((16#${RB_FEE#0x}))
+          GOT_BOND=$((16#${RB_BOND#0x}))
+          GOT_SINK="0x${RB_SINK: -40}"
+
+          record "readback template() == decoded template" "${EXP_TEMPLATE,,}" "${GOT_TEMPLATE,,}" "$([ "${EXP_TEMPLATE,,}" = "${GOT_TEMPLATE,,}" ] && echo 1 || echo 0)"
+          record "readback totalFeeBps() == decoded totalFeeBps" "$EXP_FEE" "$GOT_FEE" "$([ "$EXP_FEE" = "$GOT_FEE" ] && echo 1 || echo 0)"
+          record "readback bondAmount() == decoded bondAmountWei" "$EXP_BOND" "$GOT_BOND" "$([ "$EXP_BOND" = "$GOT_BOND" ] && echo 1 || echo 0)"
+          record "readback bondSink() == decoded bondSink" "${EXP_SINK,,}" "${GOT_SINK,,}" "$([ "${EXP_SINK,,}" = "${GOT_SINK,,}" ] && echo 1 || echo 0)"
+
+      - name: Check 7 — transcript with provenance (artifact)
+        run: |
+          set -euo pipefail
+          CEREMONY_ID=$(jq -r '.ceremonyId' "$PAYLOAD")
+          CHAIN_ID=$(jq -r '.chain.chainId' "$PAYLOAD")
+          if [ "$VERDICT" -eq 0 ]; then FINAL="PASS"; else FINAL="REJECT"; fi
+
+          TRANSCRIPT="$RUNNER_TEMP/g4-transcript-${IN_CHAIN}-${IN_STAGE}.json"
+          jq -s \
+            --arg ceremonyId "$CEREMONY_ID" \
+            --arg chain "$IN_CHAIN" \
+            --argjson chainId "$CHAIN_ID" \
+            --arg stage "$IN_STAGE" \
+            --arg tx "$IN_DEPLOY_TX_HASH" \
+            --arg contract "$CONTRACT_ADDR" \
+            --arg verdict "$FINAL" \
+            --arg rpc "$RPC" \
+            --arg block "$BLOCK_NUMBER" \
+            --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg releaseTag "$IN_RELEASE_TAG" \
+            --arg commitSha "$TAG_SHA" \
+            --arg toolingCommit "$TOOLING_COMMIT" \
+            '{
+              ceremonyId: $ceremonyId,
+              claim: "TESTNET",
+              chain: { chainId: $chainId, name: $chain },
+              stage: $stage,
+              deployTxHash: $tx,
+              contractAddress: $contract,
+              verdict: $verdict,
+              readbackAt: $at,
+              provenance: {
+                rpc: $rpc,
+                blockNumber: $block,
+                releaseTag: $releaseTag,
+                commitSha: $commitSha,
+                toolingCommit: $toolingCommit,
+              },
+              checks: .,
+            }' "$RUNNER_TEMP/checks.jsonl" > "$TRANSCRIPT"
+
+          echo "TRANSCRIPT=$TRANSCRIPT" >> "$GITHUB_ENV"
+          cat "$TRANSCRIPT"
+          {
+            echo "## g4-readback — ${CEREMONY_ID}"
+            echo ""
+            echo "- verdict: **${FINAL}** (claim TESTNET, chainId ${CHAIN_ID} — P7)"
+            echo "- contract: \`${CONTRACT_ADDR}\` | block ${BLOCK_NUMBER} | tx \`${IN_DEPLOY_TX_HASH}\`"
+            echo "- transcript artifact: g4-transcript-${IN_CHAIN}-${IN_STAGE}"
+            if [ "$FINAL" = "REJECT" ]; then
+              echo ""
+              echo "REJECT severs the chain to the Tier D battery — no battery, no artifact."
+              echo "A new attempt = a new ceremony dispatch, explicitly (no silent retries)."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$VERDICT" -ne 0 ]; then
+            echo "VERDICT: REJECT — full §8 readback failed."
+            exit 1
+          fi
+          echo "VERDICT: PASS — full §8 readback green (this chain only; TESTNET PASS != MAINNET PASS)."
+
+      - name: Upload g4 transcript
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: g4-transcript-${{ env.IN_CHAIN }}-${{ env.IN_STAGE }}
+          path: ${{ env.TRANSCRIPT }}
+          if-no-files-found: warn
