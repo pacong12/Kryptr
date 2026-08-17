@@ -7,10 +7,11 @@
       "adapterPort": "DexAggregatorPort",
       "poolCreationParams": { "venueBps": 8.75 },
       "feeAccrualLayer": "venue",
+      "accrualBasis": "trade_amount",
       "status": "active",
       "addedAt": "2026-08-18T10:00:00Z",
       "addedBy": "same-agent",
-      "approvedBy": "same-agent",
+      "approvedBy": "different-user",
       "supersededBy": null
     }
   ]
