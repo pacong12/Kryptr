@@ -50,7 +50,8 @@ Signing is a dedicated future phase (see
   TESTNET rehearsal deploys (Base Sepolia 84532 and Robinhood Chain testnet
   46630); the deploy manifest is empty, and no T21 verification artifact
   exists — so every deploy intent is rejected. The factory goes live only
-  after the Tier D battery passes. See
+  after the Tier D battery passes, the verification artifact is written, and
+  the factory lands in the deploy manifest. See
   [Launchpad consent](/features/launchpad-consent).
 - No token pages, fee accrual views, or graduation mechanics exist yet.
 
