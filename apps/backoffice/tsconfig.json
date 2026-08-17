@@ -20,6 +20,7 @@
     ],
     "paths": {
       "@/*": ["./src/*"],
+      "@kryptr/shared-types": ["../../packages/shared-types/src/index.ts"],
       "@kryptr/shared-ui/react/lib/*": [
         "../../packages/shared-ui/src/react/lib/*"
       ],
