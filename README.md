@@ -120,3 +120,7 @@ domain model (`packages/shared-types/src/lib/security.ts`):
 
 See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the phased plan:
 wallets → trading → launchpad → agent runtime.
+
+## Battery Tier D (Part A)
+
+PR #119 wires `battery-tierd` entry point per VaultAPI spec: dispatch workflow with P-1/P-2 fork-mode tests at pinned blocks, P-5 Blockscout API v2 poller with strict `is_verified===true` gate only, evidence JSON output. See docs/battery-tierd.md (to be created).
