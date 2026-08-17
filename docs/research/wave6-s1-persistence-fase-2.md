@@ -8,11 +8,11 @@ Depends on: fase 1 merged (#105, `0001_init` already contains every fase-2 table
 
 Fase 2 swaps the order-worker's three in-memory stores for Postgres adapters:
 
-| Port (unchanged) | In-memory today | Postgres adapter (fase 2) | Tables (already in `0001_init`) |
-| --- | --- | --- | --- |
-| `OrderStore` | `InMemoryOrderStore` | `PostgresOrderStore` | `orders` |
-| `ExecutionStore` | `InMemoryExecutionStore` | `PostgresExecutionStore` | `order_executions` |
-| `KillSwitchPort` | `InMemoryKillSwitch` | `PostgresKillSwitch` | `kill_switch_state`, `kill_switch_audit` |
+| Port (unchanged) | In-memory today          | Postgres adapter (fase 2) | Tables (already in `0001_init`)          |
+| ---------------- | ------------------------ | ------------------------- | ---------------------------------------- |
+| `OrderStore`     | `InMemoryOrderStore`     | `PostgresOrderStore`      | `orders`                                 |
+| `ExecutionStore` | `InMemoryExecutionStore` | `PostgresExecutionStore`  | `order_executions`                       |
+| `KillSwitchPort` | `InMemoryKillSwitch`     | `PostgresKillSwitch`      | `kill_switch_state`, `kill_switch_audit` |
 
 Binding stays module-level (`isPostgresPersistence()`), exactly the fase-1 seam: hermetic default
 in-memory; `PERSISTENCE_MODE=postgres` + `DATABASE_URL` required, fail-closed otherwise. Ports and
@@ -43,10 +43,10 @@ WHERE id = $1
 RETURNING payload;
 ```
 
-  Zero rows → distinguish `order_not_found` (404) from `order_not_live` (409) with a follow-up
-  existence read — the same fail-closed diagnostics pattern as `PostgresDeployRecordStore.transition`
-  (fase 1). The in-memory store's `TERMINAL_STATUSES` set is the single source of truth and moves to
-  a shared constant imported by BOTH implementations (no behavior change).
+Zero rows → distinguish `order_not_found` (404) from `order_not_live` (409) with a follow-up
+existence read — the same fail-closed diagnostics pattern as `PostgresDeployRecordStore.transition`
+(fase 1). The in-memory store's `TERMINAL_STATUSES` set is the single source of truth and moves to
+a shared constant imported by BOTH implementations (no behavior change).
 
 Concurrency: two racers setting a live order's status serialize on the row lock; the first commits,
 the second re-evaluates the WHERE against the committed row. A transition INTO a terminal status is
@@ -67,9 +67,10 @@ ON CONFLICT (order_id, slot_key) DO NOTHING
 RETURNING *;
 ```
 
-  The UNIQUE constraint IS the exactly-once guard across worker restarts, redeliveries, and
-  CONCURRENT WORKERS: the losing replica receives zero rows and must stop without side effects.
-  (Same construction as `sign_requests` `UNIQUE(intent_id)` in fase 1.)
+The UNIQUE constraint IS the exactly-once guard across worker restarts, redeliveries, and
+CONCURRENT WORKERS: the losing replica receives zero rows and must stop without side effects.
+(Same construction as `sign_requests` `UNIQUE(intent_id)` in fase 1.)
+
 - `reclaim(id, at)` — continuation ownership (review OW-2), conditional CAS:
 
 ```sql
@@ -79,10 +80,11 @@ WHERE id = $1 AND status IN ('claimed','quoted')
 RETURNING *;
 ```
 
-  The resumable set is EXACTLY `RESUMABLE_STATUSES = {claimed, quoted}` (Review54 F2): `submitted`
-  is deliberately NON-resumable — a record that reached submission may already be on-chain, so
-  reclaiming it would open a double-fire path. The set moves to a shared constant imported by both
-  implementations (mirrors `DEPLOY_RECORD_TRANSITIONS` in fase 1).
+The resumable set is EXACTLY `RESUMABLE_STATUSES = {claimed, quoted}` (Review54 F2): `submitted`
+is deliberately NON-resumable — a record that reached submission may already be on-chain, so
+reclaiming it would open a double-fire path. The set moves to a shared constant imported by both
+implementations (mirrors `DEPLOY_RECORD_TRANSITIONS` in fase 1).
+
 - `update(id, patch)` — conditional `UPDATE ... WHERE id=$1 RETURNING *`; zero rows →
   `DomainError('execution_not_found', …, 404)`. `finishedAt`/`intentId`/`detail` patched only when
   present (undefined ≠ null).
@@ -100,7 +102,7 @@ to_mode, actor, reason, at)`.
 
 - `getState()` — read row `id = 1`. Missing row = pristine deployment → materialize lazily with
   `INSERT ... ON CONFLICT (id) DO NOTHING` of the default `{ mode: 'off', activatedAt: null,
-  reason: null, version: 0 }` and return it. No audit row for bootstrap (it is not a transition).
+reason: null, version: 0 }` and return it. No audit row for bootstrap (it is not a transition).
 - `setMode(mode, { actor, reason, at })` — ONE interactive `$transaction`:
 
 ```sql
@@ -112,11 +114,12 @@ INSERT INTO kill_switch_audit (from_mode, to_mode, actor, reason, at)
 VALUES ($5, $1, $4, $3, $2);
 ```
 
-  `from_mode` is read inside the same transaction (SELECT before UPDATE, or captured from the
-  pre-image). State and audit commit TOGETHER — the audit can never lag or lead the state.
-  `activatedAt`/`reason` are nulled when returning to `off`, mirroring `InMemoryKillSwitch`.
-  Zero rows on the UPDATE (row vanished) → fail-closed `DomainError('kill_switch_missing', …, 500)`;
-  the singleton CHECK makes that state unrecoverable without operator action.
+`from_mode` is read inside the same transaction (SELECT before UPDATE, or captured from the
+pre-image). State and audit commit TOGETHER — the audit can never lag or lead the state.
+`activatedAt`/`reason` are nulled when returning to `off`, mirroring `InMemoryKillSwitch`.
+Zero rows on the UPDATE (row vanished) → fail-closed `DomainError('kill_switch_missing', …, 500)`;
+the singleton CHECK makes that state unrecoverable without operator action.
+
 - `getAudit()` — `SELECT … ORDER BY id` (bigserial = causal order), mapped to
   `KillSwitchAuditEntry`.
 - Append-only discipline: `kill_switch_audit` has NO update/delete code path (design §7); a
@@ -127,13 +130,13 @@ fase 2 only persists the state so all replicas see the same switch.
 
 ## 5. Concurrency & consistency summary
 
-| Race | Arbiter | Loser behavior |
-| --- | --- | --- |
-| Two workers claim one slot | `UNIQUE (order_id, slot_key)` | zero rows → stop, no side effects |
-| Two continuations reclaim one execution | conditional `UPDATE … status IN ('claimed','quoted')` | zero rows → stop (terminal or taken) |
-| Terminal order status write | conditional `UPDATE … status NOT IN (terminal)` | 409 `order_not_live` |
-| Concurrent kill-switch flips | row lock + single-tx state+audit | last commit wins; BOTH transitions audited in order |
-| Claim vs `cancel_active` fan-out | unchanged worker ordering: kill-switch checked at claim time | fan-out cancels what it can see; a claim already past the check completes its slot (documented wave-4 semantics) |
+| Race                                    | Arbiter                                                      | Loser behavior                                                                                                   |
+| --------------------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| Two workers claim one slot              | `UNIQUE (order_id, slot_key)`                                | zero rows → stop, no side effects                                                                                |
+| Two continuations reclaim one execution | conditional `UPDATE … status IN ('claimed','quoted')`        | zero rows → stop (terminal or taken)                                                                             |
+| Terminal order status write             | conditional `UPDATE … status NOT IN (terminal)`              | 409 `order_not_live`                                                                                             |
+| Concurrent kill-switch flips            | row lock + single-tx state+audit                             | last commit wins; BOTH transitions audited in order                                                              |
+| Claim vs `cancel_active` fan-out        | unchanged worker ordering: kill-switch checked at claim time | fan-out cancels what it can see; a claim already past the check completes its slot (documented wave-4 semantics) |
 
 All arbitration happens in Postgres; no application-level mutex is required, which is precisely
 what unlocks multi-replica workers under the C1 criterion.
