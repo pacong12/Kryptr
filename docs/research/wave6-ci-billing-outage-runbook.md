@@ -3,8 +3,8 @@
 Status: RUNBOOK + INCIDENT RECORD. Compiled by Review54 under the conductor's
 outage rulings (C4: the outage window and merge-during-outage status are part
 of the release record). All facts below are from the conductor's broadcast
-record; timestamps marked `(conductor log)` are to be filled from that log —
-no times are invented here.
+record. Timestamps were supplied by the conductor (2026-08-17 state update)
+and are marked `(conductor-supplied)` — no times are invented here.
 
 ## 1. Incident summary
 
@@ -17,12 +17,12 @@ jobs; without CI there is no merge, no tag, and no ceremony.
 
 | Event | Evidence |
 | --- | --- |
-| Outage begins — all dispatched/queued jobs fail to start with the billing annotation | conductor log `(conductor log: first-observed timestamp)` |
+| Outage begins — all dispatched/queued jobs fail to start with the billing annotation | 2026-08-17 ~09:41 UTC `(conductor-supplied)` — first billing annotation observed on PR #107's gate run |
 | PR #106 (feat/ceremony-verify-g4) merges as `bc7273c` BEFORE the billing error | main history; `bc7273c` is the outage head |
 | PR #107 (backoffice Vercel build fix) opened; local build green; CI verification impossible during outage | PR #107 discussion record |
 | Nightly fork-tests dead for the outage duration | nightly runs show billing annotation, no executions |
 | Deploy retry loop paused to protect the 100/day quota | conductor ruling (FACT 3) |
-| Outage ends — account billing resolved (repo published by user); CI alive again | first green CI run after restore `(conductor log: restore timestamp)` |
+| Outage ends — account billing resolved (repo published by user); CI alive again | 2026-08-17 ~10:05 UTC `(conductor-supplied)` — repo published by user; first post-restore CI green confirmed on main (incl. #107 merge) |
 
 ## 3. Merge-during-outage record (release-record entry, C4)
 
