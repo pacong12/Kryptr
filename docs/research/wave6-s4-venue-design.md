@@ -1,9 +1,9 @@
 # Wave 6 S4 — venue marketplace + T21 extension (DESIGN)
 
 > Status: **DESIGN — research/design only; no code in this PR.** Every unbuilt component
-> below is labeled **[DESIGN]**. Product claims use the frozen vocabulary only (gate-status
-> statements; today: Tier F PASS at testnet chainId 84532, factory DARK, S3 pending user
-> approval). First pass: Review54. Pattern follows #108. Builds on: T21 criteria doc
+> statements; today: Tier F defined & runnable — PASS record pending post-outage
+> re-baseline (battery re-run 32018051836 at tag `contracts-v0.1.0`); factory DARK;
+> S3 pending user approval). First pass: Review54. Pattern follows #108. Builds on: T21 criteria doc
 > (`wave5-t21-verification-design.md`, `[F#]`), release-tag runbook (Tier V definition),
 > wave-2 trading research (`[W#]`), wave-4 oracle research (`[O#]`), launchpad memo +
 > decision (T17–T21), S1 persistence (#96/#108), S2 ceremony (#94).
@@ -21,9 +21,9 @@ Tier D (factory) to **Tier V** (launch/venue).
 
 **Non-goals:**
 
-- Venue contracts themselves are **third-party** — per T21 §1 they are integration-tested
-  in G3 but never verified by the battery. We verify OUR adapter code, never Uniswap/0x
-  internals `[F1 scope]`.
+- Venue contracts themselves are **third-party** — per T21 §2 (System under verification)
+  they are integration-tested in G3 but never verified by the battery. We verify OUR
+  adapter code, never Uniswap/0x internals `[F §2]`.
 - No new consent claims: the vocabulary stays the **four frozen strings**; venue work
   deepens `fee_split_invariant` EVIDENCE (runbook §1 ruling), never the claim set.
 - Launchpad factory/template are frozen by Tier D; nothing here mutates them.
@@ -114,26 +114,32 @@ evidence + new gates, per the runbook's Tier V definition:
   is a separate ghost, asserted in FV scenarios, never mixed into this identity `[F §4.3]`.
 - **INV-FEE-4 (rate):** trade fee == amount × RATE (175 bps reference) within the
   documented rounding tolerance `[F §4.3]`.
-- **Venue accrual ghost:** a `TradingHandler` action executing venue trades inside the
-  invariant campaign, asserting per-trade: schedule recipients receive their integer-bps
-  shares AND the venue layer accrues `venueBps` at the pool — two ledgers, no cross-leak.
+- **INV-VENUE-1 (venue accrual identity):** per-trade venue-layer accrual == `venueBps`
+  applied to the documented accrual basis — a named identity with the same exactness
+  discipline as INV-FEE-2, asserted by a `TradingHandler` action executing venue trades
+  inside the invariant campaign. Together with INV-FEE-2 this makes the two ledgers
+  (schedule recipients vs venue layer) independently exact, with no cross-leak.
 
 ### 4.2 G2 additions
 
 - Selector surface + Slither extend to the **venue adapter contracts** (our code behind
-  `DexAggregatorPort`); third-party venue contracts remain out of scope `[F §1]`.
+  `DexAggregatorPort`); third-party venue contracts remain out of scope `[F §2]`.
 - Never-triage set applies unchanged to adapter code.
+- **Adapter target set = explicit manifest [DESIGN]:** the battery targets an enumerated,
+  CI-validated list of adapter files/directories — "adapter code" can never silently
+  widen to cover vendored third-party source. Same manifest discipline as the deploy
+  allowlist.
 
 ### 4.3 G3 additions (fork scenarios, keyless)
 
-| #    | Scenario **[DESIGN]**                                                     | Mitigation proven           |
-| ---- | ------------------------------------------------------------------------- | --------------------------- |
-| FV-1 | Pool creation on forked venue state; params == registry entry             | A-2, registry lineage       |
-| FV-2 | Trade splits: four recipients exact (integer bps) + venue accrual at pool | INV-FEE-2/4, FK-2 fork half |
-| FV-3 | Slippage guard: quote vs execution price ⇒ revert below minBuyAmount      | `[W# T11–T16 mitigations]`  |
-| FV-4 | quoteId TTL expiry ⇒ re-quote required, stale quote reverts               | `[W# mitigations]`          |
-| FV-5 | Oracle deviation beyond bounds ⇒ price-dependent venue ops refuse         | T22/T23 `[O#]`              |
-| FV-6 | Wick/flash-print candle ⇒ trade refusal under deviation bounds            | T22 `[O#]`                  |
+| #    | Scenario **[DESIGN]**                                                     | Mitigation proven                         |
+| ---- | ------------------------------------------------------------------------- | ----------------------------------------- |
+| FV-1 | Pool creation on forked venue state; params == registry entry             | A-2, registry lineage                     |
+| FV-2 | Trade splits: four recipients exact (integer bps) + venue accrual at pool | INV-FEE-2/4 + INV-VENUE-1, FK-2 fork half |
+| FV-3 | Slippage guard: quote vs execution price ⇒ revert below minBuyAmount      | `[W# T11–T16 mitigations]`                |
+| FV-4 | quoteId TTL expiry ⇒ re-quote required, stale quote reverts               | `[W# mitigations]`                        |
+| FV-5 | Oracle deviation beyond bounds ⇒ price-dependent venue ops refuse         | T22/T23 `[O#]`                            |
+| FV-6 | Wick/flash-print candle ⇒ trade refusal under deviation bounds            | T22 `[O#]`                                |
 
 ### 4.4 G4/G5 additions (live, post-venue-deploy)
 
@@ -143,19 +149,28 @@ evidence + new gates, per the runbook's Tier V definition:
 - G5 evidence metadata += `{ venues: [venueId…], registryCommitSha, chainId }`;
   `claims[]` stays the frozen four `[C-7 rule]`.
 
-### 4.5 Rounding/dust policy **[DESIGN]** (closes T21 §9.1, needs Review54/user ruling)
+### 4.5 Rounding/dust policy (Review54 ruling: APPROVED, binding conditions C1–C3; user final co-owner)
 
-Proposed rule, stated so INV-FEE-2 becomes an EXACT identity:
+Ruled policy, stated so INV-FEE-2 becomes an EXACT identity:
 
 - Per-trade fee `f = floor(amount × 175 / 10_000)` (truncate toward zero — never round
-  up, so no trader ever pays more than RATE).
+  up, so no trader ever pays more than RATE; the floor direction is fail-safe for the
+  overcharge claim).
 - Recipient accruals `a_i = floor(f × share_i / 175)` in schedule order; the residual
   `f − Σa_i` (bounded by 3 wei for four recipients) accrues to the **last recipient in
-  fixed order** (deterministic sink, no silent socialization).
+  fixed order** (deterministic sink, no silent socialization; the ≤3 wei/trade privilege
+  is bounded, deterministic, disclosed, and carries no strategic space since order is
+  fixed by the schedule).
 - Dust residual from `f` vs real-amount rounding stays with the trader.
 
-Any other policy is acceptable iff it keeps the conservation identity exact and
-deterministic; the battery asserts whichever policy is ruled, as a frozen constant.
+**Binding conditions (Review54, first-pass):**
+
+- **C1:** conservation is asserted EXACT — integer equality, zero tolerance (line §5
+  "any other residue = test failure" is hereby binding).
+- **C2:** implementation is overflow-safe: `amount × 175` overflows above 2^256/175 and
+  so does `f × share_i` — mulDiv-style arithmetic with floor semantics preserved.
+- **C3:** the policy (fee formula + split rule + sink order) is frozen as in-code
+  constants and echoed into the battery as frozen constants (§4.6 pattern).
 
 ### 4.6 Tier V gate semantics **[DESIGN]**
 
@@ -189,10 +204,11 @@ Tier V claim, no launch.
 
 ## 7. Open questions (owners)
 
-| Item                                                                        | Owner                                |
-| --------------------------------------------------------------------------- | ------------------------------------ |
-| Rounding/dust policy final ruling (§4.5 proposal)                           | Review54 + user                      |
-| Testnet signing for FK-2 live half (runbook §9.3)                           | Main + user                          |
-| Venue availability on Robinhood stage 2 (chainId 46630)                     | VaultAPI                             |
-| Adapter-first venue kind for wave-6 build (Uniswap v4 pool vs 0x liquidity) | VaultAPI + user                      |
-| On-chain registry trigger conditions (§2.3)                                 | deferred — revisit only on real need |
+| Item                                                                                                                                                            | Owner                                |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| Rounding/dust policy (§4.5) — Review54 APPROVED with C1–C3                                                                                                      | user (final co-owner)                |
+| Testnet signing for FK-2 live half (runbook §9.3)                                                                                                               | Main + user                          |
+| Venue availability on Robinhood stage 2 (chainId 46630)                                                                                                         | VaultAPI                             |
+| Adapter-first venue kind for wave-6 build (Uniswap v4 pool vs 0x liquidity)                                                                                     | VaultAPI + user                      |
+| venueBps economics: additive vs carve-out from the trader-paid fee — MUST be pinned when the adapter-first venue kind is chosen (row above); currently implicit | VaultAPI + user                      |
+| On-chain registry trigger conditions (§2.3)                                                                                                                     | deferred — revisit only on real need |
