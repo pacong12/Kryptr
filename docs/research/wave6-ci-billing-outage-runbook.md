@@ -32,8 +32,8 @@ jobs; without CI there is no merge, no tag, and no ceremony.
 | User approval for S3 execution ("setuju")                                                                       | ~10:00 UTC `(conductor log)`                                                                                                                                                          |
 | Jobs start and pass again                                                                                       | green runs 32018018524, 32018036378 from 10:00:12Z                                                                                                                                    |
 | First post-restore nightly = fork-tests re-baseline, green                                                      | 2026-08-17 10:00:41Z, run 32018062734 (3 legs, SUCCESS)                                                                                                                               |
-| Outage ends — user published the repo (billing resolved); CI alive again                                        | 2026-08-17 ~10:03 UTC `(conductor-supplied)`                                                                                                                                          |
 | S3 attempt=1 execution dispatched by conductor (post-approval) — NOT a sanity test                              | 2026-08-17 10:02:26Z, run 32018207598 — failed in `prepare` on missing solc 0.8.24 (fixed by #111); no payload published, nothing signed, nothing broadcast — zero impact             |
+| Outage ends — user published the repo (billing resolved); CI alive again                                        | 2026-08-17 ~10:03 UTC `(conductor-supplied)`                                                                                                                                          |
 
 ## 3. Merge-during-outage record (release-record entry, C4)
 
@@ -42,8 +42,10 @@ Main head throughout the window was `bc7273c` (#106), which landed before the
 billing error; the only open PR during the window was #107.
 
 Boundary note (official reconciliation): the #107 merge (10:04:53Z) happened
-AFTER recovery (~10:03 UTC), with its CI gate green post-restore (run 32016465227) — so the claim "zero merges during the outage" stands with this
-window definition. An outage window with zero merges is the cleanest evidence
+AFTER recovery (~10:03 UTC); its gate run had already passed pre-blockage (run
+32016465227, green 09:41:06Z) — so the claim "zero merges during the outage"
+stands with this window definition, and every shipped change still carries CI
+gate evidence. An outage window with zero merges is the cleanest evidence
 position: every shipped change has full CI gate evidence.
 
 ## 4. Official outage rules (adopted by the conductor)
@@ -76,7 +78,10 @@ position: every shipped change has full CI gate evidence.
 3. **Merge #107** once its CI is green → redeploy backoffice (verify the
    production build that motivated the fix).
 4. Merge remaining queue in order (incl. this runbook and the #108 design).
-5. **S3 execution** only after explicit user approval (status §4.5).
+5. **S3 execution** — user approval granted ~10:00 UTC `(conductor log)`;
+   attempt 1 failed at the runner (solc offline gap, fixed by #111) with zero
+   chain impact; re-dispatch via the CI workflow only, after #111 merges.
+   Payloads ONLY from CI (rule §4.2).
 
 ## 6. Standing checks after any future CI gap
 
