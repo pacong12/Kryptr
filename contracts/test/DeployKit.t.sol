@@ -108,7 +108,9 @@ contract DeployKitTest is Test {
         bytes memory data = DeployKitLib.factoryDeployData(impl, sink);
 
         bytes memory truncated = new bytes(data.length - 1);
-        for (uint256 i = 0; i < truncated.length; i++) truncated[i] = data[i];
+        for (uint256 i = 0; i < truncated.length; i++) {
+            truncated[i] = data[i];
+        }
         vm.expectRevert(bytes("kit: creation data truncated"));
         this._decodeExt(truncated);
 
@@ -118,11 +120,7 @@ contract DeployKitTest is Test {
         this._decodeExt(tampered);
     }
 
-    function _decodeExt(bytes memory data)
-        external
-        pure
-        returns (DeployKitLib.FactoryArgs memory)
-    {
+    function _decodeExt(bytes memory data) external pure returns (DeployKitLib.FactoryArgs memory) {
         return DeployKitLib.decodeFactoryArgs(data);
     }
 
@@ -202,11 +200,7 @@ contract DeployKitRunTest is Test {
         string memory j = vm.readFile("deploy-kit-out/factory-deploy.json");
         assertEq(j.readString(".kind"), "factory-deploy");
         assertEq(j.readString(".value"), "0x0");
-        assertEq(
-            j.readBytes(".data"),
-            DeployKitLib.factoryDeployData(tmpl, sink),
-            "tx2 data drift"
-        );
+        assertEq(j.readBytes(".data"), DeployKitLib.factoryDeployData(tmpl, sink), "tx2 data drift");
         // S2 §4: decoded block is the round-trip parse of the SAME bytes (the
         // old top-level constructorArgs moved under .decoded per the ceremony
         // payload format).

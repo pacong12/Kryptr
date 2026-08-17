@@ -62,12 +62,8 @@ library DeployKitLib {
         // Static tuple (address,uint16,uint256,address) = exactly 4 words.
         // Exact-length check keeps abi.decode total: a short segment would
         // otherwise hit decode's bare revert(0,0) with no diagnostic.
-        require(
-            creationData.length >= code.length + 128, "kit: creation data truncated"
-        );
-        require(
-            creationData.length == code.length + 128, "kit: args segment length drift"
-        );
+        require(creationData.length >= code.length + 128, "kit: creation data truncated");
+        require(creationData.length == code.length + 128, "kit: args segment length drift");
         require(_prefixEq(creationData, code), "kit: creation code prefix drift");
         bytes memory args = new bytes(creationData.length - code.length);
         for (uint256 i = 0; i < args.length; i++) {
@@ -80,26 +76,19 @@ library DeployKitLib {
     ///      decoded args MUST equal the frozen constants + operator inputs —
     ///      display alone is not enough. Any drift reverts the kit before a
     ///      payload can leave the machine.
-    function assertFactoryArgs(
-        FactoryArgs memory decoded_,
-        address template_,
-        address bondSink_
-    ) internal pure {
+    function assertFactoryArgs(FactoryArgs memory decoded_, address template_, address bondSink_)
+        internal
+        pure
+    {
         require(decoded_.template == template_, "kit: decoded template drift");
-        require(
-            decoded_.totalFeeBps == TOTAL_FEE_BPS, "kit: decoded totalFeeBps drift"
-        );
+        require(decoded_.totalFeeBps == TOTAL_FEE_BPS, "kit: decoded totalFeeBps drift");
         require(decoded_.bondAmount == BOND_AMOUNT, "kit: decoded bondAmount drift");
         require(decoded_.bondSink == bondSink_, "kit: decoded bondSink drift");
     }
 
     /// @dev Element-range keccak compare for memory byte arrays (Solidity
     ///      slices are calldata-only). True iff data starts with prefix.
-    function _prefixEq(bytes memory data, bytes memory prefix)
-        private
-        pure
-        returns (bool)
-    {
+    function _prefixEq(bytes memory data, bytes memory prefix) private pure returns (bool) {
         if (data.length < prefix.length) return false;
         bytes32 hData;
         bytes32 hPrefix;
