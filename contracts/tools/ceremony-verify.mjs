@@ -150,6 +150,12 @@ export function keccak256(data) {
 
 export const keccak256Hex = (hex) => {
   const clean = hex.startsWith('0x') ? hex.slice(2) : hex;
+  // Strict: even-length lowercase hex only. An odd trailing nibble is not
+  // representable as bytes — silently dropping it would let a one-nibble
+  // tamper hash-verify against the untouched prefix (fail-open). Never.
+  if (clean.length % 2 !== 0 || /[^0-9a-f]/.test(clean)) {
+    throw new Error(`keccak256Hex: malformed hex input (len=${clean.length})`);
+  }
   const bytes = new Uint8Array(clean.length / 2);
   for (let i = 0; i < bytes.length; i++)
     bytes[i] = parseInt(clean.slice(i * 2, i * 2 + 2), 16);
@@ -162,7 +168,7 @@ export const keccak256Hex = (hex) => {
 const HEX64 = /^0x[0-9a-f]{64}$/;
 const HEX40 = /^0x[0-9a-fA-F]{40}$/;
 
-function verify(payload) {
+export function verify(payload) {
   const failures = [];
   const reject = (why) => failures.push(why);
   const tx = payload.tx ?? {};
@@ -184,8 +190,8 @@ function verify(payload) {
     reject('calldataKeccak malformed');
 
   // 2. P1/P5 — re-derive the hash from the exact bytes-to-sign
-  if (!/^0x[0-9a-f]{2,}$/.test(tx.data ?? ''))
-    reject('tx.data is not lowercase hex');
+  if (!/^0x(?:[0-9a-f]{2})+$/.test(tx.data ?? ''))
+    reject('tx.data is not even-length lowercase hex');
   else {
     const recomputed = keccak256Hex(tx.data);
     if (recomputed !== (payload.calldataKeccak ?? '').toLowerCase()) {
