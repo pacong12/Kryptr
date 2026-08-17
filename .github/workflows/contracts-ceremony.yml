@@ -245,6 +245,199 @@ jobs:
           test -s "$OUT"
           echo "KIT_JSON=contracts/$OUT" >> "$GITHUB_ENV"
 
+      # Enrich kit output — ruling A (S3 design gap found by attempt-2)
+      # plus the binding three-expert adendum (S1-S6, A1-A5). Tags cut
+      # before the #102 emitter upgrade (e.g. contracts-v0.1.0) emit
+      # MINIMAL kit JSON (kind/signer/to/value/data [+constructorArgs]);
+      # assemble expects the enriched shape (stage/calldataKeccak/decoded/
+      # frozenConstants). This step enriches deterministically WITHOUT
+      # touching the bytes-to-sign:
+      #   S1  data flows VERBATIM; sha256(data string) before == after.
+      #   S2  tag JSON is the ONLY input — no RPC, no source re-derive,
+      #       no re-encode of data; decode grammar proven by cast
+      #       round-trip (A1): calldata-decode trailing args -> abi-encode
+      #       back -> byte-identical. Blind echo prohibited.
+      #   S3  frozen constants come from the workflow's frozen pins
+      #       (175 bps / 10000000000000000 wei / pinned rehearsal sink),
+      #       never from the tag JSON; decoded is cross-checked against
+      #       them; factory template must equal the stage-1 receipt
+      #       address (IN_TEMPLATE_ADDRESS).
+      #   S4  publication stays keccak256(raw calldata) (P1); lineage
+      #       TAG_SHA -> sha256(tag JSON) -> sha256(enriched JSON) ->
+      #       published hash is exported for the ceremony record + G5;
+      #       tooling-only justification cites the #102 byte-identity
+      #       proof (4/4 sha256 + calldata byte-identical).
+      #   S6  fail-closed on any missing/malformed field; atomic write
+      #       (tmp file -> rename only after ALL asserts pass).
+      #   A5  auto-skip passthrough when the tag JSON is already enriched
+      #       (forward-compat with future enriched tags).
+      - name: Enrich kit output (deterministic, tag-compat)
+        run: |
+          set -euo pipefail
+          KIT="$KIT_JSON"
+          fail() { echo "enrich: FAIL-CLOSED — $1"; exit 1; }
+
+          TAG_JSON_SHA256=$(sha256sum "$KIT" | awk '{print $1}')
+          echo "lineage: TAG_SHA=$TAG_SHA tagJSON sha256=$TAG_JSON_SHA256"
+
+          KIND=$(jq -r '.kind // empty' "$KIT")
+          TO=$(jq -c '.to' "$KIT")
+          VALUE=$(jq -r '.value // empty' "$KIT")
+          DATA=$(jq -r '.data // empty' "$KIT")
+          [ "$KIND" = "${IN_STAGE}-deploy" ] || fail "kind '$KIND' != ${IN_STAGE}-deploy"
+          [ "$TO" = "null" ] || fail "to must be null (contract creation)"
+          [ "$VALUE" = "0x0" ] || fail "value must be 0x0"
+          [[ "$DATA" =~ ^0x([0-9a-f]{2})+$ ]] || fail "data is not even-length lowercase hex"
+
+          EMITTER_META="tag@${IN_RELEASE_TAG} (minimal)"
+          ENRICHMENT_META="inline@${TOOLING_COMMIT}"
+
+          if jq -e '.calldataKeccak and .decoded and .stage' "$KIT" >/dev/null 2>&1; then
+            # A5 passthrough — already-enriched tag: re-verify keccak only.
+            RECHECK=$(cast keccak "$DATA")
+            PUB=$(jq -r '.calldataKeccak' "$KIT")
+            [ "${RECHECK,,}" = "${PUB,,}" ] || fail "enriched tag JSON keccak != keccak(data)"
+            EMITTER_META="tag@${IN_RELEASE_TAG} (enriched native)"
+            ENRICHMENT_META="passthrough@${TOOLING_COMMIT}"
+            echo "kit JSON already enriched — passthrough (keccak re-verified)"
+          else
+            CALC_KECCAK=$(cast keccak "$DATA")
+            if [ "$IN_STAGE" = "factory" ]; then
+              # G1-G3 (VaultAPI decode grammar; mirrors the tag's
+              # DeployKitLib.decodeFactoryArgs). Creation code comes from
+              # the TAG artifact — the emitter step just compiled the tag
+              # checkout under the tag's own foundry profile (solc 0.8.24,
+              # optimizer runs=200, cancun, bytecode_hash none), so out/
+              # holds tag-profile bytecode by construction.
+              ARTIFACT=contracts/out/TokenFactory.sol/KryptrTokenFactory.json
+              [ -s "$ARTIFACT" ] || fail "kit: creation code prefix drift (tag artifact missing — fail-closed)"
+              CODE_HEX=$(jq -r '.bytecode.object // empty' "$ARTIFACT")
+              CODE_HEX="${CODE_HEX#0x}"
+              [[ "$CODE_HEX" =~ ^([0-9a-f]{2})+$ ]] || fail "kit: creation code prefix drift (artifact bytecode malformed — fail-closed)"
+              DATA_HEX="${DATA#0x}"
+              # G1 truncation, then G2 exact-length — BEFORE any slicing.
+              [ $(( ${#DATA_HEX} / 2 )) -ge $(( ${#CODE_HEX} / 2 + 128 )) ] || fail "kit: creation data truncated"
+              [ $(( ${#DATA_HEX} )) -eq $(( ${#CODE_HEX} + 256 )) ] || fail "kit: args segment length drift"
+              # G3 prefix identity.
+              [ "${DATA_HEX:0:${#CODE_HEX}}" = "$CODE_HEX" ] || fail "kit: creation code prefix drift"
+
+              # A1 round-trip: the constructor args are the trailing 128
+              # bytes (4 static words). Decode via cast with a synthetic
+              # selector, re-encode via abi-encode, demand byte-identity —
+              # an independent decoder cross-check on top of G1-G3.
+              ARGS_HEX="${DATA_HEX: -256}"
+              SIG="kryptr_enrich(address,uint16,uint256,address)"
+              SEL=$(cast sig "$SIG")
+              DECODED=$(cast calldata-decode "$SIG" "${SEL}${ARGS_HEX}") || fail "cast calldata-decode rejected the trailing 128 bytes"
+              D_TEMPLATE=$(printf '%s\n' "$DECODED" | sed -n 1p)
+              D_FEE=$(printf '%s\n' "$DECODED" | sed -n 2p | awk '{print $1}')
+              D_BOND=$(printf '%s\n' "$DECODED" | sed -n 3p | awk '{print $1}')
+              D_SINK=$(printf '%s\n' "$DECODED" | sed -n 4p)
+              ROUND=$(cast abi-encode "constructor(address,uint16,uint256,address)" "$D_TEMPLATE" "$D_FEE" "$D_BOND" "$D_SINK")
+              [ "${ROUND,,}" = "0x${ARGS_HEX,,}" ] || fail "decode round-trip mismatch (arg boundary drift)"
+
+              # S3 frozen asserts — values from workflow pins, not tag JSON.
+              [ "$D_FEE" = "175" ] || fail "kit: decoded totalFeeBps drift ($D_FEE != frozen 175)"
+              [ "$D_BOND" = "10000000000000000" ] || fail "kit: decoded bondAmount drift (!= frozen 0.01 ETH)"
+              [ "${D_SINK,,}" = "${IN_BOND_SINK,,}" ] || fail "kit: decoded bondSink drift (!= pinned rehearsal sink)"
+              [ "${D_TEMPLATE,,}" = "${IN_TEMPLATE_ADDRESS,,}" ] || fail "kit: decoded template drift (!= stage-1 receipt address)"
+
+              # Secondary cross-check against the tag JSON's own echo.
+              if jq -e '.constructorArgs' "$KIT" >/dev/null 2>&1; then
+                [ "$(jq -r '.constructorArgs.totalFeeBps' "$KIT")" = "$D_FEE" ] || fail "tag JSON constructorArgs.totalFeeBps disagrees with decoded"
+                [ "$(jq -r '.constructorArgs.bondAmountWei' "$KIT")" = "$D_BOND" ] || fail "tag JSON constructorArgs.bondAmountWei disagrees with decoded"
+                [ "$(jq -r '.constructorArgs.bondSink' "$KIT" | tr 'A-Z' 'a-z')" = "${D_SINK,,}" ] || fail "tag JSON constructorArgs.bondSink disagrees with decoded"
+                [ "$(jq -r '.constructorArgs.template' "$KIT" | tr 'A-Z' 'a-z')" = "${D_TEMPLATE,,}" ] || fail "tag JSON constructorArgs.template disagrees with decoded"
+              fi
+            else
+              # Template stage: data must BYTE-EQUAL the template creation
+              # code from the tag artifact (G3 analogue, no args segment).
+              ARTIFACT=contracts/out/TokenTemplate.sol/KryptrLaunchTokenTemplate.json
+              [ -s "$ARTIFACT" ] || fail "kit: template creation code drift (tag artifact missing — fail-closed)"
+              CODE_HEX=$(jq -r '.bytecode.object // empty' "$ARTIFACT")
+              CODE_HEX="${CODE_HEX#0x}"
+              [[ "$CODE_HEX" =~ ^([0-9a-f]{2})+$ ]] || fail "kit: template creation code drift (artifact bytecode malformed — fail-closed)"
+              [ "$(( ${#DATA} - 2 ))" -eq "${#CODE_HEX}" ] || fail "kit: template creation code drift (length mismatch)"
+              [ "${DATA#0x}" = "$CODE_HEX" ] || fail "kit: template creation code drift (data != tag artifact creation code)"
+              BYTECODE_SHA256="0x$(python3 -c 'import hashlib,sys;print(hashlib.sha256(bytes.fromhex(sys.argv[1][2:])).hexdigest())' "$DATA")"
+            fi
+
+            cat > /tmp/ceremony-enrich.mjs <<'EOF'
+            import { readFileSync, writeFileSync, renameSync } from 'node:fs';
+            import { createHash } from 'node:crypto';
+            const env = process.env;
+            const need = (k) => {
+              const v = env[k];
+              if (!v) { console.error(`enrich: missing ${k}`); process.exit(1); }
+              return v;
+            };
+            const fail = (w) => { console.error(`enrich: FAIL-CLOSED — ${w}`); process.exit(1); };
+            const sha256 = (s) => createHash('sha256').update(s, 'utf8').digest('hex');
+
+            const kitPath = need('E_KIT');
+            const stage = need('E_STAGE');
+            const kit = JSON.parse(readFileSync(kitPath, 'utf8'));
+            const dataBefore = kit.data;
+            if (!/^0x(?:[0-9a-f]{2})+$/.test(dataBefore ?? '')) fail('data malformed at enrichment');
+            const dataShaBefore = sha256(dataBefore);
+
+            const decoded = stage === 'template'
+              ? { kind: 'template-deploy', constructorArgs: [], bytecodeSha256: need('E_BYTECODE_SHA256') }
+              : { kind: 'factory-deploy', constructorArgs: {
+                  template: need('E_D_TEMPLATE').toLowerCase(),
+                  totalFeeBps: Number(need('E_D_FEE')),
+                  bondAmountWei: need('E_D_BOND'),
+                  bondSink: need('E_D_SINK').toLowerCase(),
+                } };
+
+            const enriched = {
+              kind: kit.kind,
+              stage,
+              signer: kit.signer,
+              to: kit.to,
+              value: kit.value,
+              data: kit.data, // VERBATIM — bytes-to-sign never change (P5, S1)
+              calldataKeccak: need('E_KECCAK').toLowerCase(),
+              decoded,
+              ...(stage === 'factory' ? { frozenConstants: {
+                  totalFeeBps: Number(need('E_D_FEE')),
+                  bondAmountWei: need('E_D_BOND'),
+                  bondSink: need('E_D_SINK').toLowerCase(),
+                } } : {}),
+              enrichment: {
+                emitter: need('E_EMITTER_META'),
+                tooling: need('E_ENRICHMENT_META'),
+                tagJsonSha256: need('E_TAG_JSON_SHA256'),
+                dataStringSha256: dataShaBefore,
+                justification: 'tooling-only enrichment of minimal tag output; calldata bytes byte-identical per #102 proof (4/4 sha256)',
+              },
+            };
+
+            const tmp = `${kitPath}.tmp`;
+            writeFileSync(tmp, JSON.stringify(enriched, null, 2) + '\n');
+            // S1: prove the bytes-to-sign survived bit-identical.
+            const written = JSON.parse(readFileSync(tmp, 'utf8'));
+            if (written.data !== dataBefore) fail('data field altered during enrichment');
+            if (sha256(written.data) !== dataShaBefore) fail('sha256(data) differs after enrichment');
+            renameSync(tmp, kitPath); // atomic: publish only after ALL asserts
+            console.log(`enrich: wrote enriched ${kitPath} (stage ${stage}, calldataKeccak ${enriched.calldataKeccak})`);
+          EOF
+
+            E_KIT="$KIT" E_STAGE="$IN_STAGE" E_KECCAK="$CALC_KECCAK" \
+            E_TAG_JSON_SHA256="$TAG_JSON_SHA256" E_EMITTER_META="$EMITTER_META" \
+            E_ENRICHMENT_META="$ENRICHMENT_META" E_D_TEMPLATE="${D_TEMPLATE:-}" \
+            E_D_FEE="${D_FEE:-}" E_D_BOND="${D_BOND:-}" E_D_SINK="${D_SINK:-}" \
+            E_BYTECODE_SHA256="${BYTECODE_SHA256:-}" node /tmp/ceremony-enrich.mjs
+          fi
+
+          ENRICHED_KIT_SHA256=$(sha256sum "$KIT" | awk '{print $1}')
+          {
+            echo "TAG_JSON_SHA256=$TAG_JSON_SHA256"
+            echo "ENRICHED_KIT_SHA256=$ENRICHED_KIT_SHA256"
+            echo "EMITTER_META=$EMITTER_META"
+            echo "ENRICHMENT_META=$ENRICHMENT_META"
+          } >> "$GITHUB_ENV"
+          echo "lineage: TAG_SHA=$TAG_SHA -> tagJSON=$TAG_JSON_SHA256 -> enriched=$ENRICHED_KIT_SHA256"
       # Keyless nonce read — ONE single JSON-RPC call (never a batch array:
       # Robinhood RPC rejects batches with HTTP 403, #98). Advisory only:
       # the operator's wallet nonce at submit time is authoritative (P6
@@ -319,7 +512,7 @@ jobs:
           if (kit.stage !== stage) fail(`kit stage ${kit.stage} != requested ${stage}`);
           if (kit.to !== null) fail('deploy tx must be a contract creation (to: null)');
           if (kit.value !== '0x0') fail('deploy tx must carry value 0x0');
-          if (!/^0x[0-9a-f]{2,}$/.test(kit.data ?? '')) fail('kit data is not lowercase hex');
+          if (!/^0x(?:[0-9a-f]{2})+$/.test(kit.data ?? '')) fail('kit data is not even-length lowercase hex');
           if (!/^0x[0-9a-f]{64}$/.test(kit.calldataKeccak ?? '')) fail('kit calldataKeccak malformed');
           if (typeof kit.decoded !== 'object' || kit.decoded === null) fail('kit decoded block missing');
           if (kit.decoded.kind !== `${stage}-deploy`) fail('decoded.kind mismatch');
@@ -357,10 +550,15 @@ jobs:
             calldataKeccak: kit.calldataKeccak,
             decoded: kit.decoded,
             ...(kit.frozenConstants ? { frozenConstants: kit.frozenConstants } : {}),
+            ...(kit.enrichment ? { enrichment: kit.enrichment } : {}),
             provenance: {
               releaseTag: tag,
               commitSha: need('C_TAG_SHA'),
               toolingCommit: need('C_TOOLING_COMMIT'),
+              emitter: need('C_EMITTER_META'),
+              enrichment: need('C_ENRICHMENT_META'),
+              tagJsonSha256: need('C_TAG_JSON_SHA256'),
+              enrichedKitJsonSha256: need('C_ENRICHED_KIT_SHA256'),
               foundry: 'v1.7.1',
               solc: '0.8.24',
               generatedAt: new Date().toISOString(),
@@ -381,6 +579,8 @@ jobs:
           C_STAGE="$IN_STAGE" C_CHAIN="$IN_CHAIN" C_TAG="$IN_RELEASE_TAG" \
           C_KIT_JSON="$KIT_JSON" C_NONCE="$EXPECTED_NONCE" C_PREDICTED="$PREDICTED_ADDRESS" \
           C_ATTEMPT="$ATTEMPT" C_TAG_SHA="$TAG_SHA" C_TOOLING_COMMIT="$TOOLING_COMMIT" \
+          C_EMITTER_META="$EMITTER_META" C_ENRICHMENT_META="$ENRICHMENT_META" \
+          C_TAG_JSON_SHA256="$TAG_JSON_SHA256" C_ENRICHED_KIT_SHA256="$ENRICHED_KIT_SHA256" \
           C_OUT="$PAYLOAD" node /tmp/ceremony-assemble.mjs
 
           echo "PAYLOAD=$PAYLOAD" >> "$GITHUB_ENV"
