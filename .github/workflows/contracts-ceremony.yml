@@ -813,6 +813,7 @@ jobs:
       - name: Check 6 — immutable readbacks (factory stage only)
         run: |
           set -euo pipefail
+          export ETH_RPC_URL="$RPC" # cast call needs an explicit RPC — it does NOT read $RPC (#106 Review54 HIGH)
           if [ "$IN_STAGE" = "template" ]; then
             echo "template stage has no readback surface (§8 item 6) — readback = code identity only."
             exit 0
