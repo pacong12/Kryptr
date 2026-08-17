@@ -1,0 +1,17 @@
+{
+  "chain": { "chainId": 84532, "name": "base-sepolia" },
+  "venues": [
+    {
+      "venueId": "base-sepolia:uniswap-v4:launchpool",
+      "kind": "uniswap-v4-pool",
+      "adapterPort": "DexAggregatorPort",
+      "poolCreationParams": { "venueBps": 8.75 },
+      "feeAccrualLayer": "venue",
+      "status": "active",
+      "addedAt": "2026-08-18T10:00:00Z",
+      "addedBy": "same-agent",
+      "approvedBy": "same-agent",
+      "supersededBy": null
+    }
+  ]
+}
