@@ -4,7 +4,10 @@ Status: RUNBOOK + INCIDENT RECORD. Compiled by Review54 under the conductor's
 outage rulings (C4: the outage window and merge-during-outage status are part
 of the release record). All facts below are from the conductor's broadcast
 record. Timestamps were supplied by the conductor (2026-08-17 state update)
-and are marked `(conductor-supplied)` — no times are invented here.
+and are marked `(conductor-supplied)`; the window definition below is the
+conductor's official reconciliation (2026-08-17), cross-checked against
+observed CI run records (`gh run list`, Web3Intel cross-review) — no times
+are invented here.
 
 ## 1. Incident summary
 
@@ -15,21 +18,33 @@ jobs; without CI there is no merge, no tag, and no ceremony.
 
 ## 2. Timeline (facts only)
 
-| Event | Evidence |
-| --- | --- |
-| Outage begins — all dispatched/queued jobs fail to start with the billing annotation | 2026-08-17 ~09:41 UTC `(conductor-supplied)` — first billing annotation observed on PR #107's gate run |
-| PR #106 (feat/ceremony-verify-g4) merges as `bc7273c` BEFORE the billing error | main history; `bc7273c` is the outage head |
-| PR #107 (backoffice Vercel build fix) opened; local build green; CI verification impossible during outage | PR #107 discussion record |
-| Nightly fork-tests dead for the outage duration | nightly runs show billing annotation, no executions |
-| Deploy retry loop paused to protect the 100/day quota | conductor ruling (FACT 3) |
-| Outage ends — account billing resolved (repo published by user); CI alive again | 2026-08-17 ~10:05 UTC `(conductor-supplied)` — repo published by user; first post-restore CI green confirmed on main (incl. #107 merge) |
+**Outage window (official, conductor reconciliation): 2026-08-17 ~09:41 UTC
+(first billing annotation) → ~10:03 UTC (user published the repo).**
+
+| Event                                                                                                           | Evidence                                                                                                                                                                              |
+| --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Outage begins — first billing annotation                                                                        | 2026-08-17 ~09:41 UTC `(conductor-supplied)`. Note: the #107 gate run created 09:41:06Z (run 32016465227) still STARTED and passed — the annotation preceded total job-start blockage |
+| Job-start blockage observed                                                                                     | run 32017425116 created 09:52:53Z; its jobs only started 10:01:41–44Z (~9 min queue)                                                                                                  |
+| PR #106 (feat/ceremony-verify-g4) merges as `bc7273c` BEFORE the billing error                                  | main history; `bc7273c` is the outage head                                                                                                                                            |
+| PR #107 (backoffice Vercel build fix) opened; local build green; CI verification impossible during the blockage | PR #107 discussion record                                                                                                                                                             |
+| No nightly fired inside the outage window                                                                       | previous nightlies 06:07Z/06:39Z ran green pre-outage; the next nightly fired post-restore (row below)                                                                                |
+| Deploy retry loop paused to protect the 100/day quota                                                           | conductor ruling (FACT 3)                                                                                                                                                             |
+| User approval for S3 execution ("setuju")                                                                       | ~10:00 UTC `(conductor log)`                                                                                                                                                          |
+| Jobs start and pass again                                                                                       | green runs 32018018524, 32018036378 from 10:00:12Z                                                                                                                                    |
+| First post-restore nightly = fork-tests re-baseline, green                                                      | 2026-08-17 10:00:41Z, run 32018062734 (3 legs, SUCCESS)                                                                                                                               |
+| Outage ends — user published the repo (billing resolved); CI alive again                                        | 2026-08-17 ~10:03 UTC `(conductor-supplied)`                                                                                                                                          |
+| S3 attempt=1 execution dispatched by conductor (post-approval) — NOT a sanity test                              | 2026-08-17 10:02:26Z, run 32018207598 — failed in `prepare` on missing solc 0.8.24 (fixed by #111); no payload published, nothing signed, nothing broadcast — zero impact             |
 
 ## 3. Merge-during-outage record (release-record entry, C4)
 
-**EMPTY.** No PR merged while CI was down. Main head throughout the outage was
-`bc7273c` (#106), which landed before the billing error; the only open PR
-during the window was #107. An outage window with zero merges is the cleanest
-evidence position: every shipped change has full CI gate evidence.
+**EMPTY.** Zero merges inside the outage window (~09:41 UTC → ~10:03 UTC).
+Main head throughout the window was `bc7273c` (#106), which landed before the
+billing error; the only open PR during the window was #107.
+
+Boundary note (official reconciliation): the #107 merge (10:04:53Z) happened
+AFTER recovery (~10:03 UTC), with its CI gate green post-restore (run 32016465227) — so the claim "zero merges during the outage" stands with this
+window definition. An outage window with zero merges is the cleanest evidence
+position: every shipped change has full CI gate evidence.
 
 ## 4. Official outage rules (adopted by the conductor)
 
@@ -38,9 +53,10 @@ evidence position: every shipped change has full CI gate evidence.
    (Applied: #107 and #108 reviewed as GO-pending-CI-verification.)
 2. **S3 payloads ONLY from the CI workflow tag** — no manual production,
    ever (hard rule, A2).
-3. **No new tag for tooling-only changes** — decision unchanged; the #102
-   byte-identity proof (4/4 sha256 + identical calldata) stands.
-4. **Soak clock honesty (A4):** the S5 soak window counts ONLY periods with
+3. **No new tag for tooling-only changes** (standing pre-outage decision,
+   unchanged) — the #102 byte-identity proof (4/4 sha256 + identical
+   calldata) stands.
+4. **Soak clock honesty** (conductor outage ruling): the S5 soak window counts ONLY periods with
    CI + tests actually running. The outage window is EXCLUDED from any soak
    claim; the exclusion is recorded in the release record.
 5. **Frozen claim surface:** no new capability claims during the outage;
@@ -52,9 +68,9 @@ evidence position: every shipped change has full CI gate evidence.
 1. **CI sanity** — confirm jobs start and pass on a trivial change.
 2. **In parallel (independent CI jobs):**
    a. fork-tests re-baseline — both chains (Base Sepolia 84532, Robinhood
-      testnet 46630); treat the FIRST post-outage run as a re-baseline:
-      failures must be triaged as environment drift (RPC changes during the
-      blackout) vs regression BEFORE any claim is made;
+   testnet 46630); treat the FIRST post-outage run as a re-baseline:
+   failures must be triaged as environment drift (RPC changes during the
+   blackout) vs regression BEFORE any claim is made;
    b. battery re-run at the frozen tag;
    c. #107 CI verification (including its version-pin fix commit).
 3. **Merge #107** once its CI is green → redeploy backoffice (verify the
