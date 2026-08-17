@@ -164,15 +164,21 @@ contract DeployKitTest is Test {
 /// @notice F2 (Review54): run()-level proof — drive DeployKit.run() through the
 ///         real env -> JSON assembly path (vm.setEnv -> script -> file on disk)
 ///         and verify the emitted JSON field-by-field against DeployKitLib.
+///         Flake fix (Review54 MEDIUM on #102): ALL env-driven run() proofs live
+///         in ONE sequential test function — vm.setEnv is process-global while
+///         forge parallelizes test functions, so sibling env tests raced on
+///         KIT_STAGE/TEMPLATE_ADDRESS (~30-50% empirical flakes). Only this
+///         contract touches env; within one function the order is deterministic.
 contract DeployKitRunTest is Test {
     using stdJson for string;
     address internal tmpl = makeAddr("templatePlaceholder");
     address internal sink = makeAddr("bondSinkPlaceholder");
 
-    function test_run_templateStage_emitsExactJson() public {
+    function test_run_envDrivenStages_sequential() public {
+        // -- 1) template stage ------------------------------------------
         vm.setEnv("KIT_STAGE", "template");
-        DeployKit kit = new DeployKit();
-        kit.run();
+        DeployKit kitTemplate = new DeployKit();
+        kitTemplate.run();
         string memory j = vm.readFile("deploy-kit-out/template-deploy.json");
         assertEq(j.readString(".value"), "0x0");
         assertTrue(vm.keyExists(j, ".to"), "to field must be present");
@@ -189,15 +195,14 @@ contract DeployKitRunTest is Test {
             sha256(DeployKitLib.templateDeployData()),
             "bytecodeSha256 != sha256 of creation code"
         );
-    }
 
-    function test_run_factoryStage_emitsExactJson() public {
+        // -- 2) factory stage -------------------------------------------
         vm.setEnv("KIT_STAGE", "factory");
         vm.setEnv("TEMPLATE_ADDRESS", vm.toString(tmpl));
         vm.setEnv("BOND_SINK", vm.toString(sink));
-        DeployKit kit = new DeployKit();
-        kit.run();
-        string memory j = vm.readFile("deploy-kit-out/factory-deploy.json");
+        DeployKit kitFactory = new DeployKit();
+        kitFactory.run();
+        j = vm.readFile("deploy-kit-out/factory-deploy.json");
         assertEq(j.readString(".kind"), "factory-deploy");
         assertEq(j.readString(".value"), "0x0");
         assertEq(j.readBytes(".data"), DeployKitLib.factoryDeployData(tmpl, sink), "tx2 data drift");
@@ -219,15 +224,13 @@ contract DeployKitRunTest is Test {
         assertEq(j.readUint(".frozenConstants.totalFeeBps"), 175);
         assertEq(j.readUint(".frozenConstants.bondAmountWei"), 0.01 ether);
         assertEq(j.readAddress(".frozenConstants.bondSink"), sink);
-    }
 
-    function test_run_invalidStage_reverts() public {
-        // a non-empty INVALID stage (empty-string env semantics are
-        // process-global and leak across tests — a bogus value is
-        // deterministic)
+        // -- 3) invalid stage reverts (bogus non-empty value: empty-string
+        //       env semantics are process-global and leak — a bogus value is
+        //       deterministic) --------------------------------------------
         vm.setEnv("KIT_STAGE", "launch");
-        DeployKit kit = new DeployKit();
+        DeployKit kitInvalid = new DeployKit();
         vm.expectRevert(bytes("kit: set KIT_STAGE=template|factory"));
-        kit.run();
+        kitInvalid.run();
     }
 }
