@@ -29,6 +29,11 @@ on:
         required: false
         default: ''
         type: string
+      fork_block_robinhood:
+        description: 'Optional Robinhood testnet fork block pin (rehearsal stage 2). Empty = latest.'
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
@@ -95,6 +100,14 @@ jobs:
         run: npx nx run @kryptr/contracts:fork-test-sepolia
         env:
           # Rehearsal stage 1 (runbook §3): Base Sepolia 84532, public
-          # keyless RPC. Stage 2 (Robinhood 46630) lands by ruling.
+          # keyless RPC. Stage 2 (Robinhood 46630) is the next step below.
           RPC_URL_BASE_SEPOLIA: https://sepolia.base.org
           FORK_BLOCK_BASE_SEPOLIA: ${{ github.event.inputs.fork_block_base_sepolia || vars.FORK_BLOCK_BASE_SEPOLIA }}
+
+      - name: Contracts fork tests (Robinhood testnet rehearsal, keyless)
+        run: npx nx run @kryptr/contracts:fork-test-robinhood
+        env:
+          # Rehearsal stage 2 (wave-6 opening): Robinhood Chain testnet
+          # 46630, user-delivered RPC, chainId verified live (0xb626).
+          RPC_URL_ROBINHOOD: https://rpc.testnet.chain.robinhood.com
+          FORK_BLOCK_ROBINHOOD: ${{ github.event.inputs.fork_block_robinhood || vars.FORK_BLOCK_ROBINHOOD }}
