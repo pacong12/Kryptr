@@ -400,6 +400,19 @@
         nonceError: null,
       };
       const $ = (id) => document.getElementById(id);
+      function esc(s) {
+        return String(s).replace(
+          /[&<>"']/g,
+          (c) =>
+            ({
+              '&': '&amp;',
+              '<': '&lt;',
+              '>': '&gt;',
+              '"': '&quot;',
+              "'": '&#39;',
+            })[c],
+        );
+      }
 
       function row(k, v, cls) {
         return `<div class="row"><span class="k">${k}</span><span class="v ${cls || ''}">${v}</span></div>`;
@@ -408,7 +421,7 @@
         const cls = state === true ? 'ok' : state === false ? 'bad' : 'pending';
         const sym =
           state === true ? 'PASS' : state === false ? 'FAIL' : 'pending';
-        return `<div class="row"><span class="chip ${cls}">${sym}</span><span class="k">${label}</span><span class="v ${cls}">${detail || ''}</span></div>`;
+        return `<div class="row"><span class="chip ${cls}">${sym}</span><span class="k">${label}</span><span class="v ${cls}">${esc(detail ?? '')}</span></div>`;
       }
 
       /* ===== PAYLOAD LOAD ===== */
@@ -421,7 +434,7 @@
         } catch (e) {
           payload = null;
           $('review').innerHTML =
-            `<span class="bad">Not valid JSON: ${e.message}</span>`;
+            `<span class="bad">Not valid JSON: ${esc(e.message)}</span>`;
           renderGates();
           return;
         }
@@ -432,7 +445,7 @@
 
       function reviewProblem(msg) {
         $('review').innerHTML =
-          `<span class="bad">${msg}</span><div class="sub">Signing is disabled. Do not modify the payload by hand — re-run the ceremony workflow.</div>`;
+          `<span class="bad">${esc(msg)}</span><div class="sub">Signing is disabled. Do not modify the payload by hand — re-run the ceremony workflow.</div>`;
       }
 
       function renderReview() {
@@ -454,47 +467,47 @@
         const chain = p.chain || {};
         const prov = p.provenance || {};
         $('review').innerHTML =
-          row('ceremonyId', p.ceremonyId ?? '?') +
-          row('claim', p.claim ?? '?') +
-          row('releaseTag', p.releaseTag ?? '?') +
+          row('ceremonyId', esc(p.ceremonyId ?? '?')) +
+          row('claim', esc(p.claim ?? '?')) +
+          row('releaseTag', esc(p.releaseTag ?? '?')) +
           row(
             'chain / chainId',
-            `${chain.name ?? '?'} / ${chain.chainId ?? '?'}`,
+            `${esc(chain.name ?? '?')} / ${esc(chain.chainId ?? '?')}`,
           ) +
-          row('chain rpc (reference only)', chain.rpc ?? '?') +
-          row('pinnedSender', p.pinnedSender ?? '?') +
-          row('expectedNonce', p.expectedNonce ?? '?') +
+          row('chain rpc (reference only)', esc(chain.rpc ?? '?')) +
+          row('pinnedSender', esc(p.pinnedSender ?? '?')) +
+          row('expectedNonce', esc(p.expectedNonce ?? '?')) +
           row(
             'predictedAddress (advisory)',
-            `${pred.address ?? '?'} <span class="pending">(${pred.basis ?? '?'}${pred.advisory ? ', advisory' : ''})</span>`,
+            `${esc(pred.address ?? '?')} <span class="pending">(${esc(pred.basis ?? '?')}${pred.advisory ? ', advisory' : ''})</span>`,
           ) +
           row(
             'tx.to',
             tx.to === null
               ? '(absent — contract creation)'
-              : `<span class="bad">${tx.to} — MUST be absent</span>`,
+              : `<span class="bad">${esc(tx.to)} — MUST be absent</span>`,
           ) +
           row(
             'tx.value',
             tx.value === '0x0'
               ? '0x0'
-              : `<span class="bad">${tx.value} — MUST be 0x0</span>`,
+              : `<span class="bad">${esc(tx.value)} — MUST be 0x0</span>`,
           ) +
           row(
             'tx.data length',
             `${dataLen} bytes (${tx.data.length} hex chars)`,
           ) +
-          row('payload calldataKeccak', p.calldataKeccak) +
+          row('payload calldataKeccak', esc(p.calldataKeccak)) +
           row(
             'local keccak256(tx.data)',
             `<span id="localKeccak" class="pending">computing…</span>`,
           ) +
-          row('provenance.commitSha (tag)', prov.commitSha ?? '?') +
-          row('provenance.toolingCommit', prov.toolingCommit ?? '?') +
-          row('enrichment.emitter', (p.enrichment || {}).emitter ?? '?') +
+          row('provenance.commitSha (tag)', esc(prov.commitSha ?? '?')) +
+          row('provenance.toolingCommit', esc(prov.toolingCommit ?? '?')) +
+          row('enrichment.emitter', esc((p.enrichment || {}).emitter ?? '?')) +
           row(
             'enrichment.tagJsonSha256',
-            (p.enrichment || {}).tagJsonSha256 ?? '?',
+            esc((p.enrichment || {}).tagJsonSha256 ?? '?'),
           );
         // compute local keccak async to keep UI responsive on big data
         setTimeout(() => {
@@ -714,7 +727,7 @@
           $('walletState').innerHTML = '<span class="ok">connected</span>';
         } catch (e) {
           $('walletState').innerHTML =
-            `<span class="bad">connection rejected: ${e.message || e}</span>`;
+            `<span class="bad">connection rejected: ${esc(e.message || e)}</span>`;
         }
         await refreshWalletChecks();
       });
@@ -750,9 +763,10 @@
           });
           $('txResult').innerHTML =
             `<div class="k">Broadcast SUCCESS — report this tx hash to the conductor:</div>
-       <div class="hash" id="txHash">${txHash}</div>
+       <div class="hash" id="txHash"></div>
        <div class="row" style="margin-top:8px"><button id="copyBtn">Copy tx hash</button></div>
        <div class="sub" style="margin-top:8px">The G4 readback job will compare on-chain tx.input against this hash line. Do not close until reported.</div>`;
+          $('txHash').textContent = String(txHash);
           $('signState').innerHTML =
             '<span class="ok">broadcast accepted</span>';
           document
@@ -767,7 +781,7 @@
             });
         } catch (e) {
           $('signState').innerHTML =
-            `<span class="bad">rejected/failed: ${e.message || e}</span>`;
+            `<span class="bad">rejected/failed: ${esc(e.message || e)}</span>`;
           $('signBtn').disabled = false;
           renderGates();
         }
