@@ -1,6 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "rootDir": "../..",
     "jsx": "preserve",
     "noEmit": true,
     "emitDeclarationOnly": false,
@@ -36,6 +37,9 @@
     "src/**/*.tsx",
     "src/**/*.js",
     "src/**/*.jsx",
+    "../../packages/shared-types/src/**/*.ts",
+    "../../packages/shared-ui/src/react/**/*.ts",
+    "../../packages/shared-ui/src/react/**/*.tsx",
     "../../apps/backoffice/.next/types/**/*.ts",
     "../../dist/apps/backoffice/.next/types/**/*.ts",
     "index.d.ts",
