@@ -64,3 +64,4 @@ test-output
 
 # deploy kit artifacts (regenerable offline from the tagged source — never commit)
 contracts/deploy-kit-out/
+.vercel
