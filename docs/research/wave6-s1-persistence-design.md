@@ -1,6 +1,6 @@
 # Wave 6 S1 — persistence design proposal **[design]**
 
-**Status:** proposal for review (no code in this PR).
+**Status:** revision 2 — Review54 GO-WITH-FIXES verdict absorbed (F1/F2 HIGH, F3 MEDIUM, F4 LOW + micro-USD ruling conditions). No code in this PR.
 **Predecessors:** `wave6-planning.md` (S1 row + gate G-C), `wave6-s2-signing-ceremony.md` (PR #94 — this design is its declared foundation, §9), `wave6-custody-options.md` (memo #90 → Option 1 EOA manual signing ruling), `wave4-worker-design.md` (conditions C1/C3, OW-1/OW-2), `wave5-t21-verification-design.md`.
 
 ## 0. Frozen constraints (inherited, unchanged)
@@ -74,7 +74,7 @@ security_policies     (wallet_id PK, allowed_origins text[], approval_threshold_
 intents               (id PK, wallet_id, kind, created_at, payload jsonb)        -- canonical JSONB + indexed scalars
 decision_audit        (id bigserial PK, intent_id, result, reason, decided_at, decision_usd_micros)   -- APPEND-ONLY
 sign_events           (id bigserial PK, intent_id, step, detail, at)                                    -- APPEND-ONLY
-spend_ledger          (wallet_id, utc_day, intent_id, usd_micros, recorded_at,
+spend_ledger          (wallet_id, utc_day, intent_id, usd_micros CHECK (usd_micros >= 0), recorded_at,
                        PRIMARY KEY (wallet_id, utc_day, intent_id))               -- last-wins upsert per port contract
 quotes                (intent_id PK UNIQUE, payload jsonb, stored_at)
 orders                (id PK, payload jsonb, status, updated_at)                  -- status column indexed; terminal-guard at app layer
@@ -89,7 +89,7 @@ deploy_records        (id PK, stage, chain, release_tag, commit_sha, payload_fil
 verification_artifacts (verification_id PK, artifact jsonb, seeded_at)
 ```
 
-**Money representation:** USD values stored as **integer micro-USD** (`usd_micros = round(usd * 1e6)`) at the adapter boundary; port signatures (`number`) unchanged. Integer sums make cap accounting exact in SQL and immune to float accumulation drift. _(Alternative if reviewers prefer: NUMERIC(18,6) — same adapter boundary; ruling requested, §10.)_
+**Money representation — micro-USD (AFFIRMED by Review54 ruling, with three binding conditions):** USD values stored as **integer micro-USD** at the adapter boundary; port signatures (`number`) unchanged. (1) **Rounding rule:** conversion is half-away-from-zero computed on the DECIMAL value (string/decimal arithmetic), NOT `Math.round` on a float — `Math.round(usd * 1e6)` is prohibited because the multiplication itself already loses precision. (2) **End-to-end micros:** the cap comparison happens entirely in micros (sum of `usd_micros` vs `cap_micros`); no USD float ever re-enters the accounting path. (3) **Non-negativity:** `CHECK (usd_micros >= 0)` on `spend_ledger` (schema above). Integer sums make cap accounting exact in SQL and immune to float accumulation drift.
 
 **JSONB policy:** union-shaped entities (`TransactionIntent` with optional `DeployContext`, `Order`, `UnsignedTxPreview`) persist as canonical JSONB plus a narrow indexed scalar spine (id, wallet_id, kind, status, created_at). The TypeScript shapes in `@kryptr/shared-types` remain the single source of truth; adapters validate on read/write.
 
@@ -97,19 +97,36 @@ verification_artifacts (verification_id PK, artifact jsonb, seeded_at)
 
 ### 5.1 Cap compare-and-reserve (replaces KeyedMutex)
 
-One transaction, no application-side lock — safe across replicas:
+**The seam, honestly (Review54 F1a):** the existing `SpendLedger` port exposes TWO separate methods — `getSpentUsdToday()` then `record()` — and the gate's read-check-record sequence is serialized today only by the per-instance `KeyedMutex`. Fusing those two calls into one SQL statement is NOT achievable behind the unchanged port: S1 therefore introduces an explicit **fused reserve seam** — a new port method:
+
+```ts
+/** Atomic reserve-against-cap. Returns the post-reserve day total in
+ *  micro-USD when the reservation FITS under the cap; null when it would
+ *  breach (nothing is recorded). Replaces read-check-record + KeyedMutex. */
+reserveSpend(entry: { intentId: string; walletId: string; usdMicros: bigint; capMicros: bigint }): Promise<bigint | null>;
+```
+
+`getSpentUsdToday()` / `record()` remain for timeline/audit reads and are implemented ON TOP of the same table; the gate's cap path moves to `reserveSpend` exclusively. This is the one port-shape change in S1 and it is listed in §8 acceptance criterion 5's diff discipline as the sole authorized exception (domain port gains a method; no use-case DECISION logic changes — the use case swaps a mutex-guarded read-check-record for one call).
+
+**The race, explicitly (Review54 F1b):** under READ COMMITTED, two reservations for DIFFERENT intents of the SAME wallet/day insert DIFFERENT PK rows; each transaction's `SUM` sees only committed rows, so both can observe "under cap" and both commit — a real breach. The naive fused statement alone does NOT arbitrate this. S1 serializes per (wallet, day) with a transaction-scoped advisory lock:
 
 ```sql
--- reserve + check in a single round trip; reject rolls the insert back
+BEGIN;
+SELECT pg_advisory_xact_lock(hashtext($wallet_id || ':' || $utc_day));
+-- now the reserve + check is race-free for this wallet/day:
 INSERT INTO spend_ledger (wallet_id, utc_day, intent_id, usd_micros, recorded_at)
 VALUES ($1, $2, $3, $4, now())
 ON CONFLICT (wallet_id, utc_day, intent_id)
 DO UPDATE SET usd_micros = EXCLUDED.usd_micros, recorded_at = now();   -- last-wins per port contract
-
 SELECT COALESCE(SUM(usd_micros), 0) FROM spend_ledger
 WHERE wallet_id = $1 AND utc_day = $2;                                  -- post-reserve total
--- if total > cap_micros: ROLLBACK (reservation undone), gate rejects/escalates
+-- if total > cap_micros: ROLLBACK (reservation undone), reserveSpend returns null
+COMMIT;  -- lock auto-released at transaction end; no manual unlock path to forget
 ```
+
+Why advisory lock over the alternatives: (a) a `spend_day_totals` anchor row with `FOR UPDATE` works but adds a table whose only purpose is locking, plus an upsert-before-lock dance; (b) SERIALIZABLE + retry loop works but pushes retry policy into every adapter path and can starve under hot wallets. `pg_advisory_xact_lock` adds no schema, cannot leak past the transaction, and different wallets/days never contend. The lock granularity (wallet+day) exactly matches the accounting unit.
+
+**Provability criterion:** the integration harness must demonstrate that N concurrent racers (separate connections, distinct intents, same wallet/day) whose total exceeds the cap admit EXACTLY the largest prefix that fits — survivors' sum ≤ cap_micros < survivors' sum + any loser's amount — with zero double-counting and zero lost reservations for admitted intents.
 
 Re-confirmation semantics preserved: same-day re-approval upserts (no double count), a LATER day inserts a fresh row (over-count fail-safe direction per the port contract).
 
@@ -124,11 +141,11 @@ RETURNING *;                                  -- empty result = already claimed 
 
 -- reclaim (OW-2 continuation): atomic compare-and-set on non-terminal status
 UPDATE order_executions SET status = 'claimed', ...
-WHERE id = $1 AND status IN ('claimed','submitted')   -- resumable set per port
+WHERE id = $1 AND status IN ('claimed','quoted')     -- resumable set == RESUMABLE_STATUSES (in-memory-execution.store.ts)
 RETURNING *;                                  -- empty = terminal or lost → stop
 ```
 
-These are the exact in-memory primitives' documented Postgres replacements (see `in-memory-execution.store.ts` notes).
+These are the exact in-memory primitives' documented Postgres replacements (see `in-memory-execution.store.ts` notes). The resumable set is EXACTLY `RESUMABLE_STATUSES = {claimed, quoted}` (Review54 F2): `submitted` is deliberately NON-resumable — a record that reached submission may already be on-chain, so reclaiming it would open a double-fire path. Any reclaim attempt on a `submitted` record returns nothing and the caller stops.
 
 ### 5.3 Sign-request uniqueness (cross-replica decision-binding)
 
@@ -136,6 +153,8 @@ These are the exact in-memory primitives' documented Postgres replacements (see 
 INSERT INTO sign_requests (...) VALUES (...)
 ON CONFLICT (intent_id) DO NOTHING RETURNING *;   -- loser replica gets nothing → never signs twice
 ```
+
+**Status transitions:** append-only forensics via `sign_events` is sufficient for the single-operator manual flow (custody Option 1); a CAS `version` column on `sign_requests` is an OPTIONAL follow-up if multi-operator signing ever lands (Review54 F4 — not in phase 1).
 
 ### 5.4 Kill switch CAS
 
@@ -171,7 +190,7 @@ Each phase swaps the binding in the module composition root (exactly the seam th
 ## 8. Acceptance criteria (S1 "done")
 
 1. All phase-1 stores pass port-contract integration specs against Postgres (same behavioral contracts as the in-memory specs: last-wins ledger, exactly-once claims, append-only audit, fail-closed verification lookups).
-2. Cap compare-and-reserve proven atomic under concurrent harness (two racing reservations for the same wallet/day: exactly one survives the cap check).
+2. Cap reserve proven race-free under the concurrent harness of §5.1 (N racers, distinct intents, same wallet/day, total > cap: exactly the fitting prefix survives — provably, per the §5.1 criterion).
 3. Sign-request uniqueness proven under racing inserts (one winner, loser observes null).
 4. Restart test: kill the API mid-flow; decision audit, deploy records, and kill-switch state survive intact.
 5. Zero changes to any use case's decision logic (diff discipline: modules + infrastructure only).
@@ -183,13 +202,22 @@ Each phase swaps the binding in the module composition root (exactly the seam th
 
 ## 10. Open items (rulings requested)
 
-| Item                                                                                                                                                                                                                                                                                                                                                                                                                                                | Decider             |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
-| ORM/DB-access choice: Prisma (recommended) vs drizzle vs raw `pg` — new dependency approval                                                                                                                                                                                                                                                                                                                                                         | Main + user         |
-| USD storage: integer micro-USD (recommended) vs NUMERIC(18,6)                                                                                                                                                                                                                                                                                                                                                                                       | Review54/Main       |
-| Deploy-tag question from S2 §10: tooling-only kit changes (decode/keccak emitters) — recommend NO new tag and NO full Tier F re-run IF a byte-identity proof shows contract bytecode at `contracts-v0.1.0` is unchanged (the ceremony's on-chain trust anchor is the bytecode; G4 P3 readback compares the actual broadcast bytes against the published hash regardless of tooling); a NEW tag + battery re-run only if any contract source changes | Main + VaultAPI     |
-| CI Postgres service container for the integration harness                                                                                                                                                                                                                                                                                                                                                                                           | OpsCI               |
-| Restricted DB role for append-only tables (recommended; can land with phase 1 or as follow-up)                                                                                                                                                                                                                                                                                                                                                      | VaultAPI + Review54 |
+| Item                                                                                                                                                                                                                                     | Decider             |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| ORM/DB-access choice: Prisma (recommended) vs drizzle vs raw `pg` — new dependency approval — **PENDING-USER; no build starts before explicit approval**                                                                                 | Main + user         |
+| USD storage: integer micro-USD — **AFFIRMED** with the three binding conditions of §4 (half-away-from-zero decimal rounding, end-to-end micros, non-negativity CHECK)                                                                    | Review54 (ruled)    |
+| Deploy-tag question from S2 §10: tooling-only kit changes (decode/keccak emitters) — recommend NO new tag and NO full Tier F re-run IF the TWO-PART proof of §10.1 holds; a NEW tag + battery re-run only if any contract source changes | Main + VaultAPI     |
+| CI Postgres service container for the integration harness                                                                                                                                                                                | OpsCI               |
+| Restricted DB role for append-only tables (recommended; can land with phase 1 or as follow-up)                                                                                                                                           | VaultAPI + Review54 |
+
+### 10.1 Two-part tooling-change proof (Review54 F3 — both parts runnable)
+
+A tooling-only kit change (e.g. the S2 §4 emitters) must ship BOTH:
+
+1. **Bytecode identity at the tag:** sha256 of creation AND runtime bytecode for `KryptrTokenFactory` and `KryptrLaunchTokenTemplate`, compiled from `contracts-v0.1.0` vs from the change branch — four identical pairs.
+2. **Emitted-calldata byte-diff:** run the TAG's kit and the BRANCH's kit with identical inputs (`KIT_STAGE=template`; `KIT_STAGE=factory TEMPLATE_ADDRESS=<same> BOND_SINK=<same>`) and byte-compare the `data` fields of the emitted JSON — must be byte-identical (new fields may be added; the bytes-to-sign may not change).
+
+Additionally, ceremony payload **provenance must record the tooling commit SEPARATELY from `releaseTag`** (`provenance.toolingCommit` alongside `provenance.releaseTag`) — otherwise the tag↔payload drift guard of #94 is violated the moment tooling moves ahead of the tag.
 
 ## 11. Out of scope
 
