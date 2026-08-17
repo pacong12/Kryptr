@@ -81,6 +81,12 @@ confirm). The FK/G4 sections below name `84532` explicitly for env wiring
 (`RPC_URL_BASE_SEPOLIA`); chain switches happen only by ruling. Public-RPC pacing lessons from
 wave 4 apply (User-Agent, retry/backoff; staleness discipline for any feed reads) `[O21][O22]`.
 
+**Known RPC quirk (Robinhood, Review54 F2):** the official Robinhood testnet RPC rejects
+JSON-RPC **batch arrays with HTTP 403**. Current pinned Foundry tolerates this, but if a
+future Foundry release starts batching fork-instantiation calls, fork legs against this RPC
+will fail-closed with `could not instantiate forked environment` — diagnose as the batch-403
+quirk first, NOT as key/config drift (a stale pin shows different symptoms).
+
 ## 4. G2 at the release tag — static + selector surface **[design]**
 
 1. Slither at the pinned version runs on the tagged source; the never-triage set must show
