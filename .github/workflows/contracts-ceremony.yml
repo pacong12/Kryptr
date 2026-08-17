@@ -31,8 +31,10 @@ name: Contracts ceremony (S3)
 #   action=prepare : checkout the release tag -> run the offline kit emitter
 #     -> keyless nonce read (advisory) -> assemble the ceremony payload ->
 #     commit it on a ceremony branch (official channel, never overwritten:
-#     a re-issue after an abort is a NEW file via a new `attempt`) ->
-#     publish calldataKeccak.
+#     a re-issue after an abort is a NEW file via a new `attempt`; the
+#     branch MUST be merged back to main after the ceremony completes —
+#     Main sign-off 2026-08-17: permanent audit trail + reviewer byte-diff
+#     access live on main) -> publish calldataKeccak.
 #
 #   action=verify : post-broadcast backstop, dispatched manually AFTER the
 #     operator broadcasts. Checks the scoped Main subset of §8:
@@ -353,6 +355,10 @@ jobs:
       # (never force-pushed, never overwritten). If the branch already
       # exists (earlier attempt), base on it so every attempt stays visible
       # — re-issue after an abort is a NEW file, never an overwrite.
+      # Lifecycle rule (Main sign-off 2026-08-17): after the ceremony
+      # completes, this branch MUST be merged back to main — the payload
+      # belongs on main as the permanent audit trail and the reviewer
+      # byte-diff source (§6).
       - name: Commit payload to ceremony branch
         run: |
           set -euo pipefail
@@ -397,6 +403,9 @@ jobs:
             echo "Next (manual, sole signing step): operator pulls the payload from the branch,"
             echo "runs the offline verifier + byte-diff checklist (§6), signs and broadcasts from"
             echo "their own wallet, then dispatches action=verify with the reported tx hash."
+            echo ""
+            echo "**Lifecycle rule:** after the ceremony completes, branch \`${CEREMONY_BRANCH}\` MUST be"
+            echo "merged back to main — permanent audit trail + reviewer byte-diff source."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload ceremony payload artifact
