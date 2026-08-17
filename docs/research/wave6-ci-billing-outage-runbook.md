@@ -44,9 +44,9 @@ billing error; the only open PR during the window was #107.
 Boundary note (official reconciliation): the #107 merge (10:04:53Z) happened
 AFTER recovery (~10:03 UTC); its gate run had already passed pre-blockage (run
 32016465227, green 09:41:06Z) — so the claim "zero merges during the outage"
-stands with this window definition, and every shipped change still carries CI
-gate evidence. An outage window with zero merges is the cleanest evidence
-position: every shipped change has full CI gate evidence.
+stands with this window definition. An outage window with zero merges is the
+cleanest evidence position: every shipped change carries full CI gate
+evidence.
 
 ## 4. Official outage rules (adopted by the conductor)
 
