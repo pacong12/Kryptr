@@ -1,9 +1,10 @@
 # Wave 6 S4 — venue marketplace + T21 extension (DESIGN)
 
 > Status: **DESIGN — research/design only; no code in this PR.** Every unbuilt component
-> statements; today: Tier F defined & runnable — PASS record pending post-outage
-> re-baseline (battery re-run 32018051836 at tag `contracts-v0.1.0`); factory DARK;
-> S3 pending user approval). First pass: Review54. Pattern follows #108. Builds on: T21 criteria doc
+> statements; today: Tier F defined & runnable — PASS record pending the post-outage
+> battery re-baseline at tag `contracts-v0.1.0` (first attempt failed on CI wiring, not
+> source; run-id recorded here on green); factory DARK; S3 user-approved, execution in
+> progress via the CI ceremony workflow). First pass: Review54. Pattern follows #108. Builds on: T21 criteria doc
 > (`wave5-t21-verification-design.md`, `[F#]`), release-tag runbook (Tier V definition),
 > wave-2 trading research (`[W#]`), wave-4 oracle research (`[O#]`), launchpad memo +
 > decision (T17–T21), S1 persistence (#96/#108), S2 ceremony (#94).
