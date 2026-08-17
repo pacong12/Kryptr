@@ -5,9 +5,12 @@
  * must carry the schema defined in wave6-s4-venue-design.md §2.2. Enforces:
  *   - shape validation (required fields, correct types)
  *   - unique venueIds across all files
- *   - two-human fields (addedBy, approvedBy) must be non-empty
+ *   - two-human fields (addedBy, approvedBy) must be non-empty and different
  *   - status must be one of: active, suspended, superseded
  *   - supersededBy must reference a valid venueId or be null
+ *
+ * Aligned with PR #134 §8 evidence rules (E-13..E-17) and threat controls
+ * (TC-15..TC-25) for CI job design.
  *
  * Pattern follows validate-manifests.mjs (zero-dependency, structural checks).
  * Runs via CI contracts job when venue files exist; graceful no-op otherwise.
@@ -55,7 +58,7 @@ for (const file of files) {
     continue;
   }
 
-  // Validate chain object
+  // Validate chain object (E-13: chain identity)
   if (!registry.chain || typeof registry.chain !== 'object') {
     fail(file, 'missing or invalid "chain" object');
     continue;
@@ -82,7 +85,7 @@ for (const file of files) {
       continue;
     }
 
-    // venueId: required, unique, pattern
+    // venueId: required, unique, pattern (E-14: unique identity)
     if (typeof v.venueId !== 'string' || v.venueId.trim().length === 0) {
       fail(file, `${prefix}: missing or empty "venueId"`);
     } else if (!VENUE_ID_RE.test(v.venueId)) {
@@ -93,55 +96,55 @@ for (const file of files) {
       allVenueIds.add(v.venueId);
     }
 
-    // kind: required string
+    // kind: required string (adapter family selector)
     if (typeof v.kind !== 'string' || v.kind.trim().length === 0) {
       fail(file, `${prefix}: missing or empty "kind"`);
     }
 
-    // adapterPort: required string
+    // adapterPort: required string (E-15: adapter interface binding)
     if (typeof v.adapterPort !== 'string' || v.adapterPort.trim().length === 0) {
       fail(file, `${prefix}: missing or empty "adapterPort"`);
     }
 
-    // poolCreationParams: required object with venueBps
+    // poolCreationParams: required object with venueBps (E-16: venue economics)
     if (!v.poolCreationParams || typeof v.poolCreationParams !== 'object') {
       fail(file, `${prefix}: missing or invalid "poolCreationParams"`);
     } else if (typeof v.poolCreationParams.venueBps !== 'number' || v.poolCreationParams.venueBps < 0) {
       fail(file, `${prefix}: poolCreationParams.venueBps must be a non-negative number`);
     }
 
-    // feeAccrualLayer: required string
+    // feeAccrualLayer: required string (E-17: two-ledger separation)
     if (typeof v.feeAccrualLayer !== 'string' || v.feeAccrualLayer.trim().length === 0) {
       fail(file, `${prefix}: missing or empty "feeAccrualLayer"`);
     }
 
-    // status: required, one of valid values
+    // status: required, one of valid values (TC-15: venue lifecycle)
     if (typeof v.status !== 'string' || !VALID_STATUSES.includes(v.status)) {
       fail(file, `${prefix}: status must be one of ${VALID_STATUSES.join(', ')} (got: ${v.status})`);
     }
 
-    // addedAt: required ISO-8601
+    // addedAt: required ISO-8601 (TC-16: audit trail timestamp)
     if (typeof v.addedAt !== 'string' || Number.isNaN(Date.parse(v.addedAt))) {
       fail(file, `${prefix}: addedAt must be a parseable ISO-8601 timestamp`);
     }
 
-    // addedBy: required non-empty (human identity)
+    // addedBy: required non-empty (TC-17: human proposer identity)
     if (typeof v.addedBy !== 'string' || v.addedBy.trim().length === 0) {
       fail(file, `${prefix}: addedBy must be a non-empty string (human identity)`);
     }
 
-    // approvedBy: required non-empty (second human)
+    // approvedBy: required non-empty (TC-18: human approver identity)
     if (typeof v.approvedBy !== 'string' || v.approvedBy.trim().length === 0) {
       fail(file, `${prefix}: approvedBy must be a non-empty string (second human identity)`);
     }
 
-    // addedBy and approvedBy must be different (two-human rule)
+    // TC-19: addedBy and approvedBy must be different (two-human rule)
     if (typeof v.addedBy === 'string' && typeof v.approvedBy === 'string' &&
         v.addedBy.trim().toLowerCase() === v.approvedBy.trim().toLowerCase()) {
-      fail(file, `${prefix}: addedBy and approvedBy must be different humans`);
+      fail(file, `${prefix}: addedBy and approvedBy must be different humans (two-human rule)`);
     }
 
-    // supersededBy: null or string referencing another venueId
+    // supersededBy: null or string referencing another venueId (TC-20: lineage)
     if (v.supersededBy !== null && typeof v.supersededBy !== 'string') {
       fail(file, `${prefix}: supersededBy must be null or a string`);
     }
@@ -154,7 +157,7 @@ for (const file of files) {
   }
 }
 
-// Second pass: verify supersededBy references exist
+// Second pass: verify supersededBy references exist (TC-21: lineage integrity)
 if (process.exitCode !== 1) {
   for (const file of files) {
     const path = join(venuesDir, file);
