@@ -87,6 +87,15 @@ future Foundry release starts batching fork-instantiation calls, fork legs again
 will fail-closed with `could not instantiate forked environment` — diagnose as the batch-403
 quirk first, NOT as key/config drift (a stale pin shows different symptoms).
 
+**Pre-S3 wallet funding checklist (OpsCI, fact 2026-08-17):** the rehearsal signer
+`0x00e7bE21b70DD57bA2AAC3C32657304dDA6863C2` held EXACTLY 0.010000 ETH on Base Sepolia and on
+Robinhood 46630. The factory bond is exactly 0.01 ETH, and tx1 (template deploy) consumes gas
+BEFORE tx2 (factory deploy + bond): after tx1 the balance is below the bond, so tx2 would fail
+with insufficient funds. Requirement before any S3 run: **≈0.015+ ETH per chain** (0.01 bond +
+deploy gas margin ≈0.0005–0.002 per chain). Top-up options: Base Sepolia faucet (0.5 ETH/24h,
+available now); Robinhood faucet (0.01 ETH/24h — claim cadence means the next top-up may be a
+day later; check before scheduling). Checklist only — ceremony design unchanged.
+
 ## 4. G2 at the release tag — static + selector surface **[design]**
 
 1. Slither at the pinned version runs on the tagged source; the never-triage set must show
