@@ -144,6 +144,26 @@ jobs:
         with:
           version: v1.7.1
 
+      # The kit emitter runs `forge script --offline`, which refuses to
+      # download a missing compiler (S3 attempt-1 failure: "can't install
+      # missing solc 0.8.24 in offline mode"). Pre-install 0.8.24 into the
+      # svm cache — cached across runs; on cache hit the warmup is a no-op.
+      - name: Cache solc 0.8.24 (~/.svm)
+        uses: actions/cache@v4
+        with:
+          path: ~/.svm
+          key: ${{ runner.os }}-solc-0.8.24
+
+      - name: Ensure solc 0.8.24 is present before offline emitter
+        working-directory: contracts
+        run: |
+          set -euo pipefail
+          if ! ls "$HOME/.svm/0.8.24/"solc-* >/dev/null 2>&1; then
+            echo "solc 0.8.24 not in svm cache — warming with one online build"
+            forge build --skip test --skip script
+          fi
+          ls "$HOME/.svm/0.8.24/"solc-*
+
       # Key guard: this workflow must never run with key-shaped material in
       # the environment. Fail closed BEFORE anything else executes.
       - name: Key guard (fail-closed)
@@ -647,6 +667,26 @@ jobs:
       - uses: foundry-rs/foundry-toolchain@v1
         with:
           version: v1.7.1
+
+      # The code-identity step recompiles at the tag (`forge build`).
+      # Foundry would auto-download solc there, but pinning the install to a
+      # cached, explicit step keeps the gate deterministic and fast; same
+      # fix as the prepare job (S3 attempt-1 offline-solc failure).
+      - name: Cache solc 0.8.24 (~/.svm)
+        uses: actions/cache@v4
+        with:
+          path: ~/.svm
+          key: ${{ runner.os }}-solc-0.8.24
+
+      - name: Ensure solc 0.8.24 is present before at-tag recompile
+        working-directory: tag-ws/contracts
+        run: |
+          set -euo pipefail
+          if ! ls "$HOME/.svm/0.8.24/"solc-* >/dev/null 2>&1; then
+            echo "solc 0.8.24 not in svm cache — warming with one online build"
+            forge build --skip test --skip script
+          fi
+          ls "$HOME/.svm/0.8.24/"solc-*
 
       - name: Collect on-chain evidence (single JSON-RPC calls only)
         run: |
