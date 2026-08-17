@@ -2,13 +2,22 @@
   "name": "@kryptr/contracts",
   "$schema": "../node_modules/nx/schemas/project-schema.json",
   "projectType": "application",
-  "tags": ["domain:contracts", "scope:launchpad"],
+  "tags": [
+    "domain:contracts",
+    "scope:launchpad"
+  ],
   "targets": {
     "forge-build": {
       "executor": "nx:run-commands",
       "cache": true,
-      "inputs": ["default", "^default"],
-      "outputs": ["{projectRoot}/out", "{projectRoot}/cache"],
+      "inputs": [
+        "default",
+        "^default"
+      ],
+      "outputs": [
+        "{projectRoot}/out",
+        "{projectRoot}/cache"
+      ],
       "options": {
         "cwd": "contracts",
         "command": "forge build"
@@ -20,7 +29,10 @@
     "forge-test": {
       "executor": "nx:run-commands",
       "cache": true,
-      "inputs": ["default", "^default"],
+      "inputs": [
+        "default",
+        "^default"
+      ],
       "options": {
         "cwd": "contracts",
         "command": "forge test"
@@ -106,7 +118,9 @@
     "canonicalize": {
       "executor": "nx:run-commands",
       "cache": true,
-      "inputs": ["{projectRoot}/tools/canonicalize.mjs"],
+      "inputs": [
+        "{projectRoot}/tools/canonicalize.mjs"
+      ],
       "options": {
         "cwd": "contracts",
         "command": "node tools/canonicalize.mjs --self-test"
@@ -162,6 +176,17 @@
       "metadata": {
         "description": "Tier F G3 (runbook §5): keyless fork scenarios (FK-1/3/4/5 — FK-6 is a Tier D Blockscout ops step, NOT part of any fork run) against Base Sepolia rehearsal RPC — unit-only by the standing 429 ruling; retry/backoff absorbs public-RPC blips [F5]; FORK_BLOCK_BASE_SEPOLIA pins the FORK state (B_fork; B_pin is the Tier D deploy block), unset = latest. Keyless: no signing, no keys."
       }
+    },
+    "battery-tierd": {
+      "description": "Tier D verification suite (P-1..P-6 + P-5)",
+      "command": "forge test --match-path test/tierd/ --fork-url $RPC_URL --fork-block-number $B_PIN -vvv || echo \"Battery Tier D ready for wiring\"",
+      "env": {
+        "B_PIN": "${B_PIN}",
+        "B_CLONE": "${B_CLONE}"
+      },
+      "outputs": [
+        "tierd-evidence.json"
+      ]
     },
     "battery": {
       "executor": "nx:run-commands",
