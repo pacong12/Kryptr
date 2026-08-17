@@ -31,6 +31,8 @@ Robinhood Chain, request transfers and swaps, create limit and DCA orders
 (preview — the order worker ships disabled by default), and
 watch every decision the security gate makes.
 
+**Wave 6 status:** S1 Persistence ✓ complete, S2 Signing Ceremony ✓ complete, S3 Deploy Rehearsal ✓✓✓ complete & green on both testnet chains. Tier D ⏸️ postponed pending decision; Soak Clock ⏸️ not started. Factory remains DARK until Tier D PASS + soak completion. No mainnet deployment ETA announced.
+
 **Signing is dry-run only in this phase — nothing is broadcast on-chain yet.**
 Everything that moves value stops at an unsigned preview behind the security
 gate. That boundary is deliberate: the gate ships first, signing ships later.
