@@ -14,6 +14,7 @@ import {
   CANONICAL_DOCS_URL,
   VERIFICATION_POSTURE,
 } from './site';
+import { SECURITY_HEADERS } from './security-headers';
 
 /**
  * Fail-closed domain pin guard. The anti-phishing pin in ./site.ts is the
@@ -189,6 +190,70 @@ function checkStatusManifest(srcDir: string): void {
 }
 
 /**
+ * Emit `dist/_headers` for Cloudflare Pages, which does NOT read
+ * vercel.json. Values come VERBATIM from SECURITY_HEADERS
+ * (./security-headers.ts) — the single source of truth shared with the
+ * committed apps/docs/vercel.json. Cloudflare applies the file's rules to
+ * the deployed site; the file itself is build output only.
+ */
+function writeCloudflareHeaders(outDir: string): void {
+  const lines = [
+    '/*',
+    ...Object.entries(SECURITY_HEADERS).map(
+      ([key, value]) => `  ${key}: ${value}`,
+    ),
+  ];
+  writeFileSync(join(outDir, '_headers'), `${lines.join('\n')}\n`, 'utf8');
+  console.log(
+    `[headers] wrote _headers for Cloudflare Pages (${Object.keys(SECURITY_HEADERS).length} headers)`,
+  );
+}
+
+/**
+ * Drift check: the committed apps/docs/vercel.json (read by Vercel until
+ * the Cloudflare migration completes) must match SECURITY_HEADERS exactly —
+ * same keys, same values, no extras. Any mismatch fails the build, so the
+ * two deploy targets can never silently diverge.
+ */
+function checkVercelHeadersDrift(srcDir: string): void {
+  const vercel = JSON.parse(
+    readFileSync(join(srcDir, 'vercel.json'), 'utf8'),
+  ) as {
+    headers?: { source: string; headers: { key: string; value: string }[] }[];
+  };
+  const errors: string[] = [];
+  const rule = (vercel.headers ?? []).find((entry) => entry.source === '/(.*)');
+  if (!rule) {
+    errors.push('vercel.json: no headers rule with source "/(.*)"');
+  } else {
+    const vercelMap = new Map(rule.headers.map((h) => [h.key, h.value]));
+    for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+      if (!vercelMap.has(key)) {
+        errors.push(`vercel.json: missing header \`${key}\``);
+      } else if (vercelMap.get(key) !== value) {
+        errors.push(
+          `vercel.json: header \`${key}\` differs from SECURITY_HEADERS`,
+        );
+      }
+    }
+    for (const key of vercelMap.keys()) {
+      if (!(key in SECURITY_HEADERS)) {
+        errors.push(
+          `vercel.json: unexpected header \`${key}\` not in SECURITY_HEADERS`,
+        );
+      }
+    }
+  }
+  if (errors.length > 0) {
+    throw new Error(
+      `security-header drift detected (fix apps/docs/.vitepress/security-headers.ts ` +
+        `and mirror the change, or restore vercel.json):\n- ${errors.join('\n- ')}`,
+    );
+  }
+  console.log('[headers] vercel.json matches SECURITY_HEADERS (no drift)');
+}
+
+/**
  * Kryptr user documentation — VitePress config.
  *
  * BINDING (Web3Intel, 2026-08-17):
@@ -196,7 +261,9 @@ function checkStatusManifest(srcDir: string): void {
  *   Search is the built-in LOCAL provider (self-hosted, zero network).
  * - The only client JS shipped is VitePress' own self-hosted bundle
  *   (inline boot scripts externalized by the pass above).
- * - Deploy headers (strict CSP + HSTS) live in apps/docs/vercel.json.
+ * - Deploy security headers come from ONE constant (./security-headers.ts):
+ *   emitted as `dist/_headers` for Cloudflare Pages and mirrored by the
+ *   committed apps/docs/vercel.json for Vercel (drift fails the build).
  * - The official docs domain is pinned in ./site.ts (anti-phishing).
  */
 export default defineConfig({
@@ -217,6 +284,8 @@ export default defineConfig({
       resolve(siteConfig.srcDir, '.vitepress/llms.template.txt'),
     );
     checkStatusManifest(siteConfig.srcDir);
+    writeCloudflareHeaders(siteConfig.outDir);
+    checkVercelHeadersDrift(siteConfig.srcDir);
   },
 
   themeConfig: {
