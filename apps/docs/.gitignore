@@ -1,3 +1,5 @@
 # VitePress build output and caches (never committed)
 .vitepress/dist
 .vitepress/cache
+.vercel
+.env*
