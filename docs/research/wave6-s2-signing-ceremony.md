@@ -38,15 +38,15 @@ the gate.
 
 ## 1. Review54 requirements — explicit per-point responses
 
-| #   | Requirement                                                                                     | Response — mechanism and enforcement point                                                                                                          |
-| --- | ----------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P1  | CI publishes `keccak256(calldata)` via official channel BEFORE signing; human cross-checks wallet preview (to, value=0, calldata hash) against it | Ceremony payload committed to the repo (`contracts/deployments/ceremony/{chain}-{tag}-{stage}.ceremony.json`) BEFORE any signing can happen; carries `calldataKeccak` over the raw bytes plus `to: null`, `value: "0x0"`. ONE hash, ONE enforcement compare (chain-native keccak256, matches the `tx.input` comparison exactly) — deliberately no secondary hash envelope: one source of truth, one compare. Operator re-hashes offline (bundled verifier, §6). Payload integrity is enforced by REVIEW, not a second hash: reviewer re-runs the kit locally at the tag and byte-diffs against the committed payload (mandatory review checklist item, §6). |
-| P2  | Kit renders human-readable decode of the EXACT calldata (constructor args, BOND_SINK, fee/bond echo) — not a separate summary | Decode is produced inside the kit by `abi.decode`-ing the kit's OWN emitted creation bytes (round-trip). The rendered values are, by construction, decoded from the bytes being sent — drift between summary and calldata is impossible. Additionally the kit/renderer ASSERTS fail-closed that decoded constructor args equal the frozen constants (`totalFeeBps == 175`, `bondAmount == 0.01 ETH`, `bondSink == 0x00e7bE…63C2`) — not merely displays them. |
-| P3  | Post-broadcast: CI re-fetches `tx.input` FROM CHAIN and hash-compares with the published hash before any artifact consideration | G4 readback job (§8) step 1: `eth_getTransactionByHash` → `keccak256(tx.input) == published calldataKeccak`, else REJECT. Runs before every other check. A REJECT also severs the chain to the Tier D battery (fail-closed wiring) and is RECORDED in the release record — never a silent retry (§0.1: this compare is the true gate). |
-| P4  | Sender pin fail-closed: broadcaster ≠ pinned address → REJECT                                   | G4 step 2: `receipt.from == 0x00e7bE21b70DD57bA2AAC3C32657304dDA6863C2` (checksum-normalized compare), else REJECT (+ Tier D sever + recorded, as P3). Address pinned as a public constant in the ceremony payload and the readback config. |
-| P5  | No re-render/re-encode/edit of calldata between hash publication and wallet submit without re-hash | Single-source-of-truth rule: ONE kit run at the tag → ONE committed payload file. The operator copies the `data` field **only from the committed payload file in the repo** — never from IRC/chat or artifact copies. No intermediate tool re-encodes the bytes. Any edit to the file invalidates the published hash and is caught by the review byte-diff (P1) and/or P3. Re-issue after an abort = a NEW file (no overwrite), so abort trails stay auditable. |
-| P6  | Nonce: stale calldata post-competitive-tx must be detected                                       | Two layers + abort rule: (a) payload records `expectedNonce` = keyless `eth_getTransactionCount(pinned sender)` at publish time; G4 checks `tx.nonce == expectedNonce`, else REJECT; (b) operator-side ABORT rule: if the wallet's nonce at submit time ≠ `expectedNonce` → STOP the ceremony; the signer EOA must not be used for any other transaction for the whole ceremony. (c) Deployed address is NEVER used from prediction alone: plain CREATE makes the address nonce-dependent (NOT CREATE2-predictable); the nonce-based prediction is marked ADVISORY, receipt = truth, G4 readback = evidence. Template-address drift self-heals: the factory stage takes the template address from the stage-1 RECEIPT, never from a prediction. |
-| P7  | Claim discipline: testnet PASS ≠ mainnet PASS explicit in all S3 outputs                         | Every S3 log line, job summary, and artifact claim is stamped `TESTNET` and keyed by chainId (frozen four-string vocabulary per chain). No aggregate "PASS" exists without a chain qualifier. G5 evidence metadata MUST carry chainId so the consent UI can never be cross-chain. Mainnet gate re-evaluates near S6 under a separate consent. |
+| #   | Requirement                                                                                                                                       | Response — mechanism and enforcement point                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P1  | CI publishes `keccak256(calldata)` via official channel BEFORE signing; human cross-checks wallet preview (to, value=0, calldata hash) against it | Ceremony payload committed to the repo (`contracts/deployments/ceremony/{chain}-{tag}-{stage}.ceremony.json`) BEFORE any signing can happen; carries `calldataKeccak` over the raw bytes plus `to: null`, `value: "0x0"`. ONE hash, ONE enforcement compare (chain-native keccak256, matches the `tx.input` comparison exactly) — deliberately no secondary hash envelope: one source of truth, one compare. Operator re-hashes offline (bundled verifier, §6). Payload integrity is enforced by REVIEW, not a second hash: reviewer re-runs the kit locally at the tag and byte-diffs against the committed payload (mandatory review checklist item, §6).                                                                                     |
+| P2  | Kit renders human-readable decode of the EXACT calldata (constructor args, BOND_SINK, fee/bond echo) — not a separate summary                     | Decode is produced inside the kit by `abi.decode`-ing the kit's OWN emitted creation bytes (round-trip). The rendered values are, by construction, decoded from the bytes being sent — drift between summary and calldata is impossible. Additionally the kit/renderer ASSERTS fail-closed that decoded constructor args equal the frozen constants (`totalFeeBps == 175`, `bondAmount == 0.01 ETH`, `bondSink == 0x00e7bE…63C2`) — not merely displays them.                                                                                                                                                                                                                                                                                   |
+| P3  | Post-broadcast: CI re-fetches `tx.input` FROM CHAIN and hash-compares with the published hash before any artifact consideration                   | G4 readback job (§8) step 1: `eth_getTransactionByHash` → `keccak256(tx.input) == published calldataKeccak`, else REJECT. Runs before every other check. A REJECT also severs the chain to the Tier D battery (fail-closed wiring) and is RECORDED in the release record — never a silent retry (§0.1: this compare is the true gate).                                                                                                                                                                                                                                                                                                                                                                                                          |
+| P4  | Sender pin fail-closed: broadcaster ≠ pinned address → REJECT                                                                                     | G4 step 2: `receipt.from == 0x00e7bE21b70DD57bA2AAC3C32657304dDA6863C2` (checksum-normalized compare), else REJECT (+ Tier D sever + recorded, as P3). Address pinned as a public constant in the ceremony payload and the readback config.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| P5  | No re-render/re-encode/edit of calldata between hash publication and wallet submit without re-hash                                                | Single-source-of-truth rule: ONE kit run at the tag → ONE committed payload file. The operator copies the `data` field **only from the committed payload file in the repo** — never from IRC/chat or artifact copies. No intermediate tool re-encodes the bytes. Any edit to the file invalidates the published hash and is caught by the review byte-diff (P1) and/or P3. Re-issue after an abort = a NEW file (no overwrite), so abort trails stay auditable.                                                                                                                                                                                                                                                                                 |
+| P6  | Nonce: stale calldata post-competitive-tx must be detected                                                                                        | Two layers + abort rule: (a) payload records `expectedNonce` = keyless `eth_getTransactionCount(pinned sender)` at publish time; G4 checks `tx.nonce == expectedNonce`, else REJECT; (b) operator-side ABORT rule: if the wallet's nonce at submit time ≠ `expectedNonce` → STOP the ceremony; the signer EOA must not be used for any other transaction for the whole ceremony. (c) Deployed address is NEVER used from prediction alone: plain CREATE makes the address nonce-dependent (NOT CREATE2-predictable); the nonce-based prediction is marked ADVISORY, receipt = truth, G4 readback = evidence. Template-address drift self-heals: the factory stage takes the template address from the stage-1 RECEIPT, never from a prediction. |
+| P7  | Claim discipline: testnet PASS ≠ mainnet PASS explicit in all S3 outputs                                                                          | Every S3 log line, job summary, and artifact claim is stamped `TESTNET` and keyed by chainId (frozen four-string vocabulary per chain). No aggregate "PASS" exists without a chain qualifier. G5 evidence metadata MUST carry chainId so the consent UI can never be cross-chain. Mainnet gate re-evaluates near S6 under a separate consent.                                                                                                                                                                                                                                                                                                                                                                                                   |
 
 ## 2. Ceremony sequence (two stages, per kit ordering)
 
@@ -78,36 +78,46 @@ sequence independently; claims stay per-chain (P7).
 ```jsonc
 {
   "ceremonyId": "s2:base-sepolia:<releaseTag>:template",
-  "claim": "TESTNET",                    // P7 — never omitted
-  "releaseTag": "<tag>",                 // tag↔payload drift guard
-  "chain": { "chainId": 84532, "name": "base-sepolia",
-             "rpc": "https://sepolia.base.org" },
+  "claim": "TESTNET", // P7 — never omitted
+  "releaseTag": "<tag>", // tag↔payload drift guard
+  "chain": {
+    "chainId": 84532,
+    "name": "base-sepolia",
+    "rpc": "https://sepolia.base.org",
+  },
   "pinnedSender": "0x00e7bE21b70DD57bA2AAC3C32657304dDA6863C2", // P4, public
-  "expectedNonce": "0x12",               // P6 — staleness check + abort rule
-  "predictedAddress": {                  // P6 — ADVISORY only (plain CREATE)
-    "address": "0x...", "basis": "rlp(sender, expectedNonce)",
-    "advisory": true
+  "expectedNonce": "0x12", // P6 — staleness check + abort rule
+  "predictedAddress": {
+    // P6 — ADVISORY only (plain CREATE)
+    "address": "0x...",
+    "basis": "rlp(sender, expectedNonce)",
+    "advisory": true,
   },
-  "tx": {                                // verbatim kit output (P5 source)
+  "tx": {
+    // verbatim kit output (P5 source)
     "kind": "template-deploy",
-    "to": null, "value": "0x0",
-    "data": "0x..."
+    "to": null,
+    "value": "0x0",
+    "data": "0x...",
   },
-  "calldataKeccak": "0x...",             // P1 — keccak256(tx.data), the ONLY hash
-  "decoded": {                           // P2 — kit round-trip decode + asserts
+  "calldataKeccak": "0x...", // P1 — keccak256(tx.data), the ONLY hash
+  "decoded": {
+    // P2 — kit round-trip decode + asserts
     "kind": "template-deploy",
     "bytecodeSha256": "0x...",
-    "constructorArgs": []
+    "constructorArgs": [],
   },
   // factory stage adds:
   // "decoded.constructorArgs": { "template": "0x...(from stage-1 RECEIPT)",
   //   "totalFeeBps": 175, "bondAmountWei": "10000000000000000",
   //   "bondSink": "0x00e7bE21b70DD57bA2AAC3C32657304dDA6863C2" }
   "provenance": {
-    "releaseTag": "<tag>", "commitSha": "<tag sha>",
-    "foundry": "v1.7.1", "solc": "0.8.24",
-    "generatedAt": "<iso8601>"
-  }
+    "releaseTag": "<tag>",
+    "commitSha": "<tag sha>",
+    "foundry": "v1.7.1",
+    "solc": "0.8.24",
+    "generatedAt": "<iso8601>",
+  },
 }
 ```
 
@@ -229,7 +239,7 @@ Dispatch-only job `g4-readback`, inputs: `tag`, `chain`, `stage`,
 `deploy_tx_hash`. Ordered checks (any failure = REJECT, no artifact):
 
 1. **P3**: `eth_getTransactionByHash` → `keccak256(tx.input) ==
-   payload.calldataKeccak`. (What actually hit the chain IS what was
+payload.calldataKeccak`. (What actually hit the chain IS what was
    published — the true gate, §0.1.)
 2. **P4**: `receipt.from == payload.pinnedSender` (checksum-normalized).
 3. **P6**: `tx.nonce == payload.expectedNonce`. Deployed address vs
@@ -271,10 +281,10 @@ battery at the deployed instance is the separate next gate (runbook
 
 ## 10. Open items (owners)
 
-| Item                                                                      | Owner                  |
-| ------------------------------------------------------------------------- | ---------------------- |
+| Item                                                                                                                    | Owner           |
+| ----------------------------------------------------------------------------------------------------------------------- | --------------- |
 | Deploy tag question: new tag + Tier F re-run vs v0.1.0 deploy with byte-identity proof of tooling-only kit changes (§4) | Main + VaultAPI |
-| Kit decode/keccak/assert additions (round-trip, §4)                       | VaultAPI               |
-| Signing intermediary + `ceremony-verify.mjs` implementation (post-approval) | OpsCI              |
-| Robinhood fork-test wiring (RPC delivered; empirically green, separate PR) | OpsCI                 |
-| Mainnet gate re-evaluation near S6                                        | Main + user            |
+| Kit decode/keccak/assert additions (round-trip, §4)                                                                     | VaultAPI        |
+| Signing intermediary + `ceremony-verify.mjs` implementation (post-approval)                                             | OpsCI           |
+| Robinhood fork-test wiring (RPC delivered; empirically green, separate PR)                                              | OpsCI           |
+| Mainnet gate re-evaluation near S6                                                                                      | Main + user     |
