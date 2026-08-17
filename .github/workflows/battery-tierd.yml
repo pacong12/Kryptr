@@ -1,0 +1,69 @@
+name: Battery Tier D (P-1..P-6 + P-5)
+
+on:
+  workflow_dispatch:
+    inputs:
+      chainId:
+        description: "Chain ID (84532 or 46630)"
+        required: true
+        type: string
+      rpcUrl:
+        description: "RPC URL"
+        required: true
+        type: string
+      blockscoutBase:
+        description: "Blockscout base URL (no trailing slash)"
+        required: true
+        type: string
+      bPin:
+        description: "B_pin block number (factory deploy block)"
+        required: true
+        type: string
+      bClone:
+        description: "B_clone block number (clone deploy block)"
+        required: true
+        type: string
+      cloneTx:
+        description: "Clone tx hash"
+        required: true
+        type: string
+
+env:
+  CHAIN_ID: ${{ inputs.chainId }}
+  RPC_URL: ${{ inputs.rpcUrl }}
+  BLOCKSCOUT_BASE: ${{ inputs.blockscoutBase }}
+  B_PIN: ${{ inputs.bPin }}
+  B_CLONE: ${{ inputs.bClone }}
+  CLONE_TX: ${{ inputs.cloneTx }}
+
+jobs:
+  battery-tierd:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+
+      # Forge fork suite: P-1/P-2 code identity at B_pin, P-1/P-2 clone shape at B_clone
+      # P-3 calldata hash re-derivation, P-4 sender pin, P-6 nonce/status
+      - name: Forge P-1..P-4,P-6
+        run: npx nx run @kryptr/contracts:battery-tierd
+
+      # Node.js P-5 poller: Blockscout API v2 GET /api/v2/smart-contracts/{addr}
+      # UA pacing + bounded backoff; record verified_at + compiler_version
+      - name: P-5 Blockscout poll (template+factory)
+        run: |
+          node scripts/battery-tierd-p5.mjs
+
+      # Write evidence JSON
+      - name: Compose evidence
+        run: node scripts/evidence-compose.mjs
+        env:
+          OUTPUT_FILE: ${{ runner.temp }}/evidence-${CHAIN_ID}.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tierd-evidence-${CHAIN_ID}
+          path: ${{ runner.temp }}/evidence-${CHAIN_ID}.json
+          retention-days: 90

@@ -1,0 +1,84 @@
+name: Assemble Tier D Artifact (G5)
+
+on:
+  workflow_call:
+    inputs:
+      chainId:
+        required: true
+        type: string
+      rpcUrl:
+        required: true
+        type: string
+      blockscoutBase:
+        required: true
+        type: string
+      bPin:
+        required: true
+        type: string
+      bClone:
+        required: true
+        type: string
+      cloneTx:
+        required: true
+        type: string
+      evidenceFile:
+        required: true
+        type: string
+
+env:
+  CHAIN_ID: ${{ inputs.chainId }}
+  RPC_URL: ${{ inputs.rpcUrl }}
+  BLOCKSCOUT_BASE: ${{ inputs.blockscoutBase }}
+  B_PIN: ${{ inputs.bPin }}
+  B_CLONE: ${{ inputs.bClone }}
+  CLONE_TX: ${{ inputs.cloneTx }}
+
+jobs:
+  assemble-g5:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      
+      - uses: actions/setup-node@v5
+        with: { node-version: 22, cache: npm }
+      
+      - run: npm ci
+      
+      # Download tierd evidence from battery-tierd job
+      - name: Download tierd evidence
+        uses: actions/download-artifact@v4
+        with:
+          pattern: tierd-evidence-${{ inputs.chainId }}-*
+          path: .github/artifacts
+      
+      # Compose evidence JSON (if not already composed by battery-tierd)
+      - name: Compose evidence
+        run: |
+          mkdir -p .github/artifacts
+          if [ ! -f .github/artifacts/${{ inputs.evidenceFile }} ]; then
+            echo "Evidence file ${inputs.evidenceFile} not found"
+            exit 1
+          fi
+          echo "Evidence ready for assembly"
+      
+      # Assemble artifact per T21 §8 shape
+      - name: Assemble G5 artifact
+        run: node scripts/assemble-artifact.mjs
+        env:
+          ARTIFACTS_DIR: .github/artifacts
+      
+      # Commit artifact to branch
+      - name: Commit artifacts
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add contracts/deployments/*.verification.json
+          git commit -m "chore: assemble Tier D artifacts for chain IDs ${{ inputs.chainId }}" || echo "No new artifacts to commit"
+      
+      # Upload artifacts as verification artifacts
+      - name: Upload tierd-verification-artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tierd-verification-artifacts
+          path: contracts/deployments/*.verification.json
+          retention-days: 90
