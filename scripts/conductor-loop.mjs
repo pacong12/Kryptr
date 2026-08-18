@@ -152,13 +152,28 @@ sub.on('message', (_, raw) => {
     if (msg.from === 'conductor-loop') return;
     console.log('[IRC] ' + fmt(raw));
 
+    // 1. TEKTOK BROADCAST: Jika Conductor mengirim broadcast musyawarah/instruksi ke #all,
+    // bangunkan seluruh sub-agent agar langsung merespon & berdiskusi!
+    if (msg.from === 'conductor' && msg.to === 'all') {
+      const broadcastPrompt = `[PANGGILAN DISKUSI DARI CONDUCTOR]:\n"${msg.body}"\n\nInstruksi Wajib:\n1. Baca agenda/instruksi dari Conductor di atas.\n2. Berikan masukan/tanggapan teknis dari domainmu via IRC sekarang:\n   agent-irc send <namamu> conductor "TANGGAPAN: <masukan domainmu>"\n3. Diskusikan juga dengan rekan agent lain via IRC!`;
+      
+      for (const agent of AGENTS) {
+        if (agent !== 'conductor') {
+          console.log(`[broadcast-router] Waking up @${agent} for conductor broadcast`);
+          promptTargetAgent(agent, broadcastPrompt);
+        }
+      }
+    }
+
+    // 2. TEKTOK DIRECT: Jika pesan ditujukan ke agent spesifik
     if (
       msg.to &&
       AGENTS.includes(msg.to) &&
       msg.to !== 'conductor' &&
-      msg.to !== msg.from
+      msg.to !== msg.from &&
+      msg.to !== 'all'
     ) {
-      const promptText = `[PESAN DARI @${msg.from}]: "${msg.body}"\nInstruksi: Balas via IRC ke @${msg.from} setelah diperbaiki!`;
+      const promptText = `[PESAN DARI @${msg.from}]: "${msg.body}"\nInstruksi: Balas via IRC ke @${msg.from} setelah diperbaiki/dianalisis!`;
       promptTargetAgent(msg.to, promptText);
     }
   } catch {}
