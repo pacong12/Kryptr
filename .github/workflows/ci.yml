@@ -52,6 +52,11 @@ jobs:
 
       - run: npm ci
 
+      # Fail fast if nx project graph is out of sync with package.json deps.
+      # Must run before any nx target so stale graph never silently skips tasks.
+      - name: nx sync check
+        run: npx nx sync:check
+
       - name: Apply Prisma migrations
         run: npx prisma migrate deploy
 
@@ -209,6 +214,68 @@ jobs:
         run: npx nx run @kryptr/contracts:fork-test
         env:
           RPC_URL_BASE: https://mainnet.base.org
+
+  # S2 signing integration tests — PostgresSigner + postgres-sign-request-store.
+  # Advisory only (continue-on-error) until S2 fully reviewed.
+  # Runs on every push to main and every PR; a git-diff step skips the test
+  # run on PRs that don't touch apps/api/src/signing/**.
+  # ponytail: replace the diff-skip with dorny/paths-filter when conductor
+  # approves adding that action, to avoid the always-checkout cost on unrelated PRs.
+  # NEEDS CONDUCTOR: supply SIGNING_KMS_KEY_ID secret if tests need KMS in future.
+  integration-signing:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: kryptr
+          POSTGRES_PASSWORD: kryptr_dev
+          POSTGRES_DB: kryptr
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kryptr"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://kryptr:kryptr_dev@localhost:5432/kryptr
+      DIRECT_URL: postgresql://kryptr:kryptr_dev@localhost:5432/kryptr
+      PERSISTENCE: postgres
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      # On PRs: skip if no signing/** files changed (zero-dep git diff check).
+      # On push to main: always run.
+      - name: Check signing files changed
+        id: signing_changed
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            changed=$(git diff --name-only origin/main...HEAD -- 'apps/api/src/signing/**' | wc -l)
+            echo "changed=$changed" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - run: npm ci
+        if: steps.signing_changed.outputs.changed != '0'
+
+      - name: Apply Prisma migrations
+        if: steps.signing_changed.outputs.changed != '0'
+        run: npx prisma migrate deploy --schema prisma/schema.prisma
+
+      - name: Integration — PostgresSigner + SignRequestStore
+        if: steps.signing_changed.outputs.changed != '0'
+        run: |
+          npx nx run api:test --testPathPattern=postgres-signer.integration --testPathPattern=postgres-sign-request-store.integration
 
   gitleaks:
     runs-on: ubuntu-latest
