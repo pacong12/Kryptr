@@ -5,10 +5,12 @@ import { WalletController } from './wallet.controller';
 import { CreateWalletUseCase } from './application/create-wallet.usecase';
 import { ListWalletsUseCase } from './application/list-wallets.usecase';
 import { GetBalancesUseCase } from './application/get-balances.usecase';
+import { CreateTransferUseCase } from '../security/application/create-transfer.usecase';
 import { WALLET_REPOSITORY, type WalletRepository } from './domain/wallet-repository.port';
 import { InMemoryWalletRepository } from './infrastructure/in-memory-wallet.repository';
 import { PostgresWalletRepository } from './infrastructure/postgres-wallet.repository';
 import { isPostgresPersistence } from '../persistence/prisma-client';
+
 /**
  * Composition root: infrastructure binds to ports here, application and
  * domain stay framework-agnostic. Wave 2 swaps WALLET_REPOSITORY to the
@@ -28,6 +30,7 @@ import { isPostgresPersistence } from '../persistence/prisma-client';
     CreateWalletUseCase,
     ListWalletsUseCase,
     GetBalancesUseCase,
+    CreateTransferUseCase,
   ],
   exports: [WALLET_REPOSITORY],
 })
