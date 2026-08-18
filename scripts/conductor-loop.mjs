@@ -8,16 +8,10 @@ const READ_LINES = 25;
 const LOG_KEY = 'kryptr:log';
 const UNREAD_KEY = 'kryptr:conductor:unread';
 const AGENTS = [
-  'vault',
-  'face',
-  'deck',
-  'ops',
-  'web3',
-  'reviewer',
-  'contracts',
-  'qa',
-  'redteam',
-  'docs',
+  'auditor-core',
+  'auditor-contracts',
+  'auditor-ui',
+  'auditor-qa',
 ];
 
 const pub = new Redis(REDIS_URL);

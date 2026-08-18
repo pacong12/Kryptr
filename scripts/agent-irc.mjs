@@ -6,7 +6,7 @@ import Redis from 'ioredis';
 
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
 const LOG_KEY   = 'kryptr:log';
-const AGENTS    = ['conductor', 'vault', 'face', 'deck', 'ops', 'web3', 'reviewer', 'contracts', 'qa', 'redteam', 'docs', 'operator'];
+const AGENTS    = ['conductor', 'auditor-core', 'auditor-contracts', 'auditor-ui', 'auditor-qa', 'operator'];
 
 const [,, cmd, ...args] = process.argv;
 const chan = (name) => `kryptr:msg:${name}`;

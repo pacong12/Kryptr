@@ -52,6 +52,12 @@
       "summary": "Limit and DCA orders with frozen lifecycle, oracle triggers, three-mode kill switch; wallet endpoints (W7-M1) enable balance reads and transfer intents."
     },
     {
+      "path": "/features/launchpad-consent.html",
+      "title": "Launchpad consent",
+      "status": "planned",
+      "summary": "Human-in-the-loop consent workflow for wallet deployment; requires T21 chip verification before operator approval."
+    },
+    {
       "path": "/honest-edges/limitations.html",
       "title": "Limitations by phase",
       "status": "live",
@@ -74,6 +80,12 @@
       "title": "What's live today",
       "status": "live",
       "summary": "Status index rendered from the manifest — live, preview, planned."
+    },
+    {
+      "path": "/status.html",
+      "title": "Wave 6 status",
+      "status": "live",
+      "summary": "Phase completion dashboard tracking S1-S4, Tier D decision gate, and soak clock readiness."
     }
   ]
 }
