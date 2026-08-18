@@ -1,0 +1,18 @@
+{
+  "version": "1.0",
+  "specification": "wave-5-t21-chip-verification",
+  "chain": "base-sepolia",
+  "chainId": null,
+  "factoryAddress": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1",
+  "bondSink": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+  "deployedAt": "2026-08-18T12:00:00Z",
+  "blockNumber": null,
+  "verificationId": "wave-5-sprint2-rehearsal-t21-chip",
+  "commitSha": "2bcb5c1",
+  "proofHash": "0x85eb031b78e8c7a5a5da979b9cb79e510b8e0990f9ced560ea395a9bad56cbbd",
+  "factoryBytecodePrefix": "{\"object\":\"0x610",
+  "templateBytecodePrefix": "{\"object\":\"0x608",
+  "generatedAt": "2026-08-18T17:46:52.981Z",
+  "generatedBy": "@auditor-contracts",
+  "toolsVersion": "sprint-3-mainnet-deploy"
+}
