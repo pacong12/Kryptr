@@ -2,6 +2,7 @@ import type {
   FeedStatus,
   HealthStatus,
   SecurityCheckResult,
+  SignRequestStatus,
   TransactionStatus,
 } from '@kryptr/shared-types';
 import { Badge } from '@kryptr/shared-ui/react/badge';
@@ -90,11 +91,31 @@ export function ChainReachabilityBadge({ reachable }: { reachable: boolean }) {
   );
 }
 
-/** Marks data served from local fixtures instead of the live API. */
+/** Variant map for SignRequestStatus values (dry_run, pending, signed, rejected). */
+const SIGN_REQUEST_STATUS_VARIANTS: Record<
+  SignRequestStatus,
+  'default' | 'secondary' | 'destructive' | 'outline'
+> = {
+  dry_run: 'outline',
+  pending: 'secondary',
+  signed: 'default',
+  rejected: 'destructive',
+};
+
+export function SignRequestStatusBadge({
+  status,
+}: {
+  status: SignRequestStatus;
+}) {
+  return (
+    <Badge variant={SIGN_REQUEST_STATUS_VARIANTS[status]}>
+      {status.toUpperCase()}
+    </Badge>
+  );
+}
 export function MockDataBadge() {
   return <Badge variant="outline">mock data</Badge>;
 }
-
 export function ChainBadge({ chain }: { chain: string }) {
   return <Badge variant="outline">{chain}</Badge>;
 }

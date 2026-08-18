@@ -579,3 +579,20 @@ export async function getSignRequests(): Promise<DataSource<SignRequest[]>> {
   const outcome = await fetchEnvelope<SignRequest[]>('/signing/');
   return toDataSource(outcome, MOCK_SIGN_REQUESTS);
 }
+/**
+ * Wave 7-M5: single sign request lookup by intentId (GET /signing/:intentId).
+ * Endpoint path agreed with vault as `/api/signing/:intentId`; ships in wave 7.
+ * Until then, falls back to fixture matching on intentId.
+ * # NEEDS CONDUCTOR: vault to ship GET /api/signing/:intentId returning ApiEnvelope<SignRequest>
+ */
+export async function getSignRequest(
+  intentId: string,
+): Promise<DataSource<SignRequest | null>> {
+  const outcome = await fetchEnvelope<SignRequest>(`/signing/${encodeURIComponent(intentId)}`);
+  if (outcome.kind === 'unreachable') {
+    // Fallback: search MOCK_SIGN_REQUESTS for matching intentId
+    const match = MOCK_SIGN_REQUESTS.find(sr => sr.intentId === intentId);
+    return { data: match ?? null, mock: true, apiError: null };
+  }
+  return toDataSource(outcome, null);
+}
