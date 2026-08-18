@@ -21,5 +21,11 @@ export default defineConfig({
     include: ['src/**/*.spec.{ts,tsx}'],
     // Never scan Next.js build artifacts.
     exclude: ['**/node_modules/**', '.next/**', 'dist/**'],
+    // Extended timeout for React component tests (link rendering, DOM operations)
+    testTimeout: 15_000,
+    coverage: {
+      reportsDirectory: './test-output/vitest/coverage',
+      provider: 'v8' as const,
+    },
   },
 });
