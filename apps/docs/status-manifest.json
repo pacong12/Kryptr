@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "purpose": "Single status manifest for the Kryptr user docs. Every page's front-matter `status` MUST match this file; the 'What's live today' page renders this manifest at build time. Change status here AND in the page front matter in the same commit.",
+    "purpose": "Single status manifest for the Kryptr user docs. Every page's front-matter `status` MUST match this file; the 'What's live today' page renders this manifest at build time.",
     "statuses": {
       "live": "Available in Kryptr today, within the phase boundaries stated on the page.",
       "preview": "Built and visible in the app, but not fully enabled yet — degrades fail-closed.",
@@ -56,8 +56,11 @@
       "title": "Launchpad consent",
       "status": "planned",
 <<<<<<< HEAD
+<<<<<<< HEAD
       "summary": "Human-in-the-loop consent workflow for wallet deployment; requires T21 chip verification before operator approval."
 =======
+=======
+>>>>>>> origin/feat/ui-sprint2-order-control
       "summary": "Human-in-the-loop approval with T21 chip verification and frozen fee schedule (Wave 5, planned)."
     },
     {
@@ -65,7 +68,10 @@
       "title": "Status Overview",
       "status": "live",
       "summary": "Current phase, rollout progress, and feature status across all waves."
+<<<<<<< HEAD
 >>>>>>> 634b473bc (docs(ui): complete Frontoffice, Backoffice and User Docs audit checklist)
+=======
+>>>>>>> origin/feat/ui-sprint2-order-control
     },
     {
       "path": "/honest-edges/limitations.html",
@@ -90,12 +96,6 @@
       "title": "What's live today",
       "status": "live",
       "summary": "Status index rendered from the manifest — live, preview, planned."
-    },
-    {
-      "path": "/status.html",
-      "title": "Wave 6 status",
-      "status": "live",
-      "summary": "Phase completion dashboard tracking S1-S4, Tier D decision gate, and soak clock readiness."
     }
   ]
 }

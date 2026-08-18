@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from 'vue';
 import {
   Table,
   TableBody,
@@ -9,13 +10,24 @@ import {
 } from '@kryptr/shared-ui/vue/table';
 import { Badge } from '@kryptr/shared-ui/vue/badge';
 import { Button } from '@kryptr/shared-ui/vue/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@kryptr/shared-ui/vue/card';
+import { Input } from '@kryptr/shared-ui/vue/input';
+import { Label } from '@kryptr/shared-ui/vue/label';
 import type {
   ApiError,
   Order,
   OrderExecution,
   WalletBalance,
 } from '@kryptr/shared-types';
-import { List } from '@lucide/vue';
+import { List, X } from '@lucide/vue';
+import { toast } from 'vue-sonner';
 import {
   CHAIN_LABELS,
   formatTimestamp,
@@ -41,6 +53,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (event: 'toggle-executions', orderId: string): void;
+  (event: 'cancel-order', orderId: string): void;
 }>();
 
 const TYPE_LABELS: Record<Order['type'], string> = {
@@ -80,6 +93,39 @@ function triggerLabel(order: Order): string {
   }
   return '—';
 }
+
+// Task 3.2: Cancel order modal state
+const cancelOrderModalOpen = ref(false);
+const selectedOrderId = ref<string | null>(null);
+const cancelReason = ref('');
+
+function openCancelOrder(orderId: string): void {
+  selectedOrderId.value = orderId;
+  cancelReason.value = '';
+  cancelOrderModalOpen.value = true;
+}
+
+function handleCancelOrder(): void {
+  if (!selectedOrderId.value || !cancelReason.value.trim()) {
+    toast.error('Cancellation required', {
+      description: 'Please provide a reason for order cancellation.',
+    });
+    return;
+  }
+
+  emit('cancel-order', selectedOrderId.value);
+  cancelOrderModalOpen.value = false;
+  
+  toast.success('Order cancelled', {
+    description: `Order ${selectedOrderId.value} has been cancelled.`,
+  });
+}
+
+function closeCancelOrder(): void {
+  cancelOrderModalOpen.value = false;
+  selectedOrderId.value = null;
+  cancelReason.value = '';
+}
 </script>
 
 <template>
@@ -111,7 +157,7 @@ function triggerLabel(order: Order): string {
           <TableHead>Status</TableHead>
           <TableHead>Created</TableHead>
           <TableHead class="w-10">
-            <span class="sr-only">Executions</span>
+            <span class="sr-only">Actions</span>
           </TableHead>
         </TableRow>
       </TableHeader>
@@ -151,15 +197,30 @@ function triggerLabel(order: Order): string {
               >
                 <List aria-hidden="true" />
               </Button>
+              
+              <!-- Task 3.2: Cancel order button -->
+              <Button
+                v-if="order.status === 'pending' || order.status === 'active'"
+                variant="ghost"
+                size="icon"
+                class="ml-2 text-destructive hover:text-destructive"
+                :aria-label="`Cancel order ${order.id}`"
+                @click="openCancelOrder(order.id)"
+              >
+                <X aria-hidden="true" />
+              </Button>
             </TableCell>
           </TableRow>
+
+          <!-- Execution panel row (existing functionality) -->
           <TableRow
-            v-if="expandedOrderId === order.id"
-            :data-executions-row="order.id"
+            v-if="expandedOrderId === order.id && executionsState === 'ready'"
+            :data-order-id="`${order.id}-executions`"
+            class="bg-muted/30"
           >
-            <TableCell colspan="8">
+            <TableCell :colspan="8">
               <OrderExecutionPanel
-                :state="executionsState"
+                :order-id="order.id"
                 :executions="executions"
                 :error="executionsError"
               />
@@ -168,5 +229,60 @@ function triggerLabel(order: Order): string {
         </template>
       </TableBody>
     </Table>
+
+    <!-- Task 3.2: Cancel order confirmation modal -->
+    <Card
+      v-if="cancelOrderModalOpen"
+      class="max-w-md animate-in fade-in duration-200"
+    >
+      <CardHeader>
+        <CardTitle class="flex items-center justify-between gap-2">
+          Cancel Order
+          <Button
+            variant="ghost"
+            size="icon"
+            class="h-6 w-6"
+            @click="closeCancelOrder"
+          >
+            <X class="h-4 w-4" />
+          </Button>
+        </CardTitle>
+        <CardDescription>
+          Provide a reason for cancelling this order. This action cannot be undone once executed.
+        </CardDescription>
+      </CardHeader>
+      <CardContent class="space-y-4">
+        <div class="space-y-2">
+          <Label for="cancel-reason">Cancellation Reason</Label>
+          <Input
+            id="cancel-reason"
+            v-model="cancelReason"
+            placeholder="e.g., No longer interested in position, market changed..."
+            :disabled="false"
+          />
+          <p class="text-xs text-muted-foreground">
+            Required field for audit trail purposes.
+          </p>
+        </div>
+
+        <div
+          v-if="selectedOrderId"
+          class="rounded-lg border bg-muted p-3 text-sm"
+        >
+          <p class="font-medium">Order ID: {{ selectedOrderId }}</p>
+          <p class="text-muted-foreground text-xs">
+            Cancellation will only take effect if order hasn't executed yet.
+          </p>
+        </div>
+      </CardContent>
+      <CardFooter class="flex justify-end gap-2">
+        <Button variant="outline" @click="closeCancelOrder">
+          Close
+        </Button>
+        <Button variant="destructive" @click="handleCancelOrder">
+          Confirm Cancellation
+        </Button>
+      </CardFooter>
+    </Card>
   </div>
 </template>
