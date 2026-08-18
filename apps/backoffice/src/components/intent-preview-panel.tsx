@@ -47,7 +47,9 @@ export function IntentPreviewPanel({ intent }: { intent: TransactionIntent }) {
         </div>
         {intent.swap && (
           <div className="flex flex-col gap-1 pt-2 border-t">
-            <span className="text-muted-foreground font-semibold">Swap Context</span>
+            <span className="text-muted-foreground font-semibold">
+              Swap Context
+            </span>
             <pre className="p-2 text-xs rounded bg-muted font-mono overflow-x-auto">
               {JSON.stringify(intent.swap, null, 2)}
             </pre>
@@ -55,7 +57,9 @@ export function IntentPreviewPanel({ intent }: { intent: TransactionIntent }) {
         )}
         {intent.deploy && (
           <div className="flex flex-col gap-1 pt-2 border-t">
-            <span className="text-muted-foreground font-semibold">Deploy Context</span>
+            <span className="text-muted-foreground font-semibold">
+              Deploy Context
+            </span>
             <pre className="p-2 text-xs rounded bg-muted font-mono overflow-x-auto">
               {JSON.stringify(intent.deploy, null, 2)}
             </pre>

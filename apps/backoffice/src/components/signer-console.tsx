@@ -21,7 +21,7 @@ export function SignerConsole({
   initialSignRequest?: SignRequest | null;
 }) {
   const [signRequest, setSignRequest] = useState<SignRequest | null>(
-    initialSignRequest ?? null
+    initialSignRequest ?? null,
   );
 
   const handleManualApprove = () => {
@@ -66,8 +66,8 @@ export function SignerConsole({
                 signRequest.status === 'signed'
                   ? 'default'
                   : signRequest.status === 'rejected'
-                  ? 'destructive'
-                  : 'secondary'
+                    ? 'destructive'
+                    : 'secondary'
               }
             >
               {signRequest.status.toUpperCase()}
@@ -96,7 +96,10 @@ export function SignerConsole({
             <div className="flex gap-2 pt-3">
               <Button
                 variant="default"
-                disabled={signRequest.status !== 'pending' && signRequest.status !== 'dry_run'}
+                disabled={
+                  signRequest.status !== 'pending' &&
+                  signRequest.status !== 'dry_run'
+                }
                 onClick={handleManualApprove}
                 className="flex-1"
               >
@@ -104,7 +107,10 @@ export function SignerConsole({
               </Button>
               <Button
                 variant="outline"
-                disabled={signRequest.status !== 'pending' && signRequest.status !== 'dry_run'}
+                disabled={
+                  signRequest.status !== 'pending' &&
+                  signRequest.status !== 'dry_run'
+                }
                 onClick={handleManualReject}
                 className="flex-1"
               >

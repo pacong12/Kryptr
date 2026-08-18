@@ -2,7 +2,12 @@
 
 import { useEffect, useRef } from 'react';
 import { Badge } from '@kryptr/shared-ui/react/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@kryptr/shared-ui/react/card';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@kryptr/shared-ui/react/card';
 import { formatDateTime } from '@/lib/format';
 
 export interface OrderEvent {

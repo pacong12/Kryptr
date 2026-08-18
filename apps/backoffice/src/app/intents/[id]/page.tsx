@@ -99,7 +99,8 @@ export default async function IntentDetailPage({
             )}
           </div>
           <p className="text-sm text-muted-foreground">
-            {humanize(intent.kind)} intent from {intent.origin} on {intent.chain}
+            {humanize(intent.kind)} intent from {intent.origin} on{' '}
+            {intent.chain}
           </p>
         </header>
 
@@ -109,8 +110,8 @@ export default async function IntentDetailPage({
               <CardHeader>
                 <CardTitle>Intent details</CardTitle>
                 <CardDescription>
-                  TransactionIntent as produced by the originating agent — signing
-                  never happens without a security decision
+                  TransactionIntent as produced by the originating agent —
+                  signing never happens without a security decision
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -127,7 +128,9 @@ export default async function IntentDetailPage({
                   <DetailItem
                     label="Asset"
                     value={
-                      intent.asset === null ? 'native' : shortenHex(intent.asset)
+                      intent.asset === null
+                        ? 'native'
+                        : shortenHex(intent.asset)
                     }
                     mono
                   />
@@ -151,7 +154,9 @@ export default async function IntentDetailPage({
               <UnsignedTxPreview unsignedTx={signRequest.unsignedTx} />
             )}
 
-            {intent.kind === 'swap' ? <QuoteContextCard intent={intent} /> : null}
+            {intent.kind === 'swap' ? (
+              <QuoteContextCard intent={intent} />
+            ) : null}
 
             <Suspense fallback={<IntentTimelineSkeleton />}>
               <IntentTimeline intentId={intent.id} />

@@ -99,20 +99,21 @@ Setiap task yang diberikan HARUS mengandung:
 
 ---
 
-## IRC Commands (conductor)
-```bash
-# broadcast ke semua
-node /home/muting/kryptr/scripts/agent-irc.mjs send conductor all "<pesan>"
+## Aturan Komunikasi Conductor (P2P Wajib)
 
-# pesan ke agent spesifik
-node /home/muting/kryptr/scripts/agent-irc.mjs send conductor vault "<pesan>"
+DILARANG hanya melapor status ke operator / user! Tugas Conductor adalah berkomunikasi dan mengarahkan langsung ke sub-agent secara Peer-to-Peer (P2P) via IRC:
 
-# baca history
-node /home/muting/kryptr/scripts/agent-irc.mjs log 20
+1. **Arahkan Reviewer secara langsung:**
+   `node scripts/agent-irc.mjs send conductor reviewer "Tolong review PR #<n> milik @<author>, periksa security & tests."`
 
-# live feed
-node /home/muting/kryptr/scripts/agent-irc.mjs tail
-```
+2. **Perintahkan Author PR jika butuh revisi:**
+   `node scripts/agent-irc.mjs send conductor <author> "PR #<n> ada catatan dari reviewer: <catatan>. Segera perbaiki."`
+
+3. **Perintahkan Sub-Agent yang belum push:**
+   `node scripts/agent-irc.mjs send conductor <agent> "Branch feat/<name> belum dipush / belum ada PR. Segera push dan buat PR."`
+
+4. **Kordinasi antar-agent:**
+   Bicara langsung ke nama agent (@vault, @face, @deck, @contracts, @qa, @redteam, @reviewer, @ops, @web3). JANGAN berbicara ke operator/user kecuali terjadi blocker fatal sistem.
 
 ---
 

@@ -907,7 +907,8 @@ export const MOCK_SIGN_REQUESTS: SignRequest[] = [
       data: '0x',
       value: '0x3782dace9d9000',
     },
-    digest: '0xdeadbeef1234567890abcdef1234567890abcdef1234567890abcdef12345678',
+    digest:
+      '0xdeadbeef1234567890abcdef1234567890abcdef1234567890abcdef12345678',
     note: 'Pending external signer decision',
     createdAt: '2026-08-17T10:00:00.000Z',
   },
@@ -920,7 +921,8 @@ export const MOCK_SIGN_REQUESTS: SignRequest[] = [
       data: '0xa9059cbb',
       value: '0x0',
     },
-    digest: '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+    digest:
+      '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
     note: 'dry-run only — nothing broadcast',
     createdAt: '2026-08-17T09:45:00.000Z',
   },

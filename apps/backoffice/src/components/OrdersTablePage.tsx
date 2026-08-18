@@ -1,9 +1,18 @@
 'use client';
 
-import { Card, CardContent, CardHeader, CardTitle } from '@kryptr/shared-ui/react/card';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@kryptr/shared-ui/react/card';
 
 import { useOrdersPolling } from '@/composables/useOrdersPolling';
-import { OrderSideBadge, OrderStatusBadge, OrderTypeBadge } from '@/components/order-badges';
+import {
+  OrderSideBadge,
+  OrderStatusBadge,
+  OrderTypeBadge,
+} from '@/components/order-badges';
 import { formatDateTime, shortenHex } from '@/lib/format';
 import type { Order } from '@kryptr/shared-types';
 
@@ -79,7 +88,9 @@ function OrdersTableLive({ orders }: { orders: Order[] }) {
  * Auto-refreshes every 5 seconds with loading indicators and status colors.
  */
 export function OrdersTablePage() {
-  const { orders, loading, lastFetchedAt } = useOrdersPolling({ intervalMs: 5000 });
+  const { orders, loading, lastFetchedAt } = useOrdersPolling({
+    intervalMs: 5000,
+  });
 
   return (
     <Card>

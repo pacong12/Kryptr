@@ -14,7 +14,11 @@ import { shortenHex } from '@/lib/format';
  * UnsignedTxPreview object. Data can be decoded further when a proper ABI
  * is available (TODO: add decoder integration).
  */
-export function UnsignedTxPreview({ unsignedTx }: { unsignedTx: UnsignedTxPreview }) {
+export function UnsignedTxPreview({
+  unsignedTx,
+}: {
+  unsignedTx: UnsignedTxPreview;
+}) {
   return (
     <Card>
       <CardHeader>
@@ -27,7 +31,9 @@ export function UnsignedTxPreview({ unsignedTx }: { unsignedTx: UnsignedTxPrevie
         <div>
           <dt className="text-xs text-muted-foreground">To address</dt>
           <dd className="font-mono text-sm">
-            {unsignedTx.to === '0x0' || !unsignedTx.to ? '—' : shortenHex(unsignedTx.to)}
+            {unsignedTx.to === '0x0' || !unsignedTx.to
+              ? '—'
+              : shortenHex(unsignedTx.to)}
           </dd>
         </div>
         <div>
@@ -35,9 +41,13 @@ export function UnsignedTxPreview({ unsignedTx }: { unsignedTx: UnsignedTxPrevie
           <dd className="font-mono text-sm">{unsignedTx.value}</dd>
         </div>
         <div className="min-w-0 flex-1">
-          <dt className="text-xs text-muted-foreground max-w-full truncate">Data (hex)</dt>
+          <dt className="text-xs text-muted-foreground max-w-full truncate">
+            Data (hex)
+          </dt>
           <dd className="font-mono text-sm break-all">
-            {unsignedTx.data && unsignedTx.data !== '0x' ? shortenHex(unsignedTx.data) : '—'}
+            {unsignedTx.data && unsignedTx.data !== '0x'
+              ? shortenHex(unsignedTx.data)
+              : '—'}
           </dd>
         </div>
       </CardContent>

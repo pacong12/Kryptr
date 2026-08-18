@@ -36,7 +36,7 @@ describe('useOrdersPolling', () => {
     }
 
     render(<TestComponent />);
-    
+
     expect(screen.getByTestId('status')).toBeInTheDocument();
     expect(screen.getByTestId('loading')).toHaveTextContent('true');
   });
@@ -57,7 +57,7 @@ describe('useOrdersPolling', () => {
     render(<TestComponent />);
 
     await new Promise((resolve) => setTimeout(resolve, 150));
-    
+
     expect(mockFetch).toHaveBeenCalled();
   });
 

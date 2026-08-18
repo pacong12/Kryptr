@@ -4,11 +4,23 @@ import Link from 'next/link';
 import { ArrowLeftIcon } from 'lucide-react';
 import type { Order } from '@kryptr/shared-types';
 import { Button } from '@kryptr/shared-ui/react/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@kryptr/shared-ui/react/card';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@kryptr/shared-ui/react/card';
 
 import { useOrdersPolling } from '@/composables/useOrdersPolling';
-import { OrdersActivityFeed, type OrderEvent } from '@/components/OrdersActivityFeed';
-import { OrderSideBadge, OrderStatusBadge, OrderTypeBadge } from '@/components/order-badges';
+import {
+  OrdersActivityFeed,
+  type OrderEvent,
+} from '@/components/OrdersActivityFeed';
+import {
+  OrderSideBadge,
+  OrderStatusBadge,
+  OrderTypeBadge,
+} from '@/components/order-badges';
 import { formatDateTime, shortenHex } from '@/lib/format';
 
 function assetLabel(asset: `0x${string}` | null): string {
@@ -18,7 +30,9 @@ function assetLabel(asset: `0x${string}` | null): string {
 function OrdersTableLive({ orders }: { orders: Order[] }) {
   if (orders.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground">No orders found. Polling for updates...</p>
+      <p className="text-sm text-muted-foreground">
+        No orders found. Polling for updates...
+      </p>
     );
   }
 
@@ -81,7 +95,9 @@ function OrdersTableLive({ orders }: { orders: Order[] }) {
 }
 
 export function LiveOrdersPage() {
-  const { orders, loading, lastFetchedAt, error } = useOrdersPolling({ intervalMs: 5000 });
+  const { orders, loading, lastFetchedAt, error } = useOrdersPolling({
+    intervalMs: 5000,
+  });
 
   // Generate mock activity events from orders
   const activityEvents: OrderEvent[] = orders.slice(0, 10).map((order) => ({
@@ -102,7 +118,9 @@ export function LiveOrdersPage() {
               <ArrowLeftIcon aria-hidden /> Back
             </Link>
           </Button>
-          <h1 className="text-2xl font-semibold tracking-tight">Live Orders Monitor</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Live Orders Monitor
+          </h1>
         </div>
         <div className="flex items-center gap-3 text-xs">
           <span className="text-muted-foreground">
@@ -137,10 +155,12 @@ export function LiveOrdersPage() {
 
         <div className="space-y-6">
           <OrdersActivityFeed events={activityEvents} maxEvents={20} />
-          
+
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm font-medium">Polling Status</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Polling Status
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 text-xs">
               <dl className="grid grid-cols-2 gap-2">
@@ -151,7 +171,9 @@ export function LiveOrdersPage() {
                 <dd className="font-mono">{Math.floor(Date.now() / 5000)}</dd>
 
                 <dt className="text-muted-foreground">Status</dt>
-                <dd className="font-mono">{loading ? 'fetching...' : 'idle'}</dd>
+                <dd className="font-mono">
+                  {loading ? 'fetching...' : 'idle'}
+                </dd>
 
                 <dt className="text-muted-foreground">Last fetched</dt>
                 <dd className="font-mono">

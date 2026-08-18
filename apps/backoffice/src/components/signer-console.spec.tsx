@@ -37,9 +37,7 @@ const SIGN_REQUEST = {
 
 describe('SigningConsoleSection', () => {
   it('shows intentId for each sign request', async () => {
-    stubFetch(() =>
-      envelope({ ok: true, data: [SIGN_REQUEST], error: null }),
-    );
+    stubFetch(() => envelope({ ok: true, data: [SIGN_REQUEST], error: null }));
 
     render(await SigningConsoleSection());
 
@@ -47,9 +45,7 @@ describe('SigningConsoleSection', () => {
   });
 
   it('shows status badge', async () => {
-    stubFetch(() =>
-      envelope({ ok: true, data: [SIGN_REQUEST], error: null }),
-    );
+    stubFetch(() => envelope({ ok: true, data: [SIGN_REQUEST], error: null }));
 
     render(await SigningConsoleSection());
 
@@ -57,9 +53,7 @@ describe('SigningConsoleSection', () => {
   });
 
   it('shows digest truncated to 10 chars + ellipsis', async () => {
-    stubFetch(() =>
-      envelope({ ok: true, data: [SIGN_REQUEST], error: null }),
-    );
+    stubFetch(() => envelope({ ok: true, data: [SIGN_REQUEST], error: null }));
 
     render(await SigningConsoleSection());
 
@@ -68,7 +62,12 @@ describe('SigningConsoleSection', () => {
   });
 
   it('shows multiple requests', async () => {
-    const req2 = { ...SIGN_REQUEST, id: 'sr_test_2', intentId: 'int_xyz999', status: 'dry_run' };
+    const req2 = {
+      ...SIGN_REQUEST,
+      id: 'sr_test_2',
+      intentId: 'int_xyz999',
+      status: 'dry_run',
+    };
     stubFetch(() =>
       envelope({ ok: true, data: [SIGN_REQUEST, req2], error: null }),
     );
@@ -89,7 +88,9 @@ describe('SigningConsoleSection', () => {
   });
 
   it('falls back to fixtures with mock badge when API unreachable', async () => {
-    stubFetch(() => { throw new Error('ECONNREFUSED'); });
+    stubFetch(() => {
+      throw new Error('ECONNREFUSED');
+    });
 
     render(await SigningConsoleSection());
 
@@ -100,9 +101,7 @@ describe('SigningConsoleSection', () => {
 
   it('shows N/A digest when digest is null', async () => {
     const nullDigestReq = { ...SIGN_REQUEST, digest: null };
-    stubFetch(() =>
-      envelope({ ok: true, data: [nullDigestReq], error: null }),
-    );
+    stubFetch(() => envelope({ ok: true, data: [nullDigestReq], error: null }));
 
     render(await SigningConsoleSection());
 

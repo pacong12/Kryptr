@@ -588,10 +588,12 @@ export async function getSignRequests(): Promise<DataSource<SignRequest[]>> {
 export async function getSignRequest(
   intentId: string,
 ): Promise<DataSource<SignRequest | null>> {
-  const outcome = await fetchEnvelope<SignRequest>(`/signing/${encodeURIComponent(intentId)}`);
+  const outcome = await fetchEnvelope<SignRequest>(
+    `/signing/${encodeURIComponent(intentId)}`,
+  );
   if (outcome.kind === 'unreachable') {
     // Fallback: search MOCK_SIGN_REQUESTS for matching intentId
-    const match = MOCK_SIGN_REQUESTS.find(sr => sr.intentId === intentId);
+    const match = MOCK_SIGN_REQUESTS.find((sr) => sr.intentId === intentId);
     return { data: match ?? null, mock: true, apiError: null };
   }
   return toDataSource(outcome, null);

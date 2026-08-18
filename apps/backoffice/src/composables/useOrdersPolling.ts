@@ -33,39 +33,40 @@ export function useOrdersPolling({
     }
 
     abortControllerRef.current = new AbortController();
-    
+
     try {
       setLoading(true);
       requestCountRef.current += 1;
-      
+
       const response = await getOrders();
-      
+
       // Only update if still the active request
       if (abortControllerRef.current.signal.aborted) return;
 
       const now = Date.now();
       const lastFetch = lastFetchedAt?.getTime() ?? 0;
-      
+
       // Debounce: only update if data changed significantly
-      const hasChanges = JSON.stringify(response.data) !== JSON.stringify(lastDataRef.current);
-      
+      const hasChanges =
+        JSON.stringify(response.data) !== JSON.stringify(lastDataRef.current);
+
       if (hasChanges || now - lastFetch > 2000) {
         setOrders(response.data);
         setLastFetchedAt(new Date());
         lastDataRef.current = response.data;
-        
+
         if (response.mock) {
           console.log('[useOrdersPolling] Using mock data');
         }
       }
-      
+
       setError(null);
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
-      
+
       console.error('[useOrdersPolling] Fetch failed:', err);
       setError(err as Error);
-      
+
       // Exponential backoff simulation
       if (requestCountRef.current % 3 === 0) {
         setTimeout(() => {}, 1000);

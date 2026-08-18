@@ -12,7 +12,10 @@ function envelope(body: unknown): Response {
 }
 
 function stubFetch(impl: (url: string) => Response | Promise<Response>) {
-  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => impl(String(input))));
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) => impl(String(input))),
+  );
 }
 
 afterEach(() => {
@@ -59,7 +62,7 @@ describe('IntentDetailPage W7-M5', () => {
 
     const module = await import('@/lib/api');
     const result = await module.getSignRequest(MOCK_INTENT.id);
-    
+
     expect(result.data).toEqual(MOCK_SIGN_REQUEST);
     expect(result.mock).toBe(false);
   });
@@ -71,16 +74,17 @@ describe('IntentDetailPage W7-M5', () => {
 
     const module = await import('@/lib/api');
     const result = await module.getSignRequest(MOCK_INTENT.id);
-    
+
     expect(result.data).toBeNull();
     expect(result.mock).toBe(true);
   });
 
   it('displays UnsignedTxPreview with truncated values', async () => {
-    const { UnsignedTxPreview } = await import('@/components/unsigned-tx-preview');
-    
+    const { UnsignedTxPreview } =
+      await import('@/components/unsigned-tx-preview');
+
     render(<UnsignedTxPreview unsignedTx={MOCK_SIGN_REQUEST.unsignedTx} />);
-    
+
     // shortenHex truncates to first 6 chars + … + last 4 chars
     expect(screen.getByText(/0xdead/)).toBeInTheDocument();
     expect(screen.getByText('0x3782dace9d9000')).toBeInTheDocument();
