@@ -1,20 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import type { TokenFeeSchedule } from '@kryptr/shared-types';
-import type {
-  VirtualPoolResult,
-  VenueAccrualSnapshot,
-  GraduationStatus,
-} from '../domain/zero-ex-venue.adapter.types';
+import type { VirtualPoolResult, VenueAccrualSnapshot, GraduationStatus } from '../domain/zero-ex-venue.adapter.types';
 import { ZERO_EX_VENUE_ADAPTER } from '../domain/zero-ex-venue.adapter.types';
 
 /**
  * ZeroExVenueAdapter — venue marketplace for launched tokens (S4 Wave 6)
- *
+ * 
  * **Additive Fee Model (User P2 Decision):**
  * - Trader pays: `Base Fee (175 bps)` + `Venue Share` independently
  * - Two-ledger separation: Schedule recipients (§4.5 INV-FEE-2) vs venue partner (§8.1 INV-VENUE-1)
  * - Accrual basis: "trade_amount" per-trade (TC-19/E-17 compliance)
- *
+ * 
  * **Reference:** PR #134 §4.5.1 INV-FEE-2/4, §8 threat controls TC-15..TC-25, §10 Bankr implications
  */
 @Injectable({
@@ -37,7 +33,7 @@ export class ZeroExVenueAdapter {
       throw new Error('venueBps must be non-negative (PR #130 enforcement)');
     }
 
-    const venueId = `${this.chainId}:0x-v2:${tokenId}`;
+    const venueId = `${this.chainId}:uniswap-v4:${tokenId}`;
 
     return {
       venueId,
@@ -50,7 +46,7 @@ export class ZeroExVenueAdapter {
   /**
    * Get accrual snapshot for trade executed through venue
    * Uses exact floor math per §4.5.1 INV-FEE-4 rate identity
-   *
+   * 
    * INV-VENUE-1 Theorem: venue accrual == floor(trade_amount × venueBps / 10_000) EXACT
    * No tolerance — deviation = test failure (§4.5 C1 binding condition)
    */
@@ -78,10 +74,7 @@ export class ZeroExVenueAdapter {
   }
 
   /** Generate deterministic virtual pool address placeholder */
-  private _generateVirtualAddress(
-    walletId: string,
-    tokenId: string,
-  ): `0x${string}` {
+  private _generateVirtualAddress(walletId: string, tokenId: string): `0x${string}` {
     return `0x${Buffer.from(`${walletId}:${tokenId}`, 'utf8').toString('hex')}` as `0x${string}`;
   }
 
@@ -93,7 +86,7 @@ export class ZeroExVenueAdapter {
     const rateInteger = Math.round(rateBps * 100); // Scale to hundredths of bps
     const numerator = amount * BigInt(rateInteger);
     const denominator = BigInt(1_000_000); // 10_000 × 100 scaling factor
-
+    
     return numerator / denominator;
   }
 

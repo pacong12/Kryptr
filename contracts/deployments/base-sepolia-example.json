@@ -1,0 +1,8 @@
+{
+  "chain": "base-sepolia",
+  "factoryAddress": "0x0000000000000000000000000000000000000000",
+  "bondSink": "0x0000000000000000000000000000000000000000",
+  "verificationId": null,
+  "commitSha": "local-dev",
+  "deployedAt": 0
+}

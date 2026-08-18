@@ -5,6 +5,7 @@ import WalletDetailPage from '@/pages/WalletDetailPage.vue';
 import WalletLaunchPage from '@/pages/WalletLaunchPage.vue';
 import WalletOrdersPage from '@/pages/WalletOrdersPage.vue';
 import WalletOverviewPage from '@/pages/WalletOverviewPage.vue';
+import WalletTransferPage from '@/pages/WalletTransferPage.vue';
 
 export const routes = [
   {
@@ -33,6 +34,12 @@ export const routes = [
         path: 'orders',
         name: 'wallet-orders',
         component: WalletOrdersPage,
+        props: true,
+      },
+      {
+        path: 'transfer',
+        name: 'wallet-transfer',
+        component: WalletTransferPage,
         props: true,
       },
       {

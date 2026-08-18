@@ -38,3 +38,22 @@ fail_on_revert = false
 
 [fmt]
 line_length = 100
+
+
+# ====================================================================== TESTNETS
+# Base Sepolia testnet configuration (Stage 1 rehearsal)
+# RPC_URL_BASE_SEPOLIA must be set in .env or environment
+[rpc_endpoints.base-sepolia]
+url = "${RPC_URL_BASE_SEPOLIA}"
+eth_chain_id = 84532
+block_number = 0 # latest
+timeout = 30000
+
+# Robinhood testnet configuration (Stage 2 rehearsal)
+# RPC_URL_ROBINHOOD_TESTNET must be set in .env or environment
+[rpc_endpoints.robinhood]
+url = "${RPC_URL_ROBINHOOD_TESTNET}"
+eth_chain_id = 46630
+block_number = 0 # latest
+timeout = 30000
+

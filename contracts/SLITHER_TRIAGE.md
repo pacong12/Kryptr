@@ -47,3 +47,6 @@ any finding class that could hide a clone bug is non-triageable by policy.
 
 _None yet._ (Factory + template scan clean: zero never-triage findings;
 slither.db.json is empty by construction — PR #76 evidence.)
+Last verified: 2026-08-18 (W7-Contracts-Audit, @contracts agent).
+Audit confirmed zero never-triaging set hits across both contracts.
+All 8 Slither findings are INFO-level and non-blocking per T21 policy.
