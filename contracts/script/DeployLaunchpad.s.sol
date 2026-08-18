@@ -61,11 +61,23 @@ contract DeployLaunchpad is Script {
         deployment.templateAddress = templateAddr;
         deployment.factoryAddress = factoryAddr;
         deployment.blockNumber = block.number;
-        deployment.timestamp = block.timestamp;
-        bytes memory hashBytes = bytes(vm.envString("COMMIT_HASH"));
-        deployment.commitHash = hashBytes.length >= 7 ? string(hashBytes[0:7]) : "local-dev";
-
-        emitDeploymentManifest();
+        deployment.commitHash = vm.envString("COMMIT_HASH");
+        if (bytes(deployment.commitHash).length < 7) {
+            deployment.commitHash = "local-dev";
+        } else {
+            bytes memory ch = bytes(deployment.commitHash);
+            deployment.commitHash = string(
+                abi.encodePacked(
+                    bytes1(ch[0]),
+                    bytes1(ch[1]),
+                    bytes1(ch[2]),
+                    bytes1(ch[3]),
+                    bytes1(ch[4]),
+                    bytes1(ch[5]),
+                    bytes1(ch[6])
+                )
+            );
+        }
 
         console.log("");
         console.log("=============================");
@@ -75,13 +87,15 @@ contract DeployLaunchpad is Script {
 
     function emitDeploymentManifest() internal {
         string memory manifestPath = string.concat("deployments/", deployment.chainName, ".json");
+        string memory factoryAddrStr = vm.toString(deployment.factoryAddress);
+        string memory bondSinkStr = vm.toString(BOND_SINK);
         string memory manifest = string.concat(
             '{"chain":"',
             deployment.chainName,
             '","factoryAddress":"',
-            abi.encodePacked(deployment.factoryAddress),
+            factoryAddrStr,
             '","bondSink":"',
-            abi.encodePacked(BOND_SINK),
+            bondSinkStr,
             '", "verificationId": null,"commitSha":"',
             deployment.commitHash,
             '","deployedAt":"',
