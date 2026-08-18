@@ -3,7 +3,14 @@
  * Validates: Database transaction integrity & Intent state machine transitions
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from '@jest/globals';
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  afterAll,
+  beforeEach,
+} from '@jest/globals';
 import { dbMock } from '../fixtures/database-mock.harness';
 import { apiMock } from '../fixtures/api-mock.service';
 import {
@@ -46,13 +53,11 @@ describe('Persistence Validation (Phase 1)', () => {
       expect(storedIntent!.kind).toBe('transfer');
       expect(storedIntent!.walletId).toBe(TEST_WALLET_1.id);
       expect(storedIntent!.decision).toBe('approved');
-      
+
       // Verify timestamps are consistent
-      expect(storedIntent!.createdAt.getTime()).toBeLessThanOrEqual(
-        Date.now()
-      );
+      expect(storedIntent!.createdAt.getTime()).toBeLessThanOrEqual(Date.now());
       expect(storedIntent!.updatedAt.getTime()).toBeGreaterThanOrEqual(
-        storedIntent!.createdAt.getTime()
+        storedIntent!.createdAt.getTime(),
       );
     });
 
@@ -88,7 +93,9 @@ describe('Persistence Validation (Phase 1)', () => {
       expect(transaction.amount).toBe('100000000');
 
       // Verify no orphan transactions exist
-      const allTransactions = Array.from(dbMock.getTransactionsByIntent(intentId));
+      const allTransactions = Array.from(
+        dbMock.getTransactionsByIntent(intentId),
+      );
       expect(allTransactions.length).toBe(1);
     });
 
@@ -128,7 +135,7 @@ describe('Persistence Validation (Phase 1)', () => {
     it('should maintain referential integrity on rollback operations', async () => {
       // Given: Intent with initial reservation
       const intentId = `intent-rollback-test-${Date.now()}`;
-      
+
       await dbMock.reserveSpend(intentId, 1_000_000); // Reserve $1
 
       // Then: Initial reservation exists
@@ -138,7 +145,7 @@ describe('Persistence Validation (Phase 1)', () => {
       // Simulate transaction failure and rollback
       const rollbackSuccess = await dbMock.rollbackTransaction(
         intentId,
-        `tx-fake-${intentId}`
+        `tx-fake-${intentId}`,
       );
 
       if (rollbackSuccess) {
@@ -153,7 +160,7 @@ describe('Persistence Validation (Phase 1)', () => {
     it('should follow valid lifecycle states: pending → approved/rejected', async () => {
       // Given: Fresh intent creation
       const intentId = generateIntentId();
-      
+
       await dbMock.saveIntent({
         kind: 'transfer',
         walletId: TEST_WALLET_1.id,
@@ -164,14 +171,18 @@ describe('Persistence Validation (Phase 1)', () => {
 
       // Then: Initial state should be pending or approved
       const initialIntent = await dbMock.findById(intentId);
-      
+
       // Direct auto-approval bypasses pending for small amounts
       expect(['pending', 'approved', 'rejected']).toContain(
-        initialIntent!.decision
+        initialIntent!.decision,
       );
 
       // Transition to approved
-      const approved = await dbMock.updateDecision(intentId, 'approved', 'within policy');
+      const approved = await dbMock.updateDecision(
+        intentId,
+        'approved',
+        'within policy',
+      );
       expect(approved).toBeTruthy();
 
       const updated = await dbMock.findById(intentId);
@@ -181,21 +192,28 @@ describe('Persistence Validation (Phase 1)', () => {
       const failedTransition = await dbMock.updateDecision(
         intentId,
         'pending', // Invalid backward transition
-        'reverting'
+        'reverting',
       );
-      
+
       if (!failedTransition) {
-        console.log('[StateMachine] Correctly prevented invalid backward transition');
+        console.log(
+          '[StateMachine] Correctly prevented invalid backward transition',
+        );
       }
     });
 
     it('should prevent invalid state transitions', async () => {
       // Given: Intent in various states
-      const states = ['submitted', 'approved', 'rejected', 'needs_human_approval'];
+      const states = [
+        'submitted',
+        'approved',
+        'rejected',
+        'needs_human_approval',
+      ];
 
       for (const state of states) {
         const intentId = `state-transition-test-${Date.now()}-${Math.random()}`;
-        
+
         await dbMock.saveIntent({
           kind: 'transfer',
           walletId: TEST_WALLET_1.id,
@@ -224,14 +242,16 @@ describe('Persistence Validation (Phase 1)', () => {
         }
 
         // Verify only valid transitions are permitted by policy
-        console.log(`[StateMachine] ${state}: allowed → [${validTransitions.join(', ')}]`);
+        console.log(
+          `[StateMachine] ${state}: allowed → [${validTransitions.join(', ')}]`,
+        );
       }
     });
 
     it('should track state transitions in audit history', async () => {
       // Given: Complete lifecycle simulation
       const intentId = `audit-lifecycle-${Date.now()}`;
-      
+
       // Create intent
       await dbMock.saveIntent({
         kind: 'transfer',
@@ -249,14 +269,14 @@ describe('Persistence Validation (Phase 1)', () => {
 
       // Get full history
       const history = dbMock.getAuditHistory(100);
-      
+
       // Then: Should capture all decision updates
-      const decisionUpdates = history.filter(h => 
-        h.operation === 'update_decision'
+      const decisionUpdates = history.filter(
+        (h) => h.operation === 'update_decision',
       );
 
       expect(decisionUpdates.length).toBeGreaterThanOrEqual(2);
-      
+
       // Verify each update has proper metadata
       decisionUpdates.forEach((entry) => {
         expect(entry.details.decision).toBeDefined();
@@ -268,7 +288,7 @@ describe('Persistence Validation (Phase 1)', () => {
     it('should handle concurrent state updates safely', async () => {
       // Given: Single intent being updated concurrently
       const intentId = generateIntentId();
-      
+
       await dbMock.saveIntent({
         kind: 'transfer',
         walletId: TEST_WALLET_1.id,
@@ -297,7 +317,7 @@ describe('Persistence Validation (Phase 1)', () => {
     it('should record all execution attempts with complete metadata', async () => {
       // Given: Intent ready for execution
       const intentId = `history-complete-test`;
-      
+
       await dbMock.saveIntent({
         kind: 'transfer',
         walletId: TEST_WALLET_1.id,
@@ -325,7 +345,7 @@ describe('Persistence Validation (Phase 1)', () => {
 
       // Then: Full history should be preserved
       const history = await dbMock.getTransactionsByIntent(intentId);
-      
+
       expect(history.length).toBe(3);
       expect(history[0].status).toBe('executed');
       expect(history[1].status).toBe('failed');
@@ -334,7 +354,7 @@ describe('Persistence Validation (Phase 1)', () => {
       // Verify timestamps are monotonically increasing
       for (let i = 1; i < history.length; i++) {
         expect(history[i].createdAt.getTime()).toBeGreaterThanOrEqual(
-          history[i - 1].createdAt.getTime()
+          history[i - 1].createdAt.getTime(),
         );
       }
     });
@@ -352,7 +372,9 @@ describe('Persistence Validation (Phase 1)', () => {
       const created = await dbMock.recordTransaction(originalTx);
 
       // Retrieve and compare
-      const retrieved = await dbMock.getTransactionsByIntent(originalTx.intentId);
+      const retrieved = await dbMock.getTransactionsByIntent(
+        originalTx.intentId,
+      );
       const first = retrieved[0];
 
       // Then: All fields should match exactly
@@ -387,7 +409,10 @@ describe('Persistence Validation (Phase 1)', () => {
 
       // Query actual statistics
       const history = await dbMask.getTransactionsByIntent(intentId);
-      const actualTotal = history.reduce((sum, tx) => sum + parseInt(tx.amount, 10), 0);
+      const actualTotal = history.reduce(
+        (sum, tx) => sum + parseInt(tx.amount, 10),
+        0,
+      );
       const actualAverage = actualTotal / history.length;
 
       // Then: Statistics should match expectations
@@ -418,13 +443,15 @@ describe('Persistence Validation (Phase 1)', () => {
 
       // Step 2: Verify DB persisted identical state
       const dbIntent = await dbMock.findById(apiIntentId);
-      
+
       expect(dbIntent!.decision).toBe(apiDecision);
       expect(dbIntent!.walletId).toBe(apiResponse.body.walletId);
       expect(dbIntent!.origin).toBe(apiResponse.body.origin);
 
       // Step 3: Cross-validate structure integrity
-      expect(apiResponse.body.createdAt).toBe(dbIntent!.createdAt.toISOString());
+      expect(apiResponse.body.createdAt).toBe(
+        dbIntent!.createdAt.toISOString(),
+      );
       expect(apiResponse.body.walletId).toBe(dbIntent!.walletId);
     });
 
@@ -459,8 +486,10 @@ describe('Persistence Validation (Phase 1)', () => {
       await dbMock.commitTransaction(submitResponse.body.id, transaction.id);
 
       // Then: Full pipeline integrity verified
-      const committedTx = await dbMock.getTransactionsByIntent(submitResponse.body.id);
-      
+      const committedTx = await dbMock.getTransactionsByIntent(
+        submitResponse.body.id,
+      );
+
       expect(committedTx.length).toBe(1);
       expect(committedTx[0].amount).toBe(originalIntent.transfer.amount);
       expect(committedTx[0].assetAddress).toBe(originalIntent.transfer.assetIn);
@@ -474,25 +503,27 @@ describe('Persistence Validation (Phase 1)', () => {
 
       // Create multiple intents simultaneously
       const creations = await Promise.all(
-        Array(parallelIntentCount).fill(null).map(async (_, i) => {
-          const response = await apiMock.submitIntent({
-            kind: 'transfer' as const,
-            walletId: TEST_WALLET_1.id,
-            origin: 'user',
-            transfer: {
-              assetIn: '0xA0b86991c6218B36c1d19D4a2e9Eb0cE3606eB48',
-              amount: '100000000',
-              recipient: '0x8626fD9D8F6C4c4E5c9B5A9C8F7e6D5c4B3a2918',
-              chain: 'ethereum',
-              slippageBps: 50,
-            },
-          });
+        Array(parallelIntentCount)
+          .fill(null)
+          .map(async (_, i) => {
+            const response = await apiMock.submitIntent({
+              kind: 'transfer' as const,
+              walletId: TEST_WALLET_1.id,
+              origin: 'user',
+              transfer: {
+                assetIn: '0xA0b86991c6218B36c1d19D4a2e9Eb0cE3606eB48',
+                amount: '100000000',
+                recipient: '0x8626fD9D8F6C4c4E5c9B5A9C8F7e6D5c4B3a2918',
+                chain: 'ethereum',
+                slippageBps: 50,
+              },
+            });
 
-          return {
-            id: response.body.id,
-            expectedAtDb: true,
-          };
-        })
+            return {
+              id: response.body.id,
+              expectedAtDb: true,
+            };
+          }),
       );
 
       // Verify each was persisted
@@ -505,7 +536,7 @@ describe('Persistence Validation (Phase 1)', () => {
       }
 
       // Then: All should eventually exist in DB
-      const allPersisted = results.every(r => r.dbExists === r.expectedAtDb);
+      const allPersisted = results.every((r) => r.dbExists === r.expectedAtDb);
       expect(allPersisted).toBeTruthy();
     });
   });

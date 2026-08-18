@@ -31,7 +31,8 @@ export class DatabaseMockHarness {
   private intents: Map<string, IntentRecord> = new Map();
   private transactions: Map<string, TransactionRecord> = new Map();
   private spendLedger: Map<string, number> = new Map(); // walletId -> totalSpentMicros
-  private history: Array<{ operation: string; timestamp: Date; details: any }> = [];
+  private history: Array<{ operation: string; timestamp: Date; details: any }> =
+    [];
 
   constructor() {
     this.history.push({
@@ -44,7 +45,9 @@ export class DatabaseMockHarness {
   /**
    * Save intent to in-memory store
    */
-  async saveIntent(intent: Omit<IntentRecord, 'id' | 'createdAt' | 'updatedAt'>): Promise<IntentRecord> {
+  async saveIntent(
+    intent: Omit<IntentRecord, 'id' | 'createdAt' | 'updatedAt'>,
+  ): Promise<IntentRecord> {
     const record: IntentRecord = {
       ...intent,
       id: `intent-db-mock-${Date.now()}-${uuidv4().substring(0, 8)}`,
@@ -53,7 +56,7 @@ export class DatabaseMockHarness {
     };
 
     this.intents.set(record.id, record);
-    
+
     this.recordOperation('save_intent', record.id, {
       kind: intent.kind,
       walletId: intent.walletId,
@@ -76,23 +79,32 @@ export class DatabaseMockHarness {
    */
   async findByWalletId(walletId: string): Promise<IntentRecord[]> {
     this.recordOperation('find_by_wallet', walletId, {});
-    
+
     const results = Array.from(this.intents.values()).filter(
-      (intent) => intent.walletId === walletId
+      (intent) => intent.walletId === walletId,
     );
 
     // Sort by creation time descending
-    return results.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return results.sort(
+      (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
+    );
   }
 
   /**
    * Update intent decision
    */
-  async updateDecision(intentId: string, decision: string, reason: string): Promise<boolean> {
+  async updateDecision(
+    intentId: string,
+    decision: string,
+    reason: string,
+  ): Promise<boolean> {
     const record = this.intents.get(intentId);
-    
+
     if (!record) {
-      this.recordOperation('update_decision', intentId, { success: false, error: 'not_found' });
+      this.recordOperation('update_decision', intentId, {
+        success: false,
+        error: 'not_found',
+      });
       return false;
     }
 
@@ -111,7 +123,9 @@ export class DatabaseMockHarness {
   /**
    * Record transaction
    */
-  async recordTransaction(txData: Omit<TransactionRecord, 'id' | 'createdAt'>): Promise<TransactionRecord> {
+  async recordTransaction(
+    txData: Omit<TransactionRecord, 'id' | 'createdAt'>,
+  ): Promise<TransactionRecord> {
     const record: TransactionRecord = {
       ...txData,
       id: `tx-db-mock-${Date.now()}-${uuidv4().substring(0, 8)}`,
@@ -119,7 +133,7 @@ export class DatabaseMockHarness {
     };
 
     this.transactions.set(record.id, record);
-    
+
     // Update spend ledger
     const micros = parseInt(txData.amount, 10) || 0;
     const currentSpend = this.spendLedger.get(txData.intentId) || 0;
@@ -160,12 +174,12 @@ export class DatabaseMockHarness {
    */
   async reserveSpend(intentId: string, micros: number): Promise<boolean> {
     const existing = this.spendLedger.get(intentId) || 0;
-    
+
     // Deduct reservation temporarily
     this.spendLedger.set(intentId, existing + micros);
-    
+
     this.recordOperation('reserve_spend', intentId, { micros });
-    
+
     return true;
   }
 
@@ -217,14 +231,18 @@ export class DatabaseMockHarness {
   /**
    * Get all transactions for an intent
    */
-  async getTransactionsByIntent(intentId: string): Promise<TransactionRecord[]> {
+  async getTransactionsByIntent(
+    intentId: string,
+  ): Promise<TransactionRecord[]> {
     this.recordOperation('find_transactions', intentId, {});
-    
+
     const results = Array.from(this.transactions.values()).filter(
-      (tx) => tx.intentId === intentId
+      (tx) => tx.intentId === intentId,
     );
 
-    return results.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    return results.sort(
+      (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
+    );
   }
 
   /**
@@ -234,7 +252,7 @@ export class DatabaseMockHarness {
     this.intents.clear();
     this.transactions.clear();
     this.spendLedger.clear();
-    
+
     this.recordOperation('clear_all', 'all', {});
   }
 
@@ -283,7 +301,9 @@ export class DatabaseMockHarness {
     // Check that all transactions reference existing intents
     for (const tx of this.transactions.values()) {
       if (!this.intents.has(tx.intentId)) {
-        errors.push(`Transaction ${tx.id} references non-existent intent ${tx.intentId}`);
+        errors.push(
+          `Transaction ${tx.id} references non-existent intent ${tx.intentId}`,
+        );
       }
     }
 
@@ -293,11 +313,14 @@ export class DatabaseMockHarness {
       if (!intent) continue;
 
       const recordedTx = await this.getTransactionsByIntent(intentId);
-      const calculatedTotal = recordedTx.reduce((sum, tx) => sum + parseInt(tx.amount, 10), 0);
+      const calculatedTotal = recordedTx.reduce(
+        (sum, tx) => sum + parseInt(tx.amount, 10),
+        0,
+      );
 
       if (Math.abs(spent - calculatedTotal) > 1) {
         errors.push(
-          `Intent ${intentId} has inconsistent spend: ledger=${spent}, calculated=${calculatedTotal}`
+          `Intent ${intentId} has inconsistent spend: ledger=${spent}, calculated=${calculatedTotal}`,
         );
       }
     }
@@ -311,7 +334,11 @@ export class DatabaseMockHarness {
   /**
    * Record operation for audit trail
    */
-  private recordOperation(operation: string, targetId: string, details: any): void {
+  private recordOperation(
+    operation: string,
+    targetId: string,
+    details: any,
+  ): void {
     this.history.push({
       operation,
       timestamp: new Date(),
@@ -337,7 +364,7 @@ export class DatabaseMockHarness {
     this.transactions.clear();
     this.spendLedger.clear();
     this.history = [];
-    
+
     this.history.push({
       operation: 'harness_reset',
       timestamp: new Date(),

@@ -3,13 +3,20 @@
  * Validates: /security/evaluate endpoint integration & fail-closed behavior
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from '@jest/globals';
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  afterAll,
+  beforeEach,
+} from '@jest/globals';
 import { apiMock } from '../fixtures/api-mock.service';
 import { dbMock } from '../fixtures/database-mock.harness';
-import { 
-  SCENARIO_DATA, 
+import {
+  SCENARIO_DATA,
   NETWORK_FAILURE_PATTERNS,
-  TEST_WALLET_1
+  TEST_WALLET_1,
 } from '../fixtures/mock-data';
 
 describe('Security Gate Evaluation (Phase 1)', () => {
@@ -110,12 +117,12 @@ describe('Security Gate Evaluation (Phase 1)', () => {
 
       // When: Process approval flow
       const response = await apiMock.submitIntent(intentData);
-      
+
       // Then: Spend ledger should reflect reservation
       if (response.body.reservedSpendUsd !== undefined) {
         const micros = Math.round(response.body.reservedSpendUsd * 1_000_000);
         const ledgerBalance = await dbMock.getSpendLedger(TEST_WALLET_1.id);
-        
+
         expect(ledgerBalance).toBeGreaterThan(0);
         expect(ledgerBalance).toBeLessThanOrEqual(micros);
       }
@@ -148,7 +155,7 @@ describe('Security Gate Evaluation (Phase 1)', () => {
       // Then: All decisions should be consistent
       expect(first.body.decision).toBe(second.body.decision);
       expect(second.body.decision).toBe(third.body.decision);
-      
+
       // Should all require approval (> $100)
       expect(first.body.decision).toBe('needs_human_approval');
     });
@@ -175,7 +182,7 @@ describe('Security Gate Evaluation (Phase 1)', () => {
       expect(response.body.reason).toBeDefined();
       expect(typeof response.body.reason).toBe('string');
       expect(response.body.reason.length).toBeGreaterThan(10);
-      
+
       // Verify specific rejection reasons are accurate
       if (response.body.decision === 'rejected') {
         expect(response.body.reason).toMatch(/daily cap|exceeds|invalid/i);
@@ -210,11 +217,14 @@ describe('Security Gate Evaluation (Phase 1)', () => {
 
         let actualExpected: string;
         if (test.expected === 'APPROVED') {
-          actualExpected = response.body.decision === 'approved' ? 'PASS' : 'FAIL';
+          actualExpected =
+            response.body.decision === 'approved' ? 'PASS' : 'FAIL';
         } else if (test.expected === 'NEEDS_APPROVAL') {
-          actualExpected = response.body.decision === 'needs_human_approval' ? 'PASS' : 'FAIL';
+          actualExpected =
+            response.body.decision === 'needs_human_approval' ? 'PASS' : 'FAIL';
         } else if (test.expected === 'REJECTED') {
-          actualExpected = response.body.decision === 'rejected' ? 'PASS' : 'FAIL';
+          actualExpected =
+            response.body.decision === 'rejected' ? 'PASS' : 'FAIL';
         }
 
         console.log(`[Threshold Test] ${test.label}: ${actualExpected}`);
@@ -251,7 +261,7 @@ describe('Security Gate Evaluation (Phase 1)', () => {
         });
 
         const actuallyRejected = response.body.decision === 'rejected';
-        
+
         if (test.shouldReject) {
           expect(actuallyRejected).toBe(true);
           if (test.origin.startsWith('automation:')) {
@@ -274,7 +284,7 @@ describe('Security Gate Evaluation (Phase 1)', () => {
         throw new Error('Expected error was not thrown');
       } catch (error) {
         const errorResponse = error as any;
-        
+
         // Then: Fail-closed should reject
         expect(errorResponse.status).toBe(500);
         expect(errorResponse.code).toBe('database_error');
@@ -285,18 +295,18 @@ describe('Security Gate Evaluation (Phase 1)', () => {
     it('should fail gracefully on network timeout', async () => {
       // Given: Network timeout scenario
       let timeoutOccurred = false;
-      
+
       try {
         await Promise.race([
           apiMock.simulateNetworkTimeout(),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Operation timed out')), 1000)
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Operation timed out')), 1000),
           ),
         ]);
       } catch (error) {
         timeoutOccurred = true;
         const err = error as Error;
-        
+
         // Then: Should reject with appropriate error type
         expect(err.message).toContain('timeout');
         expect(timeoutOccurred).toBe(true);
@@ -306,7 +316,10 @@ describe('Security Gate Evaluation (Phase 1)', () => {
     it('should prevent execution when primary services unavailable', async () => {
       // Given: Primary service failures
       const scenarios = [
-        { name: 'Service Unavailable', fn: () => apiMock.simulatePartialFailure('intent-test') },
+        {
+          name: 'Service Unavailable',
+          fn: () => apiMock.simulatePartialFailure('intent-test'),
+        },
       ];
 
       for (const scenario of scenarios) {
@@ -314,7 +327,7 @@ describe('Security Gate Evaluation (Phase 1)', () => {
           await scenario.fn();
         } catch (error) {
           const err = error as any;
-          
+
           // Then: Execution should be blocked
           expect(err.status || err.code).toBeTruthy();
         }
@@ -324,13 +337,13 @@ describe('Security Gate Evaluation (Phase 1)', () => {
     it('should maintain state consistency during partial failures', async () => {
       // Given: Partial failure scenario
       const testIntentId = 'intent-phase1-partial-failure-test';
-      
+
       try {
         // Attempt operation that might partially succeed
         await apiMock.simulatePartialFailure(testIntentId);
       } catch (error) {
         const err = error as any;
-        
+
         // Then: Rollback should maintain consistency
         if (err.status === 503) {
           // Service temporarily unavailable - should not leave half-completed state
@@ -353,7 +366,7 @@ describe('Security Gate Evaluation (Phase 1)', () => {
           await attempt();
         } catch (error) {
           const err = error as any;
-          
+
           // Then: All failures should have structured error data
           expect(err.status).toBeGreaterThanOrEqual(500);
           expect(err.message).toBeDefined();
@@ -362,9 +375,10 @@ describe('Security Gate Evaluation (Phase 1)', () => {
 
       // Verify audit history captured failures
       const history = dbMock.getAuditHistory(50);
-      const failureLogs = history.filter(h => 
-        h.operation.includes('save_intent') && 
-        (h.details.error || h.details.success === false)
+      const failureLogs = history.filter(
+        (h) =>
+          h.operation.includes('save_intent') &&
+          (h.details.error || h.details.success === false),
       );
 
       expect(failureLogs.length).toBeGreaterThanOrEqual(0);
@@ -398,7 +412,7 @@ describe('Security Gate Evaluation (Phase 1)', () => {
       // Step 3: Check dashboard visibility
       const dashboardView = await dashboardMock.getDashboardView();
       const foundInDashboard = dashboardView.recentIntents.some(
-        (i) => i.id === apiIntentId
+        (i) => i.id === apiIntentId,
       );
 
       expect(foundInDashboard).toBeTruthy();
@@ -434,7 +448,7 @@ describe('Security Gate Evaluation (Phase 1)', () => {
       const approvedResponse = await dashboardMock.updateIntentStatus(
         intentId,
         'approved',
-        { valueUsd: 200 }
+        { valueUsd: 200 },
       );
 
       expect(approvedResponse).toBeTruthy();

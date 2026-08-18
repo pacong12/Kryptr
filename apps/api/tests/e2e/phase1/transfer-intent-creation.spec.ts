@@ -3,7 +3,14 @@
  * Validates: Wallet Detail page intent creation flow & Balance computation
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from '@jest/globals';
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  afterAll,
+  beforeEach,
+} from '@jest/globals';
 import { apiMock } from '../fixtures/api-mock.service';
 import { dbMock } from '../fixtures/database-mock.harness';
 import { dashboardMock } from '../fixtures/backoffice/dashboard-mock.service';
@@ -35,16 +42,19 @@ describe('Transfer Intent Creation (Phase 1)', () => {
       expect(balancesResponse.body).toHaveProperty('balances');
 
       const balances = balancesResponse.body.balances as any[];
-      
+
       // Verify USDC balance exists and has correct value
-      const usdcBalance = balances.find((b) => 
-        b.chain === 'ethereum' && 
-        b.tokens?.find((t: any) => t.symbol === 'USDC')
+      const usdcBalance = balances.find(
+        (b) =>
+          b.chain === 'ethereum' &&
+          b.tokens?.find((t: any) => t.symbol === 'USDC'),
       );
 
       expect(usdcBalance).toBeDefined();
-      expect(parseInt(usdcBalance!.tokens[0].balance, 10)).toBeGreaterThanOrEqual(
-        parseInt(SCENARIO_DATA.smallTransfer.amount, 10)
+      expect(
+        parseInt(usdcBalance!.tokens[0].balance, 10),
+      ).toBeGreaterThanOrEqual(
+        parseInt(SCENARIO_DATA.smallTransfer.amount, 10),
       );
     });
 
@@ -62,7 +72,8 @@ describe('Transfer Intent Creation (Phase 1)', () => {
       const response = await apiMock.submitIntent(insufficientIntent);
 
       // Then: Should reject or require additional validation
-      expect(response.status).toBeGreaterThan(300) || expect(response.body.error).toContain('insufficient');
+      expect(response.status).toBeGreaterThan(300) ||
+        expect(response.body.error).toContain('insufficient');
     });
 
     it('should create valid transfer intent within approved limits', async () => {
@@ -140,7 +151,9 @@ describe('Transfer Intent Creation (Phase 1)', () => {
       const dashboardView = await dashboardMock.getDashboardView();
 
       expect(dashboardView.summary.pendingIntents).toBeGreaterThanOrEqual(1);
-      expect(dashboardView.recentIntents.some((i) => i.id === response.body.id)).toBeTruthy();
+      expect(
+        dashboardView.recentIntents.some((i) => i.id === response.body.id),
+      ).toBeTruthy();
     });
   });
 
@@ -171,7 +184,7 @@ describe('Transfer Intent Creation (Phase 1)', () => {
     it('should validate token decimals in amount calculation', async () => {
       // Given: Token with 6 decimal places (USDC)
       const rawAmount = '100000000'; // 100 USDC with 6 decimals
-      
+
       // When: Process intent with this amount
       const intentData = {
         kind: 'transfer' as const,
@@ -206,7 +219,10 @@ describe('Transfer Intent Creation (Phase 1)', () => {
           walletId: TEST_WALLET_1.id,
           origin: 'user',
           transfer: {
-            assetIn: test.label === 'ETH' ? '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE' : TEST_TOKEN_BALANCES[0].tokens[0].address,
+            assetIn:
+              test.label === 'ETH'
+                ? '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE'
+                : TEST_TOKEN_BALANCES[0].tokens[0].address,
             amount: test.amount,
             recipient: '0x8626fD9D8F6C4c4E5c9B5A9C8F7e6D5c4B3a2918',
             chain: 'ethereum',
@@ -338,8 +354,12 @@ describe('Transfer Intent Creation (Phase 1)', () => {
       const storedIntent = await dbMock.findById(securityResponse.body.id);
 
       // Then: Data envelope integrity check
-      expect(storedIntent!.intentData.transfer.assetIn).toBe(intentData.transfer.assetIn);
-      expect(storedIntent!.intentData.transfer.amount).toBe(intentData.transfer.amount);
+      expect(storedIntent!.intentData.transfer.assetIn).toBe(
+        intentData.transfer.assetIn,
+      );
+      expect(storedIntent!.intentData.transfer.amount).toBe(
+        intentData.transfer.amount,
+      );
       expect(frontofficesRequest.body.walletId).toBe(storedIntent!.walletId);
     });
 

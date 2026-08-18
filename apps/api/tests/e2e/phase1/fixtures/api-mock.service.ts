@@ -5,7 +5,11 @@
  */
 
 import type { Response } from 'supertest';
-import { MOCK_API_RESPONSES, SCENARIO_DATA, NETWORK_FAILURE_PATTERNS } from './mock-data';
+import {
+  MOCK_API_RESPONSES,
+  SCENARIO_DATA,
+  NETWORK_FAILURE_PATTERNS,
+} from './mock-data';
 
 export interface MockHttpOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -24,7 +28,11 @@ interface MockResponse {
 }
 
 export class ApiMockService {
-  private requestHistory: Array<{ method: string; path: string; timestamp: Date }> = [];
+  private requestHistory: Array<{
+    method: string;
+    path: string;
+    timestamp: Date;
+  }> = [];
 
   /**
    * Simulate GET /api/wallets/:id/balances
@@ -53,7 +61,12 @@ export class ApiMockService {
             chain: 'ethereum',
             nativeBalance: '5000000000000000000',
             tokens: [
-              { address: '0xA0b86991c6218B36c1d19D4a2e9Eb0cE3606eB48', symbol: 'USDC', decimals: 6, balance: '10000000000' },
+              {
+                address: '0xA0b86991c6218B36c1d19D4a2e9Eb0cE3606eB48',
+                symbol: 'USDC',
+                decimals: 6,
+                balance: '10000000000',
+              },
             ],
           },
         ],
@@ -77,7 +90,10 @@ export class ApiMockService {
     }
 
     // Check for automation deploy rejection
-    if (intentData.kind === 'deploy' && intentData.origin?.startsWith('automation:')) {
+    if (
+      intentData.kind === 'deploy' &&
+      intentData.origin?.startsWith('automation:')
+    ) {
       return {
         status: 201,
         headers: { 'Content-Type': 'application/json' },
@@ -233,8 +249,20 @@ export class ApiMockService {
       headers: { 'Content-Type': 'application/json' },
       body: {
         feeds: [
-          { feedId: 'dex:zero-ex', source: '0x', status: 'healthy', lastUpdateAt: new Date().toISOString(), priceAgeSec: 120 },
-          { feedId: 'price:coingecko', source: 'coingecko', status: 'healthy', lastUpdateAt: new Date().toISOString(), priceAgeSec: 60 },
+          {
+            feedId: 'dex:zero-ex',
+            source: '0x',
+            status: 'healthy',
+            lastUpdateAt: new Date().toISOString(),
+            priceAgeSec: 120,
+          },
+          {
+            feedId: 'price:coingecko',
+            source: 'coingecko',
+            status: 'healthy',
+            lastUpdateAt: new Date().toISOString(),
+            priceAgeSec: 60,
+          },
         ],
       },
     };
@@ -269,7 +297,7 @@ export class ApiMockService {
 
     // Simulate intermittent success/failure
     const shouldFail = Math.random() < 0.3;
-    
+
     if (shouldFail) {
       throw {
         status: 503,
@@ -288,7 +316,11 @@ export class ApiMockService {
   /**
    * Get request history for validation
    */
-  getRequestHistory(): Array<{ method: string; path: string; timestamp: Date }> {
+  getRequestHistory(): Array<{
+    method: string;
+    path: string;
+    timestamp: Date;
+  }> {
     return [...this.requestHistory];
   }
 

@@ -3,7 +3,14 @@
  * Validates: Real-time Dashboard polling, Signing console status & auto-refresh triggers
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from '@jest/globals';
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  afterAll,
+  beforeEach,
+} from '@jest/globals';
 import { dashboardMock } from '../fixtures/backoffice/dashboard-mock.service';
 import { dbMock } from '../fixtures/database-mock.harness';
 import { apiMock } from '../fixtures/api-mock.service';
@@ -41,12 +48,12 @@ describe('Backoffice Monitoring (Phase 1)', () => {
 
       // When: First dashboard view
       const initialView = await dashboardMock.getDashboardView(false);
-      
+
       const timeBefore = Date.now();
 
       // Wait for refresh interval
       await delay(100); // Simulate immediate refresh for testing
-      
+
       // Trigger manual refresh
       await dashboardMock.triggerManualRefresh();
 
@@ -54,9 +61,9 @@ describe('Backoffice Monitoring (Phase 1)', () => {
 
       // Then: lastRefreshTime should have updated
       const refreshedView = await dashboardMock.getDashboardView();
-      
+
       expect(refreshedView.lastRefreshTime.getTime()).toBeGreaterThanOrEqual(
-        initialView.lastRefreshTime.getTime()
+        initialView.lastRefreshTime.getTime(),
       );
     });
 
@@ -78,7 +85,7 @@ describe('Backoffice Monitoring (Phase 1)', () => {
         // Simulate real-world polling delays
         if (i < pollCount - 1) {
           await delay(100);
-          
+
           // Add new intent between polls to test updates
           if (i === 2) {
             const newIntent = await apiMock.submitIntent({
@@ -109,17 +116,24 @@ describe('Backoffice Monitoring (Phase 1)', () => {
 
       // Then: All polls should be sequential and consistent
       for (let i = 1; i < views.length; i++) {
-        expect(views[i].timestamp).toBeGreaterThanOrEqual(views[i - 1].timestamp);
+        expect(views[i].timestamp).toBeGreaterThanOrEqual(
+          views[i - 1].timestamp,
+        );
         expect(views[i].lastRefresh.getTime()).toBeGreaterThanOrEqual(
-          views[i - 1].lastRefresh.getTime()
+          views[i - 1].lastRefresh.getTime(),
         );
       }
     });
 
     it('should include comprehensive summary statistics in each poll', async () => {
       // Given: Multiple intents with various statuses
-      const statuses = ['submitted', 'approved', 'rejected', 'needs_human_approval'];
-      
+      const statuses = [
+        'submitted',
+        'approved',
+        'rejected',
+        'needs_human_approval',
+      ];
+
       for (const status of statuses) {
         const intent = {
           kind: 'transfer' as const,
@@ -135,7 +149,7 @@ describe('Backoffice Monitoring (Phase 1)', () => {
         };
 
         const response = await apiMock.submitIntent(intent);
-        
+
         if (status !== 'submitted') {
           await dashboardMock.updateIntentStatus(response.body.id, status);
         }
@@ -157,7 +171,7 @@ describe('Backoffice Monitoring (Phase 1)', () => {
       // Then: Statistics should match actual counts
       expect(view.summary.totalIntents).toBe(statuses.length);
       expect(view.summary.pendingIntents + view.summary.executedIntents).toBe(
-        statuses.length
+        statuses.length,
       );
       expect(view.summary.averageValueUsd).toBeLessThanOrEqual(1000);
     });
@@ -180,9 +194,12 @@ describe('Backoffice Monitoring (Phase 1)', () => {
       };
 
       const submitResponse = await apiMock.submitIntent(approvedIntent);
-      
+
       // Approve through dashboard
-      await dashboardMock.updateIntentStatus(submitResponse.body.id, 'approved');
+      await dashboardMock.updateIntentStatus(
+        submitResponse.body.id,
+        'approved',
+      );
 
       await dashboardMock.addIntent({
         id: submitResponse.body.id,
@@ -206,7 +223,7 @@ describe('Backoffice Monitoring (Phase 1)', () => {
     it('should update console status when signatures are completed', async () => {
       // Given: Pending signature
       const intentId = `console-status-test-${Date.now()}`;
-      
+
       await dashboardMock.addIntent({
         id: intentId,
         status: 'approved',
@@ -225,7 +242,7 @@ describe('Backoffice Monitoring (Phase 1)', () => {
 
       const queueAfter = dashboardMock.getSigningQueue();
       const foundInQueue = queueAfter.some((q) => q.intentId === intentId);
-      
+
       expect(foundInQueue).toBeFalsy(); // Removed from queue after signing
     });
 
@@ -252,8 +269,10 @@ describe('Backoffice Monitoring (Phase 1)', () => {
 
       // Then: Verify alert generation logic
       // (No alerts expected for recently approved intents)
-      const staleApprovalAlerts = alerts.filter(a => a.type === 'stale_pending_approval');
-      
+      const staleApprovalAlerts = alerts.filter(
+        (a) => a.type === 'stale_pending_approval',
+      );
+
       // Allow zero alerts for recent approvals
       expect(Array.isArray(staleApprovalAlerts)).toBeTruthy();
     });
@@ -263,7 +282,7 @@ describe('Backoffice Monitoring (Phase 1)', () => {
     it('should trigger refresh when interval expires', async () => {
       // Given: Auto-refresh enabled
       dashboardMock.setAutoRefresh(true);
-      
+
       const previousRefresh = dashboardMock['lastRefreshTime'] as Date;
 
       // Force elapsed time > interval
@@ -274,14 +293,16 @@ describe('Backoffice Monitoring (Phase 1)', () => {
 
       // Then: Should have refreshed
       const currentRefresh = dashboardMock['lastRefreshTime'] as Date;
-      
-      expect(currentRefresh.getTime()).toBeGreaterThan(previousRefresh.getTime());
+
+      expect(currentRefresh.getTime()).toBeGreaterThan(
+        previousRefresh.getTime(),
+      );
     });
 
     it('should respect disabled auto-refresh state', async () => {
       // Given: Auto-refresh disabled
       dashboardMock.setAutoRefresh(false);
-      
+
       const previousRefresh = dashboardMock['lastRefreshTime'] as Date;
 
       // Attempt auto-refresh
@@ -295,16 +316,16 @@ describe('Backoffice Monitoring (Phase 1)', () => {
 
     it('should handle rapid manual refresh without duplication', async () => {
       // Given: Rapid refresh requests
-      const refreshPromises = Array(5).fill(null).map(() => 
-        dashboardMock.triggerManualRefresh()
-      );
+      const refreshPromises = Array(5)
+        .fill(null)
+        .map(() => dashboardMock.triggerManualRefresh());
 
       await Promise.all(refreshPromises);
 
       // Then: Each refresh should be logged distinctly
       const history = dbMock.getAuditHistory(100);
-      const refreshOps = history.filter(h => h.operation.includes('refresh'));
-      
+      const refreshOps = history.filter((h) => h.operation.includes('refresh'));
+
       // At least one refresh operation recorded
       expect(refreshOps.length).toBeGreaterThanOrEqual(1);
     });
@@ -315,20 +336,23 @@ describe('Backoffice Monitoring (Phase 1)', () => {
       const refreshResults: boolean[] = [];
 
       const refreshTasks = await Promise.all(
-        Array(refreshCount).fill(null).map(async () => {
-          try {
-            await dashboardMock.triggerManualRefresh();
-            return true;
-          } catch {
-            return false;
-          }
-        })
+        Array(refreshCount)
+          .fill(null)
+          .map(async () => {
+            try {
+              await dashboardMock.triggerManualRefresh();
+              return true;
+            } catch {
+              return false;
+            }
+          }),
       );
 
       refreshResults.push(...refreshTasks);
 
       // Then: All should succeed without errors
-      const successRate = refreshResults.filter(r => r).length / refreshResults.length;
+      const successRate =
+        refreshResults.filter((r) => r).length / refreshResults.length;
       expect(successRate).toBe(1.0);
     });
   });
@@ -355,7 +379,7 @@ describe('Backoffice Monitoring (Phase 1)', () => {
 
       // Layer 3: API persists to database
       const persistedIntent = await dbMock.findById(securityResponse.body.id);
-      
+
       // Layer 4: Database records state
       expect(persistedIntent).toBeDefined();
       expect(persistedIntent!.decision).toBe(securityDecision);
@@ -372,10 +396,10 @@ describe('Backoffice Monitoring (Phase 1)', () => {
       });
 
       const dashboardView = await dashboardMock.getDashboardView();
-      
+
       // Verification: All layers synchronized
       const intentInDashboard = dashboardView.recentIntents.some(
-        (i) => i.id === securityResponse.body.id
+        (i) => i.id === securityResponse.body.id,
       );
 
       expect(intentInDashboard).toBeTruthy();
@@ -430,18 +454,23 @@ describe('Backoffice Monitoring (Phase 1)', () => {
       });
 
       const dashboardState = await dashboardMock.getDashboardView();
-      states.push({ layer: 'Backoffice_Dashboard', state: dashboardState.summary });
+      states.push({
+        layer: 'Backoffice_Dashboard',
+        state: dashboardState.summary,
+      });
 
       // Verify consistency across all layers
-      const walletIds = states.map(s => s.state.walletId || s.state.summary.pendingIntents);
-      const decisions = states.map(s => s.state.decision || s.state.status);
+      const walletIds = states.map(
+        (s) => s.state.walletId || s.state.summary.pendingIntents,
+      );
+      const decisions = states.map((s) => s.state.decision || s.state.status);
 
       // Wallet ID consistency check
       const uniqueWalletIds = new Set(walletIds);
       expect(uniqueWalletIds.size).toBeLessThanOrEqual(2); // Allow for some structural differences
 
       // Decision/status consistency check
-      const uniqueDecisions = new Set(decisions.filter(d => d !== undefined));
+      const uniqueDecisions = new Set(decisions.filter((d) => d !== undefined));
       expect(uniqueDecisions.size).toBeLessThanOrEqual(2);
     });
 
@@ -449,53 +478,57 @@ describe('Backoffice Monitoring (Phase 1)', () => {
       // Given: Batch of parallel transfers
       const batchCount = 20;
       const batchPromises = await Promise.all(
-        Array(batchCount).fill(null).map(async (_, i) => {
-          const intentData = {
-            kind: 'transfer' as const,
-            walletId: TEST_WALLET_1.id,
-            origin: 'user',
-            transfer: {
-              assetIn: '0xA0b86991c6218B36c1d19D4a2e9Eb0cE3606eB48',
-              amount: String(10000000 + i),
-              recipient: '0x8626fD9D8F6C4c4E5c9B5A9C8F7e6D5c4B3a2918',
-              chain: 'ethereum',
-              slippageBps: 50,
-            },
-          };
+        Array(batchCount)
+          .fill(null)
+          .map(async (_, i) => {
+            const intentData = {
+              kind: 'transfer' as const,
+              walletId: TEST_WALLET_1.id,
+              origin: 'user',
+              transfer: {
+                assetIn: '0xA0b86991c6218B36c1d19D4a2e9Eb0cE3606eB48',
+                amount: String(10000000 + i),
+                recipient: '0x8626fD9D8F6C4c4E5c9B5A9C8F7e6D5c4B3a2918',
+                chain: 'ethereum',
+                slippageBps: 50,
+              },
+            };
 
-          const response = await apiMock.submitIntent(intentData);
-          
-          await dbMock.saveIntent({
-            kind: response.body.kind,
-            walletId: response.body.walletId,
-            origin: response.body.origin,
-            intentData: response.body.transfer,
-            decision: response.body.decision,
-          });
+            const response = await apiMock.submitIntent(intentData);
 
-          await dashboardMock.addIntent({
-            id: response.body.id,
-            status: response.body.status,
-            kind: response.body.kind,
-            walletId: response.body.walletId,
-            origin: response.body.origin,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          });
+            await dbMock.saveIntent({
+              kind: response.body.kind,
+              walletId: response.body.walletId,
+              origin: response.body.origin,
+              intentData: response.body.transfer,
+              decision: response.body.decision,
+            });
 
-          return response.body.id;
-        })
+            await dashboardMock.addIntent({
+              id: response.body.id,
+              status: response.body.status,
+              kind: response.body.kind,
+              walletId: response.body.walletId,
+              origin: response.body.origin,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+
+            return response.body.id;
+          }),
       );
 
       // After batch completion, verify all intents visible in dashboard
       const dashboardView = await dashboardMock.getDashboardView();
 
-      const visibleInDashboard = batchPromises.every(id =>
-        dashboardView.recentIntents.some((i: any) => i.id === id)
+      const visibleInDashboard = batchPromises.every((id) =>
+        dashboardView.recentIntents.some((i: any) => i.id === id),
       );
 
       expect(visibleInDashboard).toBeTruthy();
-      expect(dashboardView.summary.totalIntents).toBeGreaterThanOrEqual(batchCount);
+      expect(dashboardView.summary.totalIntents).toBeGreaterThanOrEqual(
+        batchCount,
+      );
     });
   });
 
@@ -519,20 +552,22 @@ describe('Backoffice Monitoring (Phase 1)', () => {
 
       // Performance test: 100 concurrent queries
       const startTime = Date.now();
-      
-      const queryPromises = Array(100).fill(null).map(() => 
-        dashboardMock.getDashboardView()
-      );
+
+      const queryPromises = Array(100)
+        .fill(null)
+        .map(() => dashboardMock.getDashboardView());
 
       const results = await Promise.all(queryPromises);
-      
+
       const duration = Date.now() - startTime;
 
       // Then: Should respond within SLA
       expect(results.length).toBe(100);
       expect(duration).toBeLessThan(5000); // 5 second SLA
-      
-      console.log(`[Performance] 100 dashboard queries completed in ${duration}ms`);
+
+      console.log(
+        `[Performance] 100 dashboard queries completed in ${duration}ms`,
+      );
     });
 
     it('should maintain data integrity under stress load', async () => {
@@ -557,7 +592,7 @@ describe('Backoffice Monitoring (Phase 1)', () => {
           };
 
           await apiMock.submitIntent(intentData);
-          
+
           await dbMock.saveIntent({
             kind: 'transfer',
             walletId: TEST_WALLET_1.id,
@@ -571,19 +606,21 @@ describe('Backoffice Monitoring (Phase 1)', () => {
           // Read operation
           const view = await dashboardMock.getDashboardView();
           operations.push({ type: 'read', success: true });
-
         } catch (error) {
           operations.push({ type: 'mixed', success: false });
         }
       }
 
       // Verify no corruption occurred
-      const successfulOps = operations.filter(o => o.success);
-      const failureRate = (operations.length - successfulOps.length) / operations.length;
+      const successfulOps = operations.filter((o) => o.success);
+      const failureRate =
+        (operations.length - successfulOps.length) / operations.length;
 
       expect(failureRate).toBeLessThan(0.1); // Less than 10% failure rate acceptable
-      
-      console.log(`[StressTest] ${successfulOps.length}/${operations.length} operations successful`);
+
+      console.log(
+        `[StressTest] ${successfulOps.length}/${operations.length} operations successful`,
+      );
     });
   });
 });

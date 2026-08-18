@@ -71,7 +71,7 @@ export const TEST_TOKEN_BALANCES: WalletBalance[] = [
  * Transfer intent fixtures
  */
 export const createTestTransferIntent = (
-  overrides?: Partial<TransactionIntent>
+  overrides?: Partial<TransactionIntent>,
 ): Omit<TransactionIntent, 'id' | 'createdAt'> => ({
   kind: 'transfer',
   walletId: TEST_WALLET_1.id,
@@ -150,8 +150,8 @@ export const MOCK_API_RESPONSES = {
       id: 'intent-phase1-test-001',
       decision: 'approved',
       reason: 'approved: within policy',
-      valueUsd: 20.50,
-      reservedSpendUsd: 20.50,
+      valueUsd: 20.5,
+      reservedSpendUsd: 20.5,
       approvedAt: new Date().toISOString(),
     },
   },
@@ -162,8 +162,9 @@ export const MOCK_API_RESPONSES = {
     body: {
       id: 'intent-phase1-test-002',
       decision: 'needs_human_approval',
-      reason: 'needs_human_approval: value $1050.00 exceeds approval threshold $100.00',
-      valueUsd: 1050.00,
+      reason:
+        'needs_human_approval: value $1050.00 exceeds approval threshold $100.00',
+      valueUsd: 1050.0,
       requiredHumanApproval: true,
     },
   },
@@ -174,8 +175,9 @@ export const MOCK_API_RESPONSES = {
     body: {
       id: 'intent-phase1-test-003',
       decision: 'rejected',
-      reason: 'rejected: daily cap exceeded (value $500.00 does not fit under cap $1000.00)',
-      valueUsd: 500.00,
+      reason:
+        'rejected: daily cap exceeded (value $500.00 does not fit under cap $1000.00)',
+      valueUsd: 500.0,
     },
   },
 
@@ -246,8 +248,10 @@ export const MOCK_API_RESPONSES = {
  */
 export const NETWORK_FAILURE_PATTERNS = {
   timeout: () => Promise.reject(new Error('Network timeout')),
-  serverError: () => Promise.reject({ status: 500, message: 'Internal Server Error' }),
-  serviceUnavailable: () => Promise.reject({ status: 503, message: 'Service Unavailable' }),
+  serverError: () =>
+    Promise.reject({ status: 500, message: 'Internal Server Error' }),
+  serviceUnavailable: () =>
+    Promise.reject({ status: 503, message: 'Service Unavailable' }),
   networkDown: () => {
     throw new Error('No network connection');
   },
@@ -396,7 +400,9 @@ export const isoTime = (offsetMs: number = 0): string => {
 /**
  * Create batch of intents for stress testing
  */
-export const createBatchIntents = (count: number): Array<Omit<TransactionIntent, 'id' | 'createdAt'>> => {
+export const createBatchIntents = (
+  count: number,
+): Array<Omit<TransactionIntent, 'id' | 'createdAt'>> => {
   return Array.from({ length: count }, (_, i) => ({
     kind: 'transfer',
     walletId: TEST_WALLET_1.id,

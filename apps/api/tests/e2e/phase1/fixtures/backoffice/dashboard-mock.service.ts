@@ -7,7 +7,13 @@ import type { TransactionIntent, SecurityDecision } from '@kryptr/shared-types';
 
 interface DashboardIntent {
   id: string;
-  status: 'submitted' | 'approved' | 'rejected' | 'needs_human_approval' | 'executed' | 'failed';
+  status:
+    | 'submitted'
+    | 'approved'
+    | 'rejected'
+    | 'needs_human_approval'
+    | 'executed'
+    | 'failed';
   kind: string;
   walletId: string;
   origin: string;
@@ -60,7 +66,7 @@ export class DashboardMockService {
   async updateIntentStatus(
     intentId: string,
     newStatus: DashboardIntent['status'],
-    decisionData?: Partial<SecurityDecision>
+    decisionData?: Partial<SecurityDecision>,
   ): Promise<boolean> {
     const pending = this.pendingIntents.get(intentId);
     const executed = this.executedIntents.get(intentId);
@@ -114,10 +120,10 @@ export class DashboardMockService {
       pendingIntents: this.pendingIntents.size,
       executedIntents: this.executedIntents.size,
       failedIntents: Array.from(this.executedIntents.values()).filter(
-        (i) => i.status === 'failed'
+        (i) => i.status === 'failed',
       ).length,
       approvedIntents: Array.from(this.executedIntents.values()).filter(
-        (i) => i.status === 'executed'
+        (i) => i.status === 'executed',
       ).length,
       averageValueUsd: this.calculateAverageValue(),
     };
@@ -178,7 +184,8 @@ export class DashboardMockService {
    * Mark intent as signed (completed in signing console)
    */
   async markAsSigned(intentId: string): Promise<boolean> {
-    const intent = this.pendingIntents.get(intentId) || this.executedIntents.get(intentId);
+    const intent =
+      this.pendingIntents.get(intentId) || this.executedIntents.get(intentId);
 
     if (!intent) {
       return false;
@@ -209,12 +216,13 @@ export class DashboardMockService {
     const alerts: Alert[] = [];
 
     // Check for intents pending approval too long
-    const staleApproved = Array.from(this.pendingIntents.values()).filter((i) =>
-      i.status === 'needs_human_approval'
+    const staleApproved = Array.from(this.pendingIntents.values()).filter(
+      (i) => i.status === 'needs_human_approval',
     );
 
     for (const intent of staleApproved) {
-      const ageHours = (Date.now() - intent.createdAt.getTime()) / (1000 * 60 * 60);
+      const ageHours =
+        (Date.now() - intent.createdAt.getTime()) / (1000 * 60 * 60);
       if (ageHours > 2) {
         alerts.push({
           type: 'stale_pending_approval',
@@ -227,7 +235,8 @@ export class DashboardMockService {
 
     // Check for high-value intents needing approval
     const highValuePending = Array.from(this.pendingIntents.values()).filter(
-      (i) => i.valueUsd && i.valueUsd > 5000 && i.status === 'needs_human_approval'
+      (i) =>
+        i.valueUsd && i.valueUsd > 5000 && i.status === 'needs_human_approval',
     );
 
     for (const intent of highValuePending) {
@@ -241,7 +250,8 @@ export class DashboardMockService {
 
     // Check for recent failures
     const recentFailures = Array.from(this.executedIntents.values()).filter(
-      (i) => i.status === 'failed' && Date.now() - i.updatedAt.getTime() < 3600000
+      (i) =>
+        i.status === 'failed' && Date.now() - i.updatedAt.getTime() < 3600000,
     );
 
     for (const intent of recentFailures) {
@@ -275,7 +285,7 @@ export class DashboardMockService {
    */
   getSigningQueue(): SigningQueueItem[] {
     const pendingApprovals = Array.from(this.pendingIntents.values()).filter(
-      (i) => i.status === 'approved'
+      (i) => i.status === 'approved',
     );
 
     return pendingApprovals.map((intent) => ({
@@ -290,11 +300,16 @@ export class DashboardMockService {
    * Calculate average transaction value
    */
   calculateAverageValue(): number {
-    const all = [...Array.from(this.pendingIntents.values()), ...Array.from(this.executedIntents.values())];
-    const withValues = all.filter((i) => i.valueUsd !== undefined && i.valueUsd! > 0);
-    
+    const all = [
+      ...Array.from(this.pendingIntents.values()),
+      ...Array.from(this.executedIntents.values()),
+    ];
+    const withValues = all.filter(
+      (i) => i.valueUsd !== undefined && i.valueUsd! > 0,
+    );
+
     if (withValues.length === 0) return 0;
-    
+
     const sum = withValues.reduce((acc, i) => acc + (i.valueUsd || 0), 0);
     return sum / withValues.length;
   }

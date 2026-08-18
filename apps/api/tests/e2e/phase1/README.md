@@ -45,18 +45,19 @@ Provides realistic mock data for all test scenarios:
 
 ```typescript
 // Wallet fixtures
-TEST_WALLET_1, TEST_WALLET_2
+(TEST_WALLET_1, TEST_WALLET_2);
 
 // Token balances (USDC, USDT on Ethereum & Base)
-TEST_TOKEN_BALANCES
+TEST_TOKEN_BALANCES;
 
 // Intent scenarios
-CREATE_TRANSFER_INTENT_SMALL   // $100 or less (auto-approve)
-CREATE_TRANSFER_INTENT_LARGE   // >$1000 (cap exceeded)
-SCENARIO_DATA                  // Pre-configured test cases
+CREATE_TRANSFER_INTENT_SMALL; // $100 or less (auto-approve)
+CREATE_TRANSFER_INTENT_LARGE; // >$1000 (cap exceeded)
+SCENARIO_DATA; // Pre-configured test cases
 ```
 
 **Key Features:**
+
 - ✅ Realistic wallet addresses (checksummed)
 - ✅ Proper token decimals (6 for USDC/USDT, 18 for ETH)
 - ✅ Valid chain IDs ('ethereum', 'base')
@@ -72,11 +73,12 @@ const { apiMock } = await import('./api-mock.service');
 // GET /api/wallets/:id/balances
 const balances = await apiMock.getWalletBalances(walletId);
 
-// POST /api/security/intents  
+// POST /api/security/intents
 const intent = await apiMock.submitIntent(intentData);
 ```
 
 **Validation Implemented:**
+
 - Amount vs threshold logic (< $100 auto-approve)
 - Daily cap enforcement (default $1,000)
 - Origin validation (reject automation deploys)
@@ -96,6 +98,7 @@ await dbMock.verifyIntegrity();           // Data validation
 ```
 
 **Features:**
+
 - Atomic operations with rollback support
 - Spend ledger tracking for daily caps
 - Audit history logging
@@ -116,12 +119,12 @@ await dashboardMock.triggerManualRefresh();       // Force update
 
 ## Test Coverage Map
 
-| Test Suite | Files | Lines | Validation Focus |
-|------------|-------|-------|------------------|
-| **Transfer Intent Creation** | `transfer-intent-creation.spec.ts` | ~350 lines | Balance validation, submission flow, state rejection |
+| Test Suite                   | Files                              | Lines      | Validation Focus                                            |
+| ---------------------------- | ---------------------------------- | ---------- | ----------------------------------------------------------- |
+| **Transfer Intent Creation** | `transfer-intent-creation.spec.ts` | ~350 lines | Balance validation, submission flow, state rejection        |
 | **Security Gate Evaluation** | `security-gate-evaluation.spec.ts` | ~400 lines | Threshold enforcement, fail-closed behavior, decision paths |
-| **Persistence Validation** | `persistence-validation.spec.ts` | ~450 lines | Transaction integrity, state machine, audit trail |
-| **Backoffice Monitoring** | `backoffice-monitoring.spec.ts` | ~500 lines | Real-time polling, signing queue, auto-refresh |
+| **Persistence Validation**   | `persistence-validation.spec.ts`   | ~450 lines | Transaction integrity, state machine, audit trail           |
+| **Backoffice Monitoring**    | `backoffice-monitoring.spec.ts`    | ~500 lines | Real-time polling, signing queue, auto-refresh              |
 
 **Total:** ~1,700 lines of production-quality E2E tests
 
@@ -188,13 +191,15 @@ export REDIS_URL="redis://..."           # For cache validation
 ### A. Transfer Intent Creation
 
 #### Positive Scenarios
+
 1. ✅ Small transfer (< $100) → auto-approved
-2. ✅ Medium transfer ($100-$1000) → needs human approval  
+2. ✅ Medium transfer ($100-$1000) → needs human approval
 3. ✅ Large transfer (> $1000) → rejected by daily cap
 4. ✅ Multi-chain balance validation
 5. ✅ USD value calculation accuracy
 
 #### Negative Scenarios
+
 1. ❌ Insufficient funds → validation error
 2. ❌ Unauthorized origin → rejected immediately
 3. ❌ Invalid checksum address → format validation failed
@@ -204,6 +209,7 @@ export REDIS_URL="redis://..."           # For cache validation
 ### B. Security Gate Evaluation
 
 #### Decision Paths
+
 1. ✅ Auto-approval (< $100 threshold)
 2. ✅ Human approval queue ($100-$1000)
 3. ✅ Rejection by daily cap (> $1000)
@@ -211,6 +217,7 @@ export REDIS_URL="redis://..."           # For cache validation
 5. ✅ Spend ledger reservation
 
 #### Failure Modes
+
 1. ✅ Database unavailable → fail-closed rejection
 2. ✅ Network timeout → graceful degradation
 3. ✅ Service unavailable (503) → retry handling
@@ -219,12 +226,14 @@ export REDIS_URL="redis://..."           # For cache validation
 ### C. Persistence Validation
 
 #### Integrity Checks
+
 1. ✅ Atomic creation with decision recording
 2. ✅ Foreign key constraints (transactions → intents)
 3. ✅ Spend ledger consistency verification
 4. ✅ Rollback preserves state consistency
 
 #### State Machine
+
 1. ✅ Valid transitions: pending → approved/rejected
 2. ✅ Invalid transition prevention
 3. ✅ Concurrent update safety
@@ -233,6 +242,7 @@ export REDIS_URL="redis://..."           # For cache validation
 ### D. Backoffice Monitoring
 
 #### Real-Time Features
+
 1. ✅ 10-second refresh interval compliance
 2. ✅ Signing queue population
 3. ✅ Alert generation for stale items
@@ -240,6 +250,7 @@ export REDIS_URL="redis://..."           # For cache validation
 5. ✅ Auto-refresh enable/disable
 
 #### Performance
+
 1. ✅ 100 concurrent queries < 5 seconds
 2. ✅ Stress load (20 iterations write/read cycles)
 3. ✅ High-volume batch processing (20 parallel transfers)
@@ -249,6 +260,7 @@ export REDIS_URL="redis://..."           # For cache validation
 ### Adding New Test Scenarios
 
 1. **Identify affected component**:
+
    ```typescript
    // If testing new endpoint...
    describe('New Endpoint X', () => {
@@ -259,6 +271,7 @@ export REDIS_URL="redis://..."           # For cache validation
    ```
 
 2. **Update fixtures if needed**:
+
    ```typescript
    // In fixtures/mock-data.ts
    export const NEW_SCENARIO = {...};
@@ -318,17 +331,17 @@ on:
 jobs:
   e2e-phase1:
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: 'npm'
-      
+
       - run: npm ci
-      
+
       - name: Run Phase 1 E2E Tests
         run: |
           cd apps/api
@@ -345,6 +358,7 @@ jobs:
 **Target:** >90% code coverage for Phase 1 components
 
 Current Coverage Metrics:
+
 - ✅ Transfer creation: ~95%
 - ✅ Security evaluation: ~92%
 - ✅ Persistence validation: ~88%
@@ -407,11 +421,11 @@ beforeEach(async () => {
 
 **Owner:** @qa team  
 **Repository:** `/home/muting/kryptr-wt/qa-wt/apps/api/tests/e2e/phase1/`  
-**Branch:** `feat/qa-phase1-e2e-suite`  
+**Branch:** `feat/qa-phase1-e2e-suite`
 
 **Slack Channels:** #qa-testing, #kryptr-dev  
 **GitHub Issues:** Label: `qa-phase1`
 
 ---
 
-*Generated: 2024-08-18 | Version: 1.0.0 | Status: Production Ready*
+_Generated: 2024-08-18 | Version: 1.0.0 | Status: Production Ready_
