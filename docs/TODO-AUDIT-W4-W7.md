@@ -41,8 +41,11 @@ Dokumen ini adalah acuan resmi checklist audit dan penyelesaian tugas untuk selu
 ## 3. `auditor-ui` (Frontoffice, Backoffice & User Documentation)
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 >>>>>>> 7c7e9fc8a (feat(core): Sprint 1 Auth Middleware, Rate Limiting & Wallet ID Hardening)
+=======
+>>>>>>> 04934bd76 (docs(ui): complete Frontoffice, Backoffice and User Docs audit checklist)
 - [ ] **Frontoffice (Vue 3 / Vite):**
   - [ ] Audit `WalletTransferPage.vue` & `useTransfer.ts` (0% bypass security gate).
   - [ ] Verifikasi `TransferReceiptView.vue` & `StatusToast.vue`.
@@ -55,6 +58,9 @@ Dokumen ini adalah acuan resmi checklist audit dan penyelesaian tugas untuk selu
   - [ ] Pastikan `npx nx run @kryptr/docs:build` berhasil tanpa dead links.
 - [ ] **Deliverable:** Catat temuan ke `docs/AUDIT-UI-DOCS.md` & lapor ke IRC.
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 04934bd76 (docs(ui): complete Frontoffice, Backoffice and User Docs audit checklist)
 =======
 - [x] ✅ **Frontoffice (Vue 3 / Vite):**
   - [x] ✅ Audit `WalletTransferPage.vue` & `useTransfer.ts` (**0% bypass security gate**)
@@ -68,8 +74,11 @@ Dokumen ini adalah acuan resmi checklist audit dan penyelesaian tugas untuk selu
   - [x] ✅ Pastikan `npx nx run @kryptr/docs:build` berhasil tanpa dead links (✅ build passed in 12.45s)
 - [x] ✅ **Deliverable:** Catat temuan ke `docs/AUDIT-UI-DOCS.md` & lapor ke IRC. ✅ COMPLETE
 >>>>>>> 634b473bc (docs(ui): complete Frontoffice, Backoffice and User Docs audit checklist)
+<<<<<<< HEAD
 =======
 >>>>>>> 7c7e9fc8a (feat(core): Sprint 1 Auth Middleware, Rate Limiting & Wallet ID Hardening)
+=======
+>>>>>>> 04934bd76 (docs(ui): complete Frontoffice, Backoffice and User Docs audit checklist)
 
 ---
 
@@ -77,10 +86,15 @@ Dokumen ini adalah acuan resmi checklist audit dan penyelesaian tugas untuk selu
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 >>>>>>> 634b473bc (docs(ui): complete Frontoffice, Backoffice and User Docs audit checklist)
 =======
 >>>>>>> 7c7e9fc8a (feat(core): Sprint 1 Auth Middleware, Rate Limiting & Wallet ID Hardening)
+=======
+=======
+>>>>>>> 634b473bc (docs(ui): complete Frontoffice, Backoffice and User Docs audit checklist)
+>>>>>>> 04934bd76 (docs(ui): complete Frontoffice, Backoffice and User Docs audit checklist)
 - [ ] **CI/CD Pipeline (.github/workflows):**
   - [ ] Verifikasi `ci.yml`: pastikan job `integration-venue` dan `integration-signing` menggunakan syntax Jest v30 (`--testPathPatterns`).
   - [ ] Verifikasi workflow `tier-d-battery.yml` dan `soak-clock.yml`.
@@ -93,6 +107,9 @@ Dokumen ini adalah acuan resmi checklist audit dan penyelesaian tugas untuk selu
 - [ ] **Deliverable:** Catat temuan ke `docs/AUDIT-QA-SECURITY.md` & lapor ke IRC.
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 04934bd76 (docs(ui): complete Frontoffice, Backoffice and User Docs audit checklist)
 =======
 - [x] **CI/CD Pipeline (.github/workflows):**
   - [x] Verifikasi `ci.yml`: memastikan job `integration-venue` dan `integration-signing` menggunakan syntax Jest v30 (`--testPathPatterns`). ✅ VERIFIED
@@ -107,8 +124,11 @@ Dokumen ini adalah acuan resmi checklist audit dan penyelesaian tugas untuk selu
 >>>>>>> f96804026 (docs(qa): complete Wave 4-7 QA & Security audit checklist)
 =======
 >>>>>>> 634b473bc (docs(ui): complete Frontoffice, Backoffice and User Docs audit checklist)
+<<<<<<< HEAD
 =======
 >>>>>>> 7c7e9fc8a (feat(core): Sprint 1 Auth Middleware, Rate Limiting & Wallet ID Hardening)
+=======
+>>>>>>> 04934bd76 (docs(ui): complete Frontoffice, Backoffice and User Docs audit checklist)
 
 ---
 
