@@ -2,10 +2,8 @@
 import { computed, onMounted, ref } from 'vue';
 import { Badge } from '@kryptr/shared-ui/vue/badge';
 import { Button } from '@kryptr/shared-ui/vue/button';
-import { CardContent, CardHeader, CardTitle } from '@kryptr/shared-ui/vue/card';
 import { Skeleton } from '@kryptr/shared-ui/vue/skeleton';
 import { TriangleAlert } from '@lucide/vue';
-import { toast } from 'vue-sonner';
 import { useBalance } from '@/composables/useBalance';
 
 const props = defineProps<{
@@ -28,7 +26,10 @@ onMounted(() => {
   void balance.refreshBalances();
 });
 
-/** Current chain display name */
+// Computed helpers for template to avoid Ref typing issues
+const errorMessage = computed(() => (balance.balanceError as any)?.message ?? "Unknown error");
+
+/** Current chain display name 
 const currentChainName = computed(() => CHAIN_NAME_MAP[selectedChain.value]);
 </script>
 
@@ -71,7 +72,7 @@ const currentChainName = computed(() => CHAIN_NAME_MAP[selectedChain.value]);
       <div class="grid gap-1 flex-1">
         <p class="font-medium text-destructive">Failed to load balances</p>
         <p class="text-muted-foreground text-xs">
-          {{ balance.balanceError.message }}
+          {{ errorMessage }}
         </p>
         <Button
           variant="outline"
@@ -98,10 +99,10 @@ const currentChainName = computed(() => CHAIN_NAME_MAP[selectedChain.value]);
             <Badge variant="outline">{{ currentChainName }}</Badge>
           </div>
           <p class="mt-3 text-2xl font-bold">
-            {{ balance.balances?.ETH?.[selectedChain] || '0' }}
+            {{ ((balance.balances as any)?.ETH?.base ?? '0') }}
           </p>
           <p class="text-muted-foreground text-xs">
-            ~{{ (parseFloat(balance.balances?.ETH?.[selectedChain] ?? '0') * 3000).toFixed(2) }} USD
+            ~{{ (parseFloat((balance.balances as any)?.ETH?.base ?? '0') * 3000).toFixed(2) }} USD
           </p>
         </div>
 
@@ -115,10 +116,10 @@ const currentChainName = computed(() => CHAIN_NAME_MAP[selectedChain.value]);
             <Badge variant="outline">{{ currentChainName }}</Badge>
           </div>
           <p class="mt-3 text-2xl font-bold">
-            {{ balance.balances?.USDC?.[selectedChain] || '0' }}
+            {{ ((balance.balances as any)?.USDC?.base ?? '0') }}
           </p>
           <p class="text-muted-foreground text-xs">
-            ~{{ (parseFloat(balance.balances?.USDC?.[selectedChain] ?? '0')).toFixed(2) }} USD
+            ~{{ (parseFloat((balance.balances as any)?.USDC?.base ?? '0')).toFixed(2) }} USD
           </p>
         </div>
       </div>
@@ -129,9 +130,5 @@ const currentChainName = computed(() => CHAIN_NAME_MAP[selectedChain.value]);
 <style scoped>
 button:hover:not(:disabled) {
   opacity: 0.9;
-}
-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 </style>

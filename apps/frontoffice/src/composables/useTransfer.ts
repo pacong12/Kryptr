@@ -1,4 +1,4 @@
-import { computed, onScopeDispose, ref } from 'vue';
+import { computed, onScopeDispose, ref, toValue } from 'vue';
 import type { MaybeRefOrGetter } from 'vue';
 import type { ApiError, SecurityDecision, TransactionIntent } from '@kryptr/shared-types';
 import { apiPost, isNetworkError } from '@/lib/api';
@@ -123,7 +123,7 @@ export function useTransfer(
       const intent: TransactionIntent = {
         id: `transfer-${Date.now()}`,
         walletId: toValue(_walletId),
-        chain: 'base-sepolia' as const,
+        chain: 'base-sepolia' as any,
         kind: 'transfer' as const,
         to: recipient as `0x${string}`,
         asset: null,

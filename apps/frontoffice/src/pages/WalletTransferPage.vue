@@ -23,9 +23,10 @@ import { LAUNCHPAD_SOURCE_KEY } from '@/lib/launchpad';
 
 const props = defineProps<{ walletId: string }>();
 
+const launchpadSource = inject(LAUNCHPAD_SOURCE_KEY, undefined);
 const transfer = useTransfer(
   () => props.walletId,
-  inject(LAUNCHPAD_SOURCE_KEY, undefined),
+  launchpadSource || ({} as any),
 );
 
 const step = ref<'form' | 'confirm' | 'submitting'>('form');
