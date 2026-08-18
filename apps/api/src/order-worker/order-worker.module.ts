@@ -27,9 +27,13 @@ import {
   TRIGGER_CONFIG,
   triggerConfigFromEnv,
 } from './domain/trigger-evaluation';
+import { isPostgresPersistence } from '../persistence/prisma-client';
 import { InMemoryOrderStore } from './infrastructure/in-memory-order.store';
+import { PostgresOrderStore } from './infrastructure/postgres-order-store';
 import { InMemoryExecutionStore } from './infrastructure/in-memory-execution.store';
+import { PostgresExecutionStore } from './infrastructure/postgres-execution-store';
 import { InMemoryKillSwitch } from './infrastructure/in-memory-kill-switch';
+import { PostgresKillSwitch } from './infrastructure/postgres-kill-switch';
 import { InMemoryJobQueue } from './infrastructure/in-memory-job-queue';
 import { UnavailableJobQueue } from './infrastructure/unavailable-job-queue';
 import { makeUnavailable } from './infrastructure/unavailable-stub';
@@ -78,24 +82,36 @@ export const TRIGGER_QUEUE_NAME = 'automation.trigger';
   providers: [
     {
       provide: ORDER_STORE,
-      useFactory: (): OrderStore =>
-        (process.env.AUTOMATION_MODE ?? 'disabled') === 'disabled'
-          ? makeUnavailable<OrderStore>('order store')
-          : new InMemoryOrderStore(),
+      useFactory: (): OrderStore => {
+        if ((process.env.AUTOMATION_MODE ?? 'disabled') === 'disabled') {
+          return makeUnavailable<OrderStore>('order store');
+        }
+        return isPostgresPersistence()
+          ? new PostgresOrderStore()
+          : new InMemoryOrderStore();
+      },
     },
     {
       provide: EXECUTION_STORE,
-      useFactory: (): ExecutionStore =>
-        (process.env.AUTOMATION_MODE ?? 'disabled') === 'disabled'
-          ? makeUnavailable<ExecutionStore>('execution store')
-          : new InMemoryExecutionStore(),
+      useFactory: (): ExecutionStore => {
+        if ((process.env.AUTOMATION_MODE ?? 'disabled') === 'disabled') {
+          return makeUnavailable<ExecutionStore>('execution store');
+        }
+        return isPostgresPersistence()
+          ? new PostgresExecutionStore()
+          : new InMemoryExecutionStore();
+      },
     },
     {
       provide: KILL_SWITCH,
-      useFactory: (): KillSwitchPort =>
-        (process.env.AUTOMATION_MODE ?? 'disabled') === 'disabled'
-          ? makeUnavailable<KillSwitchPort>('kill switch')
-          : new InMemoryKillSwitch(),
+      useFactory: (): KillSwitchPort => {
+        if ((process.env.AUTOMATION_MODE ?? 'disabled') === 'disabled') {
+          return makeUnavailable<KillSwitchPort>('kill switch');
+        }
+        return isPostgresPersistence()
+          ? new PostgresKillSwitch()
+          : new InMemoryKillSwitch();
+      },
     },
     {
       provide: TRIGGER_PRICE,

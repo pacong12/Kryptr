@@ -38,6 +38,8 @@ const TRUNCATE_TARGETS = [
   'orders',
   'kill_switch_state',
   'kill_switch_audit',
+  'security_policies',
+  'wallets',
 ] as const;
 
 /** Fresh Prisma client with its OWN pg pool — one call = one isolated

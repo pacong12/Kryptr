@@ -189,4 +189,52 @@ describe('WalletLaunchPage (launch consent, fail-closed)', () => {
     );
     wrapper.unmount();
   });
+
+
+  it('displays loading skeleton while draft is being fetched', async () => {
+    // Defer the draft response indefinitely until we explicitly resolve
+    let draftResolver: (() => void) | null = null;
+    const draftDeferred = new Promise<void>((resolve) => {
+      draftResolver = resolve;
+    });
+
+    const impl = vi.fn(
+      async (input: string | URL | Request, _init?: RequestInit) => {
+        const url = typeof input === 'string' ? input : input.toString();
+        // Wait for our manual trigger before responding to draft endpoint
+        if (url.includes('/launchpad/wallets/') && url.endsWith('/draft')) {
+          await draftDeferred;
+        }
+        // Throw on all endpoints to trigger network error → fixture fallback
+        throw new TypeError('fetch failed');
+      },
+    );
+    vi.stubGlobal('fetch', impl);
+    const router = createAppRouter(createMemoryHistory());
+    const wrapper = mount(App, {
+      global: { plugins: [router] },
+      attachTo: document.body,
+    });
+    await router.push({ name: 'wallet-launch', params: { walletId: WALLET_ID } });
+    await router.isReady();
+
+    // Immediately flush - should see loading skeleton (draft fetching started)
+    await flushPromises();
+    expect(wrapper.find('[data-testid="launch-loading-skeleton"]').exists()).toBe(
+      true,
+    );
+
+    // Now trigger the draft response which will cause fixture fallback
+    draftResolver?.();
+    await flushPromises();
+
+    // Should now show badged fixtures + verified chip (mock mode)
+    expect(
+      wrapper.find('[data-testid="launch-mock-badge"]').exists(),
+    ).toBe(true);
+    expect(
+      wrapper.find('[data-testid="verification-status"]').text(),
+    ).toBe('T21 verified');
+    wrapper.unmount();
+  });
 });

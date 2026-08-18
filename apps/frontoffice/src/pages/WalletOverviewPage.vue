@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, inject, onMounted } from 'vue';
 import type { TransactionIntent } from '@kryptr/shared-types';
 import { Badge } from '@kryptr/shared-ui/vue/badge';
 import {
@@ -23,6 +23,7 @@ import TransferForm from '@/components/TransferForm.vue';
 import { useBalances } from '@/composables/useBalances';
 import { useTransfer } from '@/composables/useTransfer';
 import { useWallets } from '@/composables/useWallets';
+import { LAUNCHPAD_SOURCE_KEY } from '@/lib/launchpad';
 
 const props = defineProps<{ walletId: string }>();
 
@@ -34,13 +35,19 @@ const {
   loading: walletsLoading,
   refresh: refreshWallets,
 } = useWallets();
+const launchpadSource = inject(LAUNCHPAD_SOURCE_KEY, undefined);
+const transfer = useTransfer(
+  () => props.walletId,
+  launchpadSource || ({} as any),
+);
+
 const {
   submitting,
-  decision,
-  error: transferError,
+  securityDecision,
+  gateError: transferError,
   gateUnreachable,
-  evaluate,
-} = useTransfer();
+  createIntent,
+} = transfer;
 
 onMounted(() => {
   void refresh();
@@ -56,7 +63,9 @@ const assets = computed(() =>
 );
 
 function handleSubmit(intent: TransactionIntent): void {
-  void evaluate(intent);
+  // For now, extract from transfer details
+  if (!intent.to || !intent.amount) return;
+  void createIntent(intent.to, intent.amount, 'ETH');
 }
 </script>
 
@@ -105,7 +114,7 @@ function handleSubmit(intent: TransactionIntent): void {
           <Separator />
           <div class="space-y-4" aria-live="polite">
             <Skeleton v-if="submitting" class="h-32 w-full" />
-            <SecurityDecisionCard v-else-if="decision" :decision="decision" />
+            <SecurityDecisionCard v-else-if="securityDecision" :decision="securityDecision" />
             <Alert v-else-if="gateUnreachable" variant="destructive">
               <TriangleAlert aria-hidden="true" />
               <AlertTitle

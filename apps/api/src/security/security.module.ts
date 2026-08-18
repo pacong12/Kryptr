@@ -5,10 +5,13 @@ import { SigningModule } from '../signing/signing.module';
 import { LaunchpadModule } from '../launchpad/launchpad.module';
 import { SecurityController } from './security.controller';
 import { HealthController } from './health.controller';
+import { IntentController } from './intent.controller';
 import { EvaluateIntentUseCase } from './application/evaluate-intent.usecase';
 import { GetIntentTimelineUseCase } from './application/get-intent-timeline.usecase';
 import { GetFeedHealthUseCase } from './application/get-feed-health.usecase';
 import { RequestSignatureUseCase } from './application/request-sign.usecase';
+import { CreateTransferUseCase } from './application/create-transfer.usecase';
+import { GetIntentUseCase } from './application/get-intent.usecase';
 import {
   DECISION_AUDIT,
   DEPLOY_ALLOWLIST,
@@ -27,6 +30,7 @@ import { ManifestDeployAllowlist } from './infrastructure/manifest-deploy-allowl
 import { PostgresSpendLedger } from './infrastructure/postgres-spend-ledger';
 import { PostgresIntentStore } from './infrastructure/postgres-intent-store';
 import { PostgresDecisionAudit } from './infrastructure/postgres-decision-audit';
+import { PostgresSecurityPolicyProvider } from './infrastructure/postgres-security-policy-provider';
 import { isPostgresPersistence } from '../persistence/prisma-client';
 
 /**
@@ -48,12 +52,14 @@ import { isPostgresPersistence } from '../persistence/prisma-client';
     SigningModule,
     LaunchpadModule,
   ],
-  controllers: [SecurityController, HealthController],
+  controllers: [SecurityController, HealthController, IntentController],
   providers: [
     EvaluateIntentUseCase,
     GetIntentTimelineUseCase,
     GetFeedHealthUseCase,
     RequestSignatureUseCase,
+    CreateTransferUseCase,
+    GetIntentUseCase,
     {
       provide: PRICE_FEED,
       useFactory: () => {
@@ -72,7 +78,13 @@ import { isPostgresPersistence } from '../persistence/prisma-client';
           ? new PostgresSpendLedger()
           : new InMemorySpendLedger(),
     },
-    { provide: POLICY_PROVIDER, useClass: InMemorySecurityPolicyProvider },
+    {
+      provide: POLICY_PROVIDER,
+      useFactory: () =>
+        isPostgresPersistence()
+          ? new PostgresSecurityPolicyProvider()
+          : new InMemorySecurityPolicyProvider(),
+    },
     {
       provide: INTENT_STORE,
       useFactory: () =>
@@ -108,6 +120,8 @@ import { isPostgresPersistence } from '../persistence/prisma-client';
     // Wave 4: the order worker sends every scheduled execution through
     // the FULL gate — it needs the gate use case itself, not a bypass.
     EvaluateIntentUseCase,
+    CreateTransferUseCase,
+    GetIntentUseCase,
   ],
 })
 export class SecurityModule {}
