@@ -12,6 +12,7 @@ import type {
   Order,
   OrderExecution,
   SecurityDecision,
+  SignRequest,
   SwapQuote,
   WalletBalance,
   WorkerHealth,
@@ -29,6 +30,7 @@ import {
   MOCK_ORDER_EXECUTIONS,
   MOCK_ORDERS,
   MOCK_QUOTES,
+  MOCK_SIGN_REQUESTS,
   MOCK_TIMELINES,
   MOCK_WALLETS,
   MOCK_WORKER_HEALTH,
@@ -565,4 +567,15 @@ export async function getFactoryHealth(): Promise<DataSource<FactoryHealth>> {
     return { data: MOCK_FACTORY_HEALTH, mock: true, apiError: null };
   }
   return toDataSource(outcome, MOCK_FACTORY_HEALTH);
+}
+
+/**
+ * Wave 6: sign-request list (GET /signing/).
+ * Endpoint path agreed with vault as `/signing/`; ships in a future wave.
+ * Until then, falls back to fixtures (mock badge).
+ * # NEEDS CONDUCTOR: vault to ship GET /api/signing/ returning ApiEnvelope<SignRequest[]>
+ */
+export async function getSignRequests(): Promise<DataSource<SignRequest[]>> {
+  const outcome = await fetchEnvelope<SignRequest[]>('/signing/');
+  return toDataSource(outcome, MOCK_SIGN_REQUESTS);
 }

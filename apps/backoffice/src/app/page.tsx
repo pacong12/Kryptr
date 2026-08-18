@@ -29,6 +29,10 @@ import {
   WorkerHealthSection,
   WorkerHealthSectionSkeleton,
 } from '@/components/worker-health-section';
+import {
+  SigningConsoleSection,
+  SigningConsoleSectionSkeleton,
+} from '@/components/signing-console-section';
 
 /**
  * Dashboard. Each section is its own async server component inside a
@@ -78,6 +82,10 @@ export default function DashboardPage() {
           <RecentIntentsSection />
         </Suspense>
       </div>
+
+      <Suspense fallback={<SigningConsoleSectionSkeleton />}>
+        <SigningConsoleSection />
+      </Suspense>
     </div>
   );
 }
