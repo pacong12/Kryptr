@@ -40,6 +40,9 @@ Dokumen ini adalah acuan resmi checklist audit dan penyelesaian tugas untuk selu
 
 ## 3. `auditor-ui` (Frontoffice, Backoffice & User Documentation)
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 7c7e9fc8a (feat(core): Sprint 1 Auth Middleware, Rate Limiting & Wallet ID Hardening)
 - [ ] **Frontoffice (Vue 3 / Vite):**
   - [ ] Audit `WalletTransferPage.vue` & `useTransfer.ts` (0% bypass security gate).
   - [ ] Verifikasi `TransferReceiptView.vue` & `StatusToast.vue`.
@@ -51,6 +54,7 @@ Dokumen ini adalah acuan resmi checklist audit dan penyelesaian tugas untuk selu
   - [ ] Sinkronkan `apps/docs/status.md`, `whats-live.md`, dan `status-manifest.json` dengan fitur yang live.
   - [ ] Pastikan `npx nx run @kryptr/docs:build` berhasil tanpa dead links.
 - [ ] **Deliverable:** Catat temuan ke `docs/AUDIT-UI-DOCS.md` & lapor ke IRC.
+<<<<<<< HEAD
 =======
 - [x] ✅ **Frontoffice (Vue 3 / Vite):**
   - [x] ✅ Audit `WalletTransferPage.vue` & `useTransfer.ts` (**0% bypass security gate**)
@@ -64,14 +68,19 @@ Dokumen ini adalah acuan resmi checklist audit dan penyelesaian tugas untuk selu
   - [x] ✅ Pastikan `npx nx run @kryptr/docs:build` berhasil tanpa dead links (✅ build passed in 12.45s)
 - [x] ✅ **Deliverable:** Catat temuan ke `docs/AUDIT-UI-DOCS.md` & lapor ke IRC. ✅ COMPLETE
 >>>>>>> 634b473bc (docs(ui): complete Frontoffice, Backoffice and User Docs audit checklist)
+=======
+>>>>>>> 7c7e9fc8a (feat(core): Sprint 1 Auth Middleware, Rate Limiting & Wallet ID Hardening)
 
 ---
 
 ## 4. `auditor-qa` (CI/CD, E2E Integration & Threat Pentest)
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 >>>>>>> 634b473bc (docs(ui): complete Frontoffice, Backoffice and User Docs audit checklist)
+=======
+>>>>>>> 7c7e9fc8a (feat(core): Sprint 1 Auth Middleware, Rate Limiting & Wallet ID Hardening)
 - [ ] **CI/CD Pipeline (.github/workflows):**
   - [ ] Verifikasi `ci.yml`: pastikan job `integration-venue` dan `integration-signing` menggunakan syntax Jest v30 (`--testPathPatterns`).
   - [ ] Verifikasi workflow `tier-d-battery.yml` dan `soak-clock.yml`.
@@ -82,6 +91,7 @@ Dokumen ini adalah acuan resmi checklist audit dan penyelesaian tugas untuk selu
   - [ ] Audit attack simulations di `tests/red-team/` (calldata poisoning, RFQ spoofing, rate limit flood).
   - [ ] Buktikan sistem 100% fail-closed terhadap malformed payload.
 - [ ] **Deliverable:** Catat temuan ke `docs/AUDIT-QA-SECURITY.md` & lapor ke IRC.
+<<<<<<< HEAD
 <<<<<<< HEAD
 =======
 - [x] **CI/CD Pipeline (.github/workflows):**
@@ -97,6 +107,8 @@ Dokumen ini adalah acuan resmi checklist audit dan penyelesaian tugas untuk selu
 >>>>>>> f96804026 (docs(qa): complete Wave 4-7 QA & Security audit checklist)
 =======
 >>>>>>> 634b473bc (docs(ui): complete Frontoffice, Backoffice and User Docs audit checklist)
+=======
+>>>>>>> 7c7e9fc8a (feat(core): Sprint 1 Auth Middleware, Rate Limiting & Wallet ID Hardening)
 
 ---
 
