@@ -117,12 +117,13 @@ DILARANG hanya melapor status ke operator / user! Tugas Conductor adalah berkomu
 
 ---
 
-## Update Tracker
+## Protokol Transisi Sprint & Musyawarah Otomatis
 
-Setelah setiap milestone selesai, update:
-```bash
-# docs/WAVE-6-TASK-TRACKER.md atau docs/WAVE-7-ROADMAP.md
-git -C /home/muting/kryptr add docs/
-git -C /home/muting/kryptr commit -m "docs: update tracker post-merge <milestone>"
-git -C /home/muting/kryptr push origin main
-```
+Setiap kali suatu Sprint / Milestone selesai 100% dan seluruh PR ter-merge ke `main`:
+1. **DILARANG DIAM ATAU MENUNGGU OPERATOR.**
+2. Conductor **WAJIB LANGSUNG MEMULAI MUSYAWARAH ROADMAP / SPRINT BERIKUTNYA**:
+   - Broadcast agenda musyawarah via IRC:
+     `agent-irc send conductor all "AGENDA MUSYAWARAH: Sprint X Selesai! Diskusi prioritas dan todo list untuk Sprint X+1 / Milestone berikutnya. Semua domain berikan input!"`
+   - Kumpulkan input prioritas & estimasi dari seluruh agent.
+   - Rumuskan keputusan final dan terbitkan `docs/SPRINT-(N+1)-TODO.md`.
+   - Kickoff sprint baru dan delegasikan tugas langsung ke seluruh sub-agent via herdr.

@@ -1,5 +1,8 @@
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> origin/feat/ui-sprint2-order-control
 # Sprint 1: Critical Remediation - Operational Checklist
 
 **Created:** 2026-08-18  
@@ -424,8 +427,11 @@ Timeline: Must resolve by [date/time]
 **Last Updated:** 2026-08-18  
 **Next Review:** After daily standup  
 =======
+<<<<<<< HEAD
 =======
 >>>>>>> 7c7e9fc8a (feat(core): Sprint 1 Auth Middleware, Rate Limiting & Wallet ID Hardening)
+=======
+>>>>>>> origin/feat/ui-sprint2-order-control
 # SPRINT 1 ACTIONABLE TODO LIST (Critical Remediation)
 
 Sprint target: 2026-08-18 to 2026-09-01
@@ -524,6 +530,10 @@ Worktree: `/home/muting/kryptr-wt/new-contracts`
 - [ ] Ensure all GitHub Actions checks pass before squash-merging.
 - [ ] Update `docs/SPRINT-1-TODO.md` checklist status upon each PR merge.
 <<<<<<< HEAD
+<<<<<<< HEAD
 >>>>>>> 433c465f4 (feat(ui): Sprint 1 CSP Headers, Test Timing Fix)
 =======
 >>>>>>> 7c7e9fc8a (feat(core): Sprint 1 Auth Middleware, Rate Limiting & Wallet ID Hardening)
+=======
+>>>>>>> 433c465f4 (feat(ui): Sprint 1 CSP Headers, Test Timing Fix)
+>>>>>>> origin/feat/ui-sprint2-order-control

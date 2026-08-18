@@ -1,4 +1,27 @@
 <script setup lang="ts">
+<<<<<<< HEAD
+import { ref } from 'vue';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@kryptr/shared-ui/vue/table';
+import { Badge } from '@kryptr/shared-ui/vue/badge';
+import { Button } from '@kryptr/shared-ui/vue/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@kryptr/shared-ui/vue/card';
+import { Input } from '@kryptr/shared-ui/vue/input';
+import { Label } from '@kryptr/shared-ui/vue/label';
+=======
 import { ref, computed } from 'vue';
 import { Badge } from '@kryptr/shared-ui/vue/badge';
 import { Button } from '@kryptr/shared-ui/vue/button';
@@ -11,6 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@kryptr/shared-ui/vue/select';
+>>>>>>> origin/feat/ui-sprint3-wallet-controls
 import type {
   ApiError,
   Order,
@@ -19,7 +43,11 @@ import type {
   OrderType,
   WalletBalance,
 } from '@kryptr/shared-types';
+<<<<<<< HEAD
+import { List, X } from '@lucide/vue';
+=======
 import { List, X, Filter } from '@lucide/vue';
+>>>>>>> origin/feat/ui-sprint3-wallet-controls
 import { toast } from 'vue-sonner';
 import {
   CHAIN_LABELS,
@@ -108,6 +136,23 @@ function triggerLabel(order: Order): string {
   return '—';
 }
 
+<<<<<<< HEAD
+// Task 3.2: Cancel order modal state
+const cancelOrderModalOpen = ref(false);
+const selectedOrderId = ref<string | null>(null);
+const cancelReason = ref('');
+
+function openCancelOrder(orderId: string): void {
+  selectedOrderId.value = orderId;
+  cancelReason.value = '';
+  cancelOrderModalOpen.value = true;
+}
+
+function handleCancelOrder(): void {
+  if (!selectedOrderId.value || !cancelReason.value.trim()) {
+    toast.error('Cancellation required', {
+      description: 'Please provide a reason for order cancellation.',
+=======
 // Task 2.2: Client-side filtering for performance
 const filteredOrders = computed(() => {
   return props.orders.filter((order) => {
@@ -184,10 +229,26 @@ function exportFilteredOrders(): void {
   if (filteredOrders.value.length === 0) {
     toast.warning('No data to export', {
       description: 'Apply filters first to see what will be exported.',
+>>>>>>> origin/feat/ui-sprint3-wallet-controls
     });
     return;
   }
 
+<<<<<<< HEAD
+  emit('cancel-order', selectedOrderId.value);
+  cancelOrderModalOpen.value = false;
+  
+  toast.success('Order cancelled', {
+    description: `Order ${selectedOrderId.value} has been cancelled.`,
+  });
+}
+
+function closeCancelOrder(): void {
+  cancelOrderModalOpen.value = false;
+  selectedOrderId.value = null;
+  cancelReason.value = '';
+}
+=======
   const headers = [
     'Order ID',
     'Type',
@@ -237,6 +298,7 @@ const ORDER_TYPE_LABELS: Record<Order['type'], string> = {
   dca: 'DCA',
   twap: 'TWAP',
 };
+>>>>>>> origin/feat/ui-sprint3-wallet-controls
 </script>
 
 <template>
@@ -350,6 +412,27 @@ const ORDER_TYPE_LABELS: Record<Order['type'], string> = {
       </p>
     </div>
 
+<<<<<<< HEAD
+    <Table v-else>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Type</TableHead>
+          <TableHead>Side</TableHead>
+          <TableHead>Pair</TableHead>
+          <TableHead>Amount</TableHead>
+          <TableHead>Trigger</TableHead>
+          <TableHead>Status</TableHead>
+          <TableHead>Created</TableHead>
+          <TableHead class="w-10">
+            <span class="sr-only">Actions</span>
+          </TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        <template v-for="order in orders" :key="order.id">
+          <TableRow :data-order-id="order.id">
+            <TableCell>
+=======
     <table class="w-full text-left text-sm">
       <thead class="border-b border-border bg-muted/50">
         <tr>
@@ -367,6 +450,7 @@ const ORDER_TYPE_LABELS: Record<Order['type'], string> = {
         <template v-for="order in filteredOrders" :key="order.id">
           <tr :data-order-id="order.id">
             <td class="px-4 py-2">
+>>>>>>> origin/feat/ui-sprint3-wallet-controls
               <Badge variant="outline">{{ TYPE_LABELS[order.type] }}</Badge>
             </td>
             <td class="px-4 py-2 capitalize">{{ order.side }}</td>
@@ -400,13 +484,100 @@ const ORDER_TYPE_LABELS: Record<Order['type'], string> = {
                 <List aria-hidden="true" class="h-4 w-4" />
               </Button>
               
+<<<<<<< HEAD
+              <!-- Task 3.2: Cancel order button -->
+              <Button
+                v-if="order.status === 'pending' || order.status === 'active'"
+=======
               <!-- Cancel order button -->
               <Button
                 v-if="order.status === 'pending_approval' || order.status === 'open'"
+>>>>>>> origin/feat/ui-sprint3-wallet-controls
                 variant="ghost"
                 size="icon"
                 class="ml-2 text-destructive hover:text-destructive"
                 :aria-label="`Cancel order ${order.id}`"
+<<<<<<< HEAD
+                @click="openCancelOrder(order.id)"
+              >
+                <X aria-hidden="true" />
+              </Button>
+            </TableCell>
+          </TableRow>
+
+          <!-- Execution panel row (existing functionality) -->
+          <TableRow
+            v-if="expandedOrderId === order.id && executionsState === 'ready'"
+            :data-order-id="`${order.id}-executions`"
+            class="bg-muted/30"
+          >
+            <TableCell :colspan="8">
+              <OrderExecutionPanel
+                :order-id="order.id"
+                :executions="executions"
+                :error="executionsError"
+              />
+            </TableCell>
+          </TableRow>
+        </template>
+      </TableBody>
+    </Table>
+
+    <!-- Task 3.2: Cancel order confirmation modal -->
+    <Card
+      v-if="cancelOrderModalOpen"
+      class="max-w-md animate-in fade-in duration-200"
+    >
+      <CardHeader>
+        <CardTitle class="flex items-center justify-between gap-2">
+          Cancel Order
+          <Button
+            variant="ghost"
+            size="icon"
+            class="h-6 w-6"
+            @click="closeCancelOrder"
+          >
+            <X class="h-4 w-4" />
+          </Button>
+        </CardTitle>
+        <CardDescription>
+          Provide a reason for cancelling this order. This action cannot be undone once executed.
+        </CardDescription>
+      </CardHeader>
+      <CardContent class="space-y-4">
+        <div class="space-y-2">
+          <Label for="cancel-reason">Cancellation Reason</Label>
+          <Input
+            id="cancel-reason"
+            v-model="cancelReason"
+            placeholder="e.g., No longer interested in position, market changed..."
+            :disabled="false"
+          />
+          <p class="text-xs text-muted-foreground">
+            Required field for audit trail purposes.
+          </p>
+        </div>
+
+        <div
+          v-if="selectedOrderId"
+          class="rounded-lg border bg-muted p-3 text-sm"
+        >
+          <p class="font-medium">Order ID: {{ selectedOrderId }}</p>
+          <p class="text-muted-foreground text-xs">
+            Cancellation will only take effect if order hasn't executed yet.
+          </p>
+        </div>
+      </CardContent>
+      <CardFooter class="flex justify-end gap-2">
+        <Button variant="outline" @click="closeCancelOrder">
+          Close
+        </Button>
+        <Button variant="destructive" @click="handleCancelOrder">
+          Confirm Cancellation
+        </Button>
+      </CardFooter>
+    </Card>
+=======
                 @click="$emit('cancel-order', order.id)"
               >
                 <X aria-hidden="true" class="h-4 w-4" />
@@ -416,5 +587,6 @@ const ORDER_TYPE_LABELS: Record<Order['type'], string> = {
         </template>
       </tbody>
     </table>
+>>>>>>> origin/feat/ui-sprint3-wallet-controls
   </div>
 </template>
