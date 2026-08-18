@@ -57,5 +57,10 @@
     "src/**/*.test.tsx",
     "src/test-setup.ts",
     ".next"
+  ],
+  "references": [
+    {
+      "path": "../../packages/shared-types"
+    }
   ]
 }
