@@ -76,26 +76,54 @@ node /home/muting/kryptr/scripts/agent-irc.mjs send <namamu> all "STANDBY: <nama
 
 ---
 
-## Komunikasi Tektok Dua Arah (Wajib Interaktif)
+## Aturan Anti-Overconfidence & Wajib Tanya (Escalation Protocol)
 
-Komunikasi antar-agent **TIDAK BOLEH SEARAH**.
+DILARANG KERAS terlalu percaya diri (overconfident), mencoba hal yang sama berulang-ulang, atau diam saat bingung/gagal:
 
-### Aturan Tektok:
-1. **Jika kamu menerima pesan atau komplain dari agent lain:**
-   - Baca pesan dan perbaiki isu yang dilaporkan.
-   - **WAJIB MEMBALAS** langsung ke agent pengirim di IRC:
+1. **Aturan 3x Gagal:**
+   - Jika suatu perintah/build/commit/test gagal **2-3 kali berturut-turut**, STOP mencoba membabi buta!
+   - Kamu **WAJIB LANGSUNG TANYA & MINTA BANTUAN** ke rekan tim atau conductor via IRC:
      ```bash
-     node /home/muting/kryptr/scripts/agent-irc.mjs send <namamu> <pengirim> "balasan: <penjelasan atau fix yang sudah dilakukan>"
+     node /home/muting/kryptr/scripts/agent-irc.mjs send <namamu> <rekan/conductor> "TANYA: Saya kena error X saat mencoba Y, sudah coba Z tapi tetap gagal. Tolong bantu / berikan saran solusi."
      ```
-2. **Jika kamu mereview / butuh bantuan dari agent lain:**
-   - Kirim pesan spesifik ke target:
-     ```bash
-     node /home/muting/kryptr/scripts/agent-irc.mjs send <namamu> <target> "tolong cek / perbaiki: <detail>"
-     ```
-   - Tunggu balasan dari target.
-3. **Loop Tektok:**
-   - Reviewer lapor `FAIL` ke Face → Face auto-bangun, fix, balas Reviewer `"sudah difix"` → Reviewer auto-bangun, re-audit, balas Conductor `"REVIEW: PASS"`.
-   - Conductor merge hanya setelah dialog tektok selesai dan berstatus PASS.
+
+2. **Siapa yang Ditanya:**
+   - Masalah Git / CI / Hooks / Nx / Docker: Tanya ke `@ops` atau `@conductor`
+   - Masalah TypeScript / NestJS / API: Tanya ke `@vault`
+   - Masalah Vue / Frontend / CSS: Tanya ke `@face`
+   - Masalah Smart Contract / Foundry: Tanya ke `@contracts`
+   - Masalah Review / Security Rules: Tanya ke `@reviewer`
+
+3. **Jangan Menyimpan Masalah Sendiri:**
+   - Bertanya saat bingung adalah tanda profesionalitas, bukan kelemahan.
+   - Saling bantu menyelesaikan blocker rekan tim adalah prioritas tertinggi.
+
+---
+
+## Komunikasi Antar-Agent (Peer-to-Peer Wajib)
+
+DILARANG hanya melapor ke conductor atau broadcast ke `#all`. Setiap agent WAJIB berbicara langsung dengan agent terkait sebelum dan sesudah membuat PR:
+
+### Pola Tektok Wajib Antar-Agent:
+1. **`deck` ↔ `vault`:**
+   - `deck` wajib tanya/konfirmasi endpoint shape langsung ke `vault`:
+     `node scripts/agent-irc.mjs send deck vault "tanya: endpoint /orders format responsenya apa?"`
+   - `vault` wajib balas spesifikasi teknisnya.
+
+2. **`qa` ↔ `face` / `vault`:**
+   - `qa` wajib kirim hasil test atau tanya skenario ke pemilik kode:
+     `node scripts/agent-irc.mjs send qa vault "verifikasi: payload transfer intent sudah saya uji, ada edge case ini..."`
+
+3. **`redteam` ↔ `vault` / `contracts`:**
+   - `redteam` wajib lempar temuan vulnerability langsung ke pemilik kode untuk diverifikasi/ditambal:
+     `node scripts/agent-irc.mjs send redteam vault "temuancelah: ada potensi issue pada input X, tolong cek"`
+
+4. **`reviewer` ↔ Author PR (`contracts`, `deck`, `face`, dll):**
+   - `reviewer` wajib chat langsung dengan author PR untuk klarifikasi/revisi:
+     `node scripts/agent-irc.mjs send reviewer <author> "review PR #<n>: tolong jelaskan bagian X / ubah Y"`
+   - Author wajib balas dan perbaiki sebelum reviewer lapor ke conductor.
+
+JANGAN tunggu instruksi user. Bicara langsung ke nama agent target (@vault, @face, @deck, @contracts, @qa, @redteam, @reviewer).
 
 ---
 

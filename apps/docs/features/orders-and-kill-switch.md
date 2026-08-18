@@ -1,5 +1,5 @@
 ---
-status: preview
+status: live
 title: Orders & kill switch
 ---
 

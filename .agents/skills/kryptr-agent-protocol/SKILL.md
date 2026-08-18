@@ -76,6 +76,30 @@ node /home/muting/kryptr/scripts/agent-irc.mjs send <namamu> all "STANDBY: <nama
 
 ---
 
+## Aturan Anti-Overconfidence & Wajib Tanya (Escalation Protocol)
+
+DILARANG KERAS terlalu percaya diri (overconfident), mencoba hal yang sama berulang-ulang, atau diam saat bingung/gagal:
+
+1. **Aturan 3x Gagal:**
+   - Jika suatu perintah/build/commit/test gagal **2-3 kali berturut-turut**, STOP mencoba membabi buta!
+   - Kamu **WAJIB LANGSUNG TANYA & MINTA BANTUAN** ke rekan tim atau conductor via IRC:
+     ```bash
+     node /home/muting/kryptr/scripts/agent-irc.mjs send <namamu> <rekan/conductor> "TANYA: Saya kena error X saat mencoba Y, sudah coba Z tapi tetap gagal. Tolong bantu / berikan saran solusi."
+     ```
+
+2. **Siapa yang Ditanya:**
+   - Masalah Git / CI / Hooks / Nx / Docker: Tanya ke `@ops` atau `@conductor`
+   - Masalah TypeScript / NestJS / API: Tanya ke `@vault`
+   - Masalah Vue / Frontend / CSS: Tanya ke `@face`
+   - Masalah Smart Contract / Foundry: Tanya ke `@contracts`
+   - Masalah Review / Security Rules: Tanya ke `@reviewer`
+
+3. **Jangan Menyimpan Masalah Sendiri:**
+   - Bertanya saat bingung adalah tanda profesionalitas, bukan kelemahan.
+   - Saling bantu menyelesaikan blocker rekan tim adalah prioritas tertinggi.
+
+---
+
 ## Komunikasi Antar-Agent (Peer-to-Peer Wajib)
 
 DILARANG hanya melapor ke conductor atau broadcast ke `#all`. Setiap agent WAJIB berbicara langsung dengan agent terkait sebelum dan sesudah membuat PR:
