@@ -37,7 +37,7 @@ export class ZeroExVenueAdapter {
       throw new Error('venueBps must be non-negative (PR #130 enforcement)');
     }
 
-    const venueId = `${this.chainId}:uniswap-v4:${tokenId}`;
+    const venueId = `${this.chainId}:0x-v2:${tokenId}`;
 
     return {
       venueId,

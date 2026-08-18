@@ -1,8 +1,9 @@
 import { Test } from '@nestjs/testing';
 import { ZeroExVenueAdapter } from './zero-ex-venue.adapter';
-import type {
-  VirtualPoolResult,
-  VenueAccrualSnapshot,
+import {
+  GraduationStatus,
+  type VirtualPoolResult,
+  type VenueAccrualSnapshot,
 } from '../domain/zero-ex-venue.adapter.types';
 
 describe('ZeroExVenueAdapter', () => {
@@ -51,7 +52,7 @@ describe('ZeroExVenueAdapter', () => {
       })) as VirtualPoolResult;
 
       // Base fee schedule preserved unchanged per two-ledger separation (§8.1 theorem)
-      expect(result.venueId).toContain('token-launchpad-v1');
+      expect(result.venueId).toContain('0x-v2');
     });
   });
 
