@@ -4,7 +4,7 @@
 **Auditor:** @contracts (Solidity & Smart Contract Engineer)  
 **Target:** `contracts/src/TokenFactory.sol` + `contracts/src/TokenTemplate.sol`  
 **Branch:** `feat/contracts-launchpad-audit`  
-**Priority:** HIGH - Critical for S6 mainnet gate preparation  
+**Priority:** HIGH - Critical for S6 mainnet gate preparation
 
 ---
 
@@ -20,12 +20,12 @@ All unit tests pass (46 tests), static analysis returns zero untriaged medium/hi
 
 ### Unit Tests Coverage
 
-| Contract | Tests Run | Passed | Failed | Skipped | Notes |
-|----------|-----------|--------|--------|---------|-------|
-| TokenFactory.t.sol | 20 | ✅ 20 | ❌ 0 | ⚪ 0 | Bond accounting, schedule validation, salt determinism |
-| TokenTemplate.t.sol | 19 | ✅ 19 | ❌ 0 | ⚪ 0 | Init guard, fee schedule, ERC-20 core |
-| DeployKit.t.sol | 8 | ✅ 8 | ❌ 0 | ⚪ 0 | Kit generation, factory params frozen |
-| **TOTAL** | **47** | **47** | **0** | **0** | **100% PASS RATE** |
+| Contract            | Tests Run | Passed | Failed | Skipped | Notes                                                  |
+| ------------------- | --------- | ------ | ------ | ------- | ------------------------------------------------------ |
+| TokenFactory.t.sol  | 20        | ✅ 20  | ❌ 0   | ⚪ 0    | Bond accounting, schedule validation, salt determinism |
+| TokenTemplate.t.sol | 19        | ✅ 19  | ❌ 0   | ⚪ 0    | Init guard, fee schedule, ERC-20 core                  |
+| DeployKit.t.sol     | 8         | ✅ 8   | ❌ 0   | ⚪ 0    | Kit generation, factory params frozen                  |
+| **TOTAL**           | **47**    | **47** | **0**  | **0**   | **100% PASS RATE**                                     |
 
 #### Key Test Coverage Areas
 
@@ -58,12 +58,12 @@ All unit tests pass (46 tests), static analysis returns zero untriaged medium/hi
 
 Four critical invariants defined for campaign execution:
 
-| Invariant | Scope | Status | Notes |
-|-----------|-------|--------|-------|
-| `invariant_bondLedger_reconcilesWithSink()` | Bond accounting | ✅ Defined | Ghost sum vs ledger reconciliation |
-| `invariant_bondParams_immutable()` | Constructor params | ✅ Defined | template, rate, sink, version locked |
-| `invariant_clones_supplyAndScheduleFrozen()` | Clone isolation | ✅ Defined | Σ balances == totalSupply per clone |
-| `invariant_clones_neverReinitializable()` | Init guard | ✅ Defined | No re-init possible via handler |
+| Invariant                                    | Scope              | Status     | Notes                                |
+| -------------------------------------------- | ------------------ | ---------- | ------------------------------------ |
+| `invariant_bondLedger_reconcilesWithSink()`  | Bond accounting    | ✅ Defined | Ghost sum vs ledger reconciliation   |
+| `invariant_bondParams_immutable()`           | Constructor params | ✅ Defined | template, rate, sink, version locked |
+| `invariant_clones_supplyAndScheduleFrozen()` | Clone isolation    | ✅ Defined | Σ balances == totalSupply per clone  |
+| `invariant_clones_neverReinitializable()`    | Init guard         | ✅ Defined | No re-init possible via handler      |
 
 **Note:** Full invariant campaign requires fork-mode funding setup (see comment in `FactoryInvariant.t.sol`). Local testing passes; production campaigns require `fork-tests` CI target.
 
@@ -78,12 +78,12 @@ Result: 8 detectors triggered, ALL INFO-LEVEL
 
 ### Findings Breakdown
 
-| Detector | Severity | Location | Justification | Status |
-|----------|----------|----------|---------------|--------|
-| `reentrancy-events` | INFO | `KryptrTokenFactory.deployToken()` | External calls before emit | ✅ ACCEPTED |
-| `assembly` | INFO | `_cloneDeterministic()`, `_creationCodeHash()` | EIP-1167 creation code | ✅ REQUIRED |
-| `low-level-calls` | INFO | `bondSink.call{value: bondAmount}()` | INV-BOND-2 forwarding pattern | ✅ DESIGNED |
-| `too-many-digits` | INFO | Assembly literals | Hex constants for minimal proxy | ✅ STANDARD |
+| Detector            | Severity | Location                                       | Justification                   | Status      |
+| ------------------- | -------- | ---------------------------------------------- | ------------------------------- | ----------- |
+| `reentrancy-events` | INFO     | `KryptrTokenFactory.deployToken()`             | External calls before emit      | ✅ ACCEPTED |
+| `assembly`          | INFO     | `_cloneDeterministic()`, `_creationCodeHash()` | EIP-1167 creation code          | ✅ REQUIRED |
+| `low-level-calls`   | INFO     | `bondSink.call{value: bondAmount}()`           | INV-BOND-2 forwarding pattern   | ✅ DESIGNED |
+| `too-many-digits`   | INFO     | Assembly literals                              | Hex constants for minimal proxy | ✅ STANDARD |
 
 ### Never-Triaging Set Enforcement
 
@@ -101,7 +101,7 @@ Per `SLITHER_TRIAGE.md` §2 (T21 binding):
 ✅ **No self-destruct** - EIP-1167 clones are immortal by design  
 ✅ **Access control** - Only factory can call initialize(), verified via constructor guard  
 ✅ **Integer overflow protection** - Solidity 0.8+ checked arithmetic everywhere  
-✅ **CREATE2 collision safety** - Salt includes deployer address, preventing double-pay  
+✅ **CREATE2 collision safety** - Salt includes deployer address, preventing double-pay
 
 ---
 
@@ -110,6 +110,7 @@ Per `SLITHER_TRIAGE.md` §2 (T21 binding):
 ### 🔒 Security Strengths
 
 1. **Constructor Immutable Parameters**
+
    ```solidity
    address public immutable template;
    uint16 public immutable totalFeeBps;
@@ -120,9 +121,10 @@ Per `SLITHER_TRIAGE.md` §2 (T21 binding):
    - Bond ledger state is transparent (`totalBondsCollected`, `bondsByDeployer`)
 
 2. **Exactly-Once Initialization**
+
    ```solidity
    bool private _initialized;
-   
+
    constructor() {
        _initialized = true; // Sets flag ON IMPLEMENTATION
    }
@@ -132,15 +134,16 @@ Per `SLITHER_TRIAGE.md` §2 (T21 binding):
    - Defense-in-depth: template validates all incoming params
 
 3. **Atomic Bond Accounting**
+
    ```solidity
    // Effects first
    totalBondsCollected += bondAmount;
    bondsByDeployer[msg.sender] += bondAmount;
-   
+
    // Then interactions
    token = _cloneDeterministic(template, salt);
    KryptrLaunchTokenTemplate(token).initialize(...);
-   
+
    // Final forward
    (bool ok,) = bondSink.call{value: bondAmount}("");
    ```
@@ -148,8 +151,9 @@ Per `SLITHER_TRIAGE.md` §2 (T21 binding):
    - Ledger integrity maintained even on failed deploys
 
 4. **Fee Schedule Validation**
+
    ```solidity
-   if (p.creatorFeeBps + p.lpFeeBps + p.protocolFeeBps + p.buybackFeeBps != totalFeeBps) 
+   if (p.creatorFeeBps + p.lpFeeBps + p.protocolFeeBps + p.buybackFeeBps != totalFeeBps)
        revert ScheduleSumInvalid();
    ```
    - Factory enforces exact sum parity with RATE anchor
@@ -191,13 +195,13 @@ Per `SLITHER_TRIAGE.md` §2 (T21 binding):
 
 **Status:** ✅ NO BREAKING ISSUES IDENTIFIED
 
-| Category | Finding | Blocking? | Mitigation |
-|----------|---------|-----------|------------|
-| Security Vulnerabilities | None | N/A | All patterns verified |
-| Unit Test Failures | 0 failures | N/A | 47/47 passing |
-| Slither High/Medium | 0 untriaged | N/A | Always-zero policy met |
-| Format Violations | None | N/A | `forge fmt --check` clean |
-| ABI Compatibility | N/A | N/A | No breaking changes introduced |
+| Category                 | Finding     | Blocking? | Mitigation                     |
+| ------------------------ | ----------- | --------- | ------------------------------ |
+| Security Vulnerabilities | None        | N/A       | All patterns verified          |
+| Unit Test Failures       | 0 failures  | N/A       | 47/47 passing                  |
+| Slither High/Medium      | 0 untriaged | N/A       | Always-zero policy met         |
+| Format Violations        | None        | N/A       | `forge fmt --check` clean      |
+| ABI Compatibility        | N/A         | N/A       | No breaking changes introduced |
 
 ---
 
@@ -219,7 +223,7 @@ Per `SLITHER_TRIAGE.md` §2 (T21 binding):
 
 **Decision:** PROCEED TO PHASE 3 DEPLOYMENT  
 **Risk Level:** LOW  
-**Confidence:** HIGH  
+**Confidence:** HIGH
 
 ---
 
@@ -273,6 +277,7 @@ Suite result: ok. 19 passed; 0 failed; 0 skipped
 ```
 
 Detectors excluded per T21 policy:
+
 - All `never-triaging` set violations (must be zero)
 - Informational warnings logged but do not fail gate
 
@@ -280,4 +285,4 @@ Detectors excluded per T21 policy:
 
 **Report Generated:** 2026-08-18T09:18:40Z  
 **Signed By:** @contracts agent  
-**Verification:** Git SHA `a7f3c9d2` (contracts-wt HEAD)  
+**Verification:** Git SHA `a7f3c9d2` (contracts-wt HEAD)
