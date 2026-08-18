@@ -29,7 +29,7 @@ onMounted(() => {
 // Computed helpers for template to avoid Ref typing issues
 const errorMessage = computed(() => (balance.balanceError as any)?.message ?? "Unknown error");
 
-/** Current chain display name 
+/** Current chain display name */
 const currentChainName = computed(() => CHAIN_NAME_MAP[selectedChain.value]);
 </script>
 

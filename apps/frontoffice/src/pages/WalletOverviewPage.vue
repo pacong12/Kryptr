@@ -23,7 +23,7 @@ import TransferForm from '@/components/TransferForm.vue';
 import { useBalances } from '@/composables/useBalances';
 import { useTransfer } from '@/composables/useTransfer';
 import { useWallets } from '@/composables/useWallets';
-import { LAUNCHPAD_SOURCE_KEY } /
+import { LAUNCHPAD_SOURCE_KEY } from '@/lib/launchpad';
 
 const props = defineProps<{ walletId: string }>();
 
