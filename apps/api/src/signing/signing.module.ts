@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { SIGNER } from './domain/signer.port';
 import { SIGN_REQUEST_STORE } from './domain/sign-request-store.port';
 import { DryRunSigner } from './infrastructure/dry-run.signer';
+import { PostgresSigner } from './infrastructure/postgres-signer';
 import { InMemorySignRequestStore } from './infrastructure/in-memory-sign-request-store';
 import { PostgresSignRequestStore } from './infrastructure/postgres-sign-request-store';
 import { isPostgresPersistence } from '../persistence/prisma-client';
@@ -16,7 +17,11 @@ import { isPostgresPersistence } from '../persistence/prisma-client';
  */
 @Module({
   providers: [
-    { provide: SIGNER, useClass: DryRunSigner },
+    {
+      provide: SIGNER,
+      useFactory: () =>
+        isPostgresPersistence() ? new PostgresSigner() : new DryRunSigner(),
+    },
     {
       provide: SIGN_REQUEST_STORE,
       useFactory: () =>
