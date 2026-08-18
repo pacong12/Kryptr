@@ -215,3 +215,124 @@ Tier V claim, no launch.
 | Adapter-first venue kind for wave-6 build (Uniswap v4 pool vs 0x liquidity)                                                                                     | VaultAPI + user                      |
 | venueBps economics: additive vs carve-out from the trader-paid fee — MUST be pinned when the adapter-first venue kind is chosen (row above); currently implicit | VaultAPI + user                      |
 | On-chain registry trigger conditions (§2.3)                                                                                                                     | deferred — revisit only on real need |
+
+## 8. S4 Venue Layer Requirements — Threat Control & Evidence
+
+### 8.1 Two-ledger separation theorem
+
+**Formal statement:** Schedule ledger (verified via T21 battery) vs venue ledger (asserted via integration testing) are independently exact with no cross-leak.
+
+**Invariant:**
+```
+ScheduleAccruals = { creator, lp, protocol, sink }
+VenueAccruals    = { venue_partner }
+ConservationA:   Σ ScheduleAccruals == floor(amount × 175 / 10_000) [EXACT]
+ConservationB:   VenueAccrual == floor(amount × venueBps / 10_000) [INDEPENDENT]
+CrossLedger:     No venue accruals counted in ScheduleAccruals
+```
+
+**Verification responsibility split:**
+- Schedule recipients verified by: INV-FEE-2, INV-FEE-4 (G1-G5)
+- Venue accruals verified by: FV-2 fork scenarios, integration tests against live venue state
+- Cross-check: INV-VENUE-1 (venue accrual identity) ensures venue layer never leaks into schedule layer
+
+### 8.2 Threat control requirements (TC-15..TC-25)
+
+| ID | Promise | Threat | Control | Assertion Ref |
+|----|---------|--------|---------|---------------|
+| TC-15 | Registry integrity | Malformed entry corrupts logic | CI schema validation → blocked | E-13 |
+| TC-16 | Append-only mutation | Silent param changes post-launch | supersededBy enforcement + two-human sign-off | E-14 |
+| TC-17 | Two-human bypass | Single operator unilaterally modifies | Co-signature verification | E-15 |
+| TC-18 | Adapter containment | Vendor code added silently | Explicit allowlist + file hash | E-16 |
+| TC-19 | Accrual basis docs | Hidden fees misrepresenting economics | Mandatory accrual_basis metadata | E-17 |
+| TC-20 | Registry lineage | Lost provenance tag→deploy→venue | CI validates chain-of-trust | VB-13 |
+| TC-21 | Active status | Trading through suspended venue | venue_not_active rejection | VB-14 |
+| TC-22 | Quote TTL | Stale quotes exploited in flash attacks | Re-quote required on expired | VB-15 |
+| TC-23 | Oracle deviation | Price manipulation during trade | Refuse trades below slippage | VB-16 |
+| TC-24 | Wick protection | Flash-print candles trick orders | Deviation bounds trigger refusal | VB-17 |
+| TC-25 | Rate limiting | Enumeration attack on verification | METADATA_RATE_LIMIT_PER_MINUTE | SecReview68 C5 |
+
+### 8.3 Evidence rules extensions (E-13..E-17)
+
+| ID | Rule Type | Description | Enforcement |
+|----|-----------|-------------|-------------|
+| E-13 | Schema validation | `.venues/{chain}.venues.json` conforms to strict JSON schema | CI job rejects malformed |
+| E-14 | Append-only proof | New venue entry must have supersededBy=null OR reference | Git history audit trail |
+| E-15 | Two-human attestation | addedBy + approvedBy fields both present | CI checks co-signatures |
+| E-16 | Adapter manifest containment | Battery targets explicit enumerated adapter files | CI validates file hashes |
+| E-17 | Venue accrual basis docs | Registry includes accrual_basis field | Design doc requirement |
+
+### 8.4 Verification bounds (VB-13..VB-19 positive, NB-8..NB-11 negative)
+
+**Positive bounds (Tier V additions):**
+
+| ID | Assertion | Test Method | Expected Result |
+|----|-----------|-------------|-----------------|
+| VB-13 | Registry lineage complete | CI checks tag→deploy record→venue→params match | All fields identical |
+| VB-14 | Unknown venue rejected | Trade through non-active venueId | Rejection venue_not_active |
+| VB-15 | Suspended blocking | Trade through suspended venueId | Rejection venue_suspended |
+| VB-16 | Quote expiry enforced | Execute on expired quoteId | Reversion to minBuyAmount |
+| VB-17 | Oracle deviation bounds | Trade outside deviation range | Refused oracle_deviation |
+| VB-18 | Venue accrual logged | Verify venue receives expected accrual | Amount equals venueBps×basis |
+| VB-19 | Fee split independent | Verify schedule recipients exact despite venue | INV-FEE-2 holds separately |
+
+**Negative bounds (venue non-bounds):**
+
+| ID | Bound | Explanation | Why exclusion |
+|----|-------|-------------|---------------|
+| NB-8 | Admin key existence | Third-party adapters used | Not Kryptr's scope |
+| NB-9 | Upgrade capability | Venues external deployment | VaultAPI verifies interface only |
+| NB-10 | Self-destruct | EIP-1967 slots check skipped | Not under contract control |
+| NB-11 | Delegatecall surface | External venues may use delegatecall | Integration-tested boundary |
+
+### 8.5 Consolidated threat→control→assertion map
+
+Extending §6 map to venue-layer threats:
+
+| Threat | Venue control | Battery assertion |
+|--------|--------------|-------------------|
+| T11–T16 swap-class | minBuyAmount + quoteId TTL | FV-3, FV-4 |
+| T17–T21 launchpad | registry lineage | FV-1, deploy-manifest validation |
+| T22 wick/flash-print | deviation bounds | FV-5, FV-6 |
+| T23 stale feed | TTL on price paths | FV-5 + suspend default |
+| T24 oracle outage | suspend, never degrade silent | §5 row 3, ops runbook |
+| Fee leakage/skimming | conservation identity + two-ledger ghost | §4.1, FV-2 |
+
+---
+
+# 10. Implications for T21/S4 Security Posture
+
+## 10.1 Root-cause→T21/S4 control mapping table
+
+Mapping each BankrBot root cause (RC-1..RC-6) to specific T21/S4 controls:
+
+| RC | Bankr Root Cause | T21/S4 Control | Mechanical Assertion Ref |
+|----|------------------|----------------|--------------------------|
+| RC-1 | Language-as-auth | Structured intent + gate-first | §2.1: Intent typed envelope |
+| RC-2 | Prompt injection survives decode | Gate evaluation before action | §5: Gate rejects encoded-payload |
+| RC-3 | NFT permission escalation | Allowlist-primary closed-world | §4.5.1: admin_key_free enumeration |
+| RC-4 | Key theft/export | Keyless CI payload | §9: Hardware wallet offline |
+| RC-5 | One agent trusted another | Independent verification bases | §8.1: Two-ledger separation |
+| RC-6 | Automation executes unauthorized tx | L0 firewall + HITL-only deploy | §2.1: Automation-deploy firewall |
+
+## 10.2 Structural principle confirmed
+
+**No interpretation layer in verification:** Machine-checkable artifacts only. Action layer = deployed code (re-runnable against live state). Fail-closed at every boundary.
+
+**Fail-closed defaults:**
+- Unknown venue → reject `venue_not_active`
+- Hash mismatch → unverified chip blocks consent
+- Invariant failure → NO-GO, never auto-retry
+- Missing rate limiter → block enumeration
+
+## 10.3 Residual gap: the human layer
+
+Design decisions remain human responsibilities. Mitigation is layered review + public artifact + reproducible verification. Bad design is expensive to ship, cheap to catch.
+
+**Human review checklist:**
+- T21 criteria vetting (web3 + vault co-owner)
+- Registry schema validation (ops + vault)
+- User-facing consent copy alignment (face + web3)
+- CI workflow security (ops review)
+
+---
