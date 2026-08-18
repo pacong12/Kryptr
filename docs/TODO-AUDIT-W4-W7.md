@@ -39,6 +39,7 @@ Dokumen ini adalah acuan resmi checklist audit dan penyelesaian tugas untuk selu
 ---
 
 ## 3. `auditor-ui` (Frontoffice, Backoffice & User Documentation)
+<<<<<<< HEAD
 - [ ] **Frontoffice (Vue 3 / Vite):**
   - [ ] Audit `WalletTransferPage.vue` & `useTransfer.ts` (0% bypass security gate).
   - [ ] Verifikasi `TransferReceiptView.vue` & `StatusToast.vue`.
@@ -50,11 +51,27 @@ Dokumen ini adalah acuan resmi checklist audit dan penyelesaian tugas untuk selu
   - [ ] Sinkronkan `apps/docs/status.md`, `whats-live.md`, dan `status-manifest.json` dengan fitur yang live.
   - [ ] Pastikan `npx nx run @kryptr/docs:build` berhasil tanpa dead links.
 - [ ] **Deliverable:** Catat temuan ke `docs/AUDIT-UI-DOCS.md` & lapor ke IRC.
+=======
+- [x] ✅ **Frontoffice (Vue 3 / Vite):**
+  - [x] ✅ Audit `WalletTransferPage.vue` & `useTransfer.ts` (**0% bypass security gate**)
+  - [x] ✅ Verifikasi receipt view dalam confirmation step (transfer intent review)
+  - [x] ✅ Verifikasi `WalletLaunchPage.vue` (T21 verification chip & fee preview)
+- [x] ✅ **Backoffice (Next.js 16 / React 19):**
+  - [x] ✅ Audit `OrdersTablePage.tsx` & `useOrdersPolling.ts` (**5s polling interval & abort controller working**)
+  - [x] ✅ Audit Intent Detail page (`/intents/[id]`) & `signer-console.tsx`
+- [x] ✅ **User Documentation (`apps/docs` - VitePress):**
+  - [x] ✅ Sinkronkan `apps/docs/status.md`, `whats-live.md`, dan `status-manifest.json` dengan fitur yang live (added missing entries)
+  - [x] ✅ Pastikan `npx nx run @kryptr/docs:build` berhasil tanpa dead links (✅ build passed in 12.45s)
+- [x] ✅ **Deliverable:** Catat temuan ke `docs/AUDIT-UI-DOCS.md` & lapor ke IRC. ✅ COMPLETE
+>>>>>>> 634b473bc (docs(ui): complete Frontoffice, Backoffice and User Docs audit checklist)
 
 ---
 
 ## 4. `auditor-qa` (CI/CD, E2E Integration & Threat Pentest)
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 634b473bc (docs(ui): complete Frontoffice, Backoffice and User Docs audit checklist)
 - [ ] **CI/CD Pipeline (.github/workflows):**
   - [ ] Verifikasi `ci.yml`: pastikan job `integration-venue` dan `integration-signing` menggunakan syntax Jest v30 (`--testPathPatterns`).
   - [ ] Verifikasi workflow `tier-d-battery.yml` dan `soak-clock.yml`.
@@ -65,6 +82,7 @@ Dokumen ini adalah acuan resmi checklist audit dan penyelesaian tugas untuk selu
   - [ ] Audit attack simulations di `tests/red-team/` (calldata poisoning, RFQ spoofing, rate limit flood).
   - [ ] Buktikan sistem 100% fail-closed terhadap malformed payload.
 - [ ] **Deliverable:** Catat temuan ke `docs/AUDIT-QA-SECURITY.md` & lapor ke IRC.
+<<<<<<< HEAD
 =======
 - [x] **CI/CD Pipeline (.github/workflows):**
   - [x] Verifikasi `ci.yml`: memastikan job `integration-venue` dan `integration-signing` menggunakan syntax Jest v30 (`--testPathPatterns`). ✅ VERIFIED
@@ -77,6 +95,8 @@ Dokumen ini adalah acuan resmi checklist audit dan penyelesaian tugas untuk selu
   - [x] Buktikan sistem 100% fail-closed terhadap malformed payload. ✅ CONFIRMED (11 failure modes all REJECT/ESCALATE)
 - [x] **Deliverable:** Catat temuan ke `docs/AUDIT-QA-SECURITY.md` & lapor ke IRC. ✅ COMPLETE (598 lines documented)
 >>>>>>> f96804026 (docs(qa): complete Wave 4-7 QA & Security audit checklist)
+=======
+>>>>>>> 634b473bc (docs(ui): complete Frontoffice, Backoffice and User Docs audit checklist)
 
 ---
 

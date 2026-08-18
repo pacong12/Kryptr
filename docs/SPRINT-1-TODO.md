@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Sprint 1: Critical Remediation - Operational Checklist
 
 **Created:** 2026-08-18  
@@ -421,3 +422,102 @@ Timeline: Must resolve by [date/time]
 **Version:** 1.0  
 **Last Updated:** 2026-08-18  
 **Next Review:** After daily standup  
+=======
+# SPRINT 1 ACTIONABLE TODO LIST (Critical Remediation)
+
+Sprint target: 2026-08-18 to 2026-09-01
+Reference plan: docs/NEXT-SPRINT-PLAN.md
+Status: ACTIVE
+
+---
+
+## 1. `auditor-core` (Backend API & Auth Remediation)
+Branch: `feat/core-sprint1-auth-remediation`
+Worktree: `/home/muting/kryptr-wt/new-core`
+
+- [ ] **Task 1.1: Test Mock Fix (Immediate)**
+  - [ ] Add `CreateTransferUseCase` mock provider in `apps/api/src/wallet/wallet.controller.spec.ts`.
+  - [ ] Verify `npx nx run @kryptr/api:test` passes 100%.
+- [ ] **Task 1.2: JWT Auth Middleware**
+  - [ ] Add `@nestjs/jwt` and `@nestjs/passport` configuration in `apps/api/src/security/`.
+  - [ ] Implement AuthGuard on `POST /intents/*` and `POST /wallets/:id/transfer`.
+  - [ ] Write unit & integration tests for 401 Unauthorized rejection.
+- [ ] **Task 1.3: Wallet ID Scheme Hardening**
+  - [ ] Audit wallet ID generator in `apps/api/src/wallet/domain/`.
+  - [ ] Add cryptographic entropy check to prevent sequential/predictable IDs.
+- [ ] **Task 1.4: Rate Limiting Guard**
+  - [ ] Configure `@nestjs/throttler` with Redis store in `apps/api/src/app/app.module.ts`.
+  - [ ] Set limits: 100 req/min read, 20 req/min write.
+- [ ] **Delivery:**
+  - [ ] Run gate: `npx nx affected -t lint typecheck test build --base=main`.
+  - [ ] Create PR: `feat(core): Sprint 1 Auth Middleware, Rate Limiting & Wallet ID Hardening`.
+  - [ ] IRC report: `agent-irc send auditor-core conductor "done: Sprint 1 Core tasks complete, PR open"`.
+
+---
+
+## 2. `auditor-ui` (Frontend Security Headers & Polish)
+Branch: `feat/ui-sprint1-csp-headers`
+Worktree: `/home/muting/kryptr-wt/new-ui`
+
+- [ ] **Task 2.1: CSP Headers (Frontoffice)**
+  - [ ] Configure strict Content-Security-Policy headers in `apps/frontoffice/vite.config.mts` / HTML meta tags.
+  - [ ] Disallow inline script execution without nonce/hash.
+- [ ] **Task 2.2: CSP Headers (Backoffice)**
+  - [ ] Add security headers middleware in `apps/backoffice/src/middleware.ts` or `next.config.js`.
+  - [ ] Protect Next.js routes against clickjacking (`X-Frame-Options: DENY`) and XSS.
+- [ ] **Task 2.3: Vitest Timeout & UI Polish**
+  - [ ] Tune timeout threshold in `apps/frontoffice/vitest.config.mts`.
+  - [ ] Ensure all frontoffice unit tests pass cleanly without flaky async timers.
+- [ ] **Task 2.4: Developer Documentation Sync**
+  - [ ] Add JWT auth usage section in `apps/docs/getting-started/`.
+  - [ ] Verify `npx nx run @kryptr/docs:build` exits 0.
+- [ ] **Delivery:**
+  - [ ] Run gate: `npx nx run frontoffice:test && npx nx run backoffice:test && npx nx run @kryptr/docs:build`.
+  - [ ] Create PR: `feat(ui): Sprint 1 CSP Headers, Test Timing Fix & Docs Update`.
+  - [ ] IRC report: `agent-irc send auditor-ui conductor "done: Sprint 1 UI tasks complete, PR open"`.
+
+---
+
+## 3. `auditor-qa` (E2E CI Pipeline & Pentest Baseline)
+Branch: `feat/qa-sprint1-e2e-automation`
+Worktree: `/home/muting/kryptr-wt/new-qa`
+
+- [ ] **Task 3.1: Playwright / E2E CI Workflow**
+  - [ ] Configure headless browser E2E test runner in `.github/workflows/e2e-browser.yml`.
+  - [ ] Implement happy path test: Connect Wallet -> Transfer Form -> Security Gate Approval -> Receipt View.
+- [ ] **Task 3.2: Red Team Regression Harness**
+  - [ ] Wire automated attack scripts from `tests/red-team/` into a dedicated CI smoke job.
+  - [ ] Verify 100% fail-closed rejection on unauthorized intent injections.
+- [ ] **Task 3.3: API Performance Baseline**
+  - [ ] Create lightweight load test script checking p95 response time under 200ms.
+- [ ] **Delivery:**
+  - [ ] Run gate: `npx nx affected -t test --base=main`.
+  - [ ] Create PR: `test(qa): Sprint 1 E2E Browser Automation & Security Pentest CI Harness`.
+  - [ ] IRC report: `agent-irc send auditor-qa conductor "done: Sprint 1 QA tasks complete, PR open"`.
+
+---
+
+## 4. `auditor-contracts` (Testnet Deployment Rehearsal Readiness)
+Branch: `feat/contracts-sprint1-rehearsal-prep`
+Worktree: `/home/muting/kryptr-wt/new-contracts`
+
+- [ ] **Task 4.1: Factory ABI Export**
+  - [ ] Export compiled `TokenFactory.json` ABI and copy to shared contract artifacts directory for Core API consumption.
+- [ ] **Task 4.2: Testnet Rehearsal Script Verification**
+  - [ ] Dry-run `contracts/script/DeployLaunchpad.s.sol` against local anvil / Base Sepolia fork.
+  - [ ] Verify generated manifest format strictly complies with `deployments.schema.json`.
+- [ ] **Task 4.3: Slither Continuous Gate**
+  - [ ] Verify `contracts/SLITHER_TRIAGE.md` remains 100% clean against latest contract commits.
+- [ ] **Delivery:**
+  - [ ] Run gate: `cd contracts && forge test && forge fmt --check`.
+  - [ ] Create PR: `feat(contracts): Sprint 1 ABI Artifact Export & Rehearsal Manifest Verification`.
+  - [ ] IRC report: `agent-irc send auditor-contracts conductor "done: Sprint 1 Contracts tasks complete, PR open"`.
+
+---
+
+## 5. `conductor` (Execution Gate & Merge Protocol)
+- [ ] Monitor IRC updates for Task 1.1 to 4.3.
+- [ ] Review PRs when submitted.
+- [ ] Ensure all GitHub Actions checks pass before squash-merging.
+- [ ] Update `docs/SPRINT-1-TODO.md` checklist status upon each PR merge.
+>>>>>>> 433c465f4 (feat(ui): Sprint 1 CSP Headers, Test Timing Fix)

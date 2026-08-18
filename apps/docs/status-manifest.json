@@ -55,7 +55,17 @@
       "path": "/features/launchpad-consent.html",
       "title": "Launchpad consent",
       "status": "planned",
+<<<<<<< HEAD
       "summary": "Human-in-the-loop consent workflow for wallet deployment; requires T21 chip verification before operator approval."
+=======
+      "summary": "Human-in-the-loop approval with T21 chip verification and frozen fee schedule (Wave 5, planned)."
+    },
+    {
+      "path": "/status.html",
+      "title": "Status Overview",
+      "status": "live",
+      "summary": "Current phase, rollout progress, and feature status across all waves."
+>>>>>>> 634b473bc (docs(ui): complete Frontoffice, Backoffice and User Docs audit checklist)
     },
     {
       "path": "/honest-edges/limitations.html",
