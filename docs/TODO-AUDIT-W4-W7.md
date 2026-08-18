@@ -54,6 +54,7 @@ Dokumen ini adalah acuan resmi checklist audit dan penyelesaian tugas untuk selu
 ---
 
 ## 4. `auditor-qa` (CI/CD, E2E Integration & Threat Pentest)
+<<<<<<< HEAD
 - [ ] **CI/CD Pipeline (.github/workflows):**
   - [ ] Verifikasi `ci.yml`: pastikan job `integration-venue` dan `integration-signing` menggunakan syntax Jest v30 (`--testPathPatterns`).
   - [ ] Verifikasi workflow `tier-d-battery.yml` dan `soak-clock.yml`.
@@ -64,6 +65,18 @@ Dokumen ini adalah acuan resmi checklist audit dan penyelesaian tugas untuk selu
   - [ ] Audit attack simulations di `tests/red-team/` (calldata poisoning, RFQ spoofing, rate limit flood).
   - [ ] Buktikan sistem 100% fail-closed terhadap malformed payload.
 - [ ] **Deliverable:** Catat temuan ke `docs/AUDIT-QA-SECURITY.md` & lapor ke IRC.
+=======
+- [x] **CI/CD Pipeline (.github/workflows):**
+  - [x] Verifikasi `ci.yml`: memastikan job `integration-venue` dan `integration-signing` menggunakan syntax Jest v30 (`--testPathPatterns`). ✅ VERIFIED
+  - [x] Verifikasi workflow `tier-d-battery.yml` dan `soak-clock.yml`. ✅ VERIFIED (D-1 through D-7 gates validated)
+- [x] **E2E Integration Testing:**
+  - [x] Jalankan dan audit `tests/e2e/phase1/` (Frontoffice -> API -> Postgres -> Backoffice). ✅ DONE (swap-flow.integration.spec.ts hermetic verification)
+  - [x] Buktikan Definition of Done Phase 1 terpenuhi secara hermetis. ✅ PROVED (zero provider overrides)
+- [x] **Security Pentest & RedTeam:**
+  - [x] Audit attack simulations di `tests/red-team/` (calldata poisoning, RFQ spoofing, rate limit flood). ✅ VERIFIED (malformed calldata → CREATE2 protection)
+  - [x] Buktikan sistem 100% fail-closed terhadap malformed payload. ✅ CONFIRMED (11 failure modes all REJECT/ESCALATE)
+- [x] **Deliverable:** Catat temuan ke `docs/AUDIT-QA-SECURITY.md` & lapor ke IRC. ✅ COMPLETE (598 lines documented)
+>>>>>>> f96804026 (docs(qa): complete Wave 4-7 QA & Security audit checklist)
 
 ---
 
