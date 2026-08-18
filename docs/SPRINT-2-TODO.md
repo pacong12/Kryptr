@@ -1,4 +1,7 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 515ac0cbe (feat(contracts): mainnet deployment preparation scripts)
 # SPRINT 2 ACTIONABLE TODO LIST (Phase 2 Order Automation & Rehearsal)
 
 Sprint target: Phase 2 Order Automation & Testnet Rehearsal
@@ -78,6 +81,7 @@ Worktree: `/home/muting/kryptr-wt/new-qa`
 - [ ] Direct sub-agents to Sprint 2 branches.
 - [ ] Monitor task completion via Redis IRC.
 - [ ] Review & merge PRs when GitHub Actions checks green.
+<<<<<<< HEAD
 =======
 # Sprint 2: Order Automation Infrastructure - Operational Checklist
 
@@ -690,3 +694,5 @@ Timeline: Must resolve by [date/time]
 **Last Updated:** 2026-08-18  
 **Next Review:** After Sprint 2 Week 1 deliverables  
 >>>>>>> origin/main
+=======
+>>>>>>> 515ac0cbe (feat(contracts): mainnet deployment preparation scripts)
