@@ -7,7 +7,7 @@ name: Build - Versioned Only
 on:
   push:
     tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'  # Semantic versioning pattern only
+      - 'v[0-9]+.[0-9]+.[0-9]+' # Semantic versioning pattern only
   pull_request:
     branches: [main]
     paths:
@@ -22,51 +22,51 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v5
-        
+
       - name: Setup Node.js ${{ env.NODE_VERSION }}
         uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-      
+
       - name: Install dependencies
         run: npm ci
-      
+
       - name: Validate version tag
         if: github.event_name == 'push'
         run: |
           TAG_NAME=${{ github.ref_name }}
-          
+
           # Verify tag follows semantic versioning (v1.2.3)
           if [[ ! "$TAG_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "❌ ERROR: Tag '$TAG_NAME' is not a valid semantic version!"
             echo "   Expected format: v1.2.3 (only)"
             exit 1
           fi
-          
+
           echo "✅ Valid version tag: $TAG_NAME"
-      
+
       - name: Build versioned artifacts
         run: |
           echo "Building with version: ${{ github.ref_name }}"
-          
+
           # Create output directory structure
           mkdir -p dist/versioned/${{ github.ref_name }}/
-          
+
           # YOUR BUILD COMMAND HERE
           # Example for contracts:
           cd contracts
           forge build --output-dir ../dist/versioned/${{ github.ref_name }}/contracts/
-          
+
           # Example for apps (if needed):
           # npx nx build @kryptr/api --configuration=production
-          
+
           # Copy ONLY to versioned output
           cp -r contracts/artifacts/* dist/versioned/${{ github.ref_name }}/
-      
+
       - name: List built artifacts
         run: |
           echo "=== Built artifacts ==="
@@ -79,7 +79,7 @@ jobs:
             echo "⚠️ WARNING: Found non-versioned directories: $NON_VERSED"
             echo "   These will be excluded from upload."
           fi
-      
+
       - name: Upload versioned artifacts ONLY
         uses: actions/upload-artifact@v4
         with:
@@ -88,17 +88,17 @@ jobs:
           retention-days: 90
           compression-level: 6
           if-no-files-found: error
-      
+
       - name: Verify artifact content
         run: |
           ARTIFACT_NAME="kryptr-${{ github.ref_name }}"
           echo "🔍 Verifying artifact $ARTIFACT_NAME contains ONLY versioned files..."
-          
+
           # Extract and check file names contain version number
           ls -la dist/versioned/${{ github.ref_name }}/
-          
+
           # Ensure all output files reference the version
           grep -r "${{ github.ref_name }}" dist/versioned/${{ github.ref_name }}/ || \
             echo "⚠️ No explicit version references found in artifacts (may be intentional)"
-          
+
           echo "✅ Artifact verification complete"

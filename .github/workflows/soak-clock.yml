@@ -1,6 +1,6 @@
 name: Soak Clock (24h Testnet Monitoring)
 
-# W7-M11: Soak Clock Implementation  
+# W7-M11: Soak Clock Implementation
 # D-12: Post-PASS soak clock monitoring window
 # Runs hourly on main branch via cron
 #
@@ -12,15 +12,15 @@ name: Soak Clock (24h Testnet Monitoring)
 
 on:
   schedule:
-    - cron: '0 * * * *'  # Hourly on UTC
+    - cron: '0 * * * *' # Hourly on UTC
   workflow_dispatch:
     inputs:
       chainId:
-        description: "Chain ID (84532 Base Sepolia or 46630 Robinhood testnet)"
+        description: 'Chain ID (84532 Base Sepolia or 46630 Robinhood testnet)'
         required: true
         type: string
       rpcUrl:
-        description: "RPC URL"
+        description: 'RPC URL'
         required: true
         type: string
 
@@ -49,9 +49,9 @@ jobs:
         id: check
         run: |
           set -euo pipefail
-          
+
           ARTIFACT_DIR="contracts/deployments/artifacts"
-          
+
           if ls "$ARTIFACT_DIR"/tierd-*.json 2>/dev/null | grep -v FAIL | grep -q .; then
             echo "✅ Tier D PASS artifact found"
             echo "tierd_pass=true" >> "$GITHUB_OUTPUT"
@@ -65,7 +65,7 @@ jobs:
     needs: [check-tierd-pass]
     if: needs.check-tierd-pass.outputs.tierd_pass == 'true'
     timeout-minutes: 20
-    
+
     steps:
       - uses: actions/checkout@v5
         with:
@@ -83,15 +83,15 @@ jobs:
         id: probes
         run: |
           set -euo pipefail
-          
+
           echo "Running soak clock probes..."
           echo "RPC: $RPC_URL | ChainId: $CHAIN_ID"
-          
+
           cd contracts
-          
+
           # Probe 1: Verify factory exists and is callable
           echo "Probe 1: Factory availability check..."
-          
+
           FACTORY_ADDR=$(node -e "
             const fs = require('fs');
             const files = fs.readdirSync('contracts/deployments/artifacts');
@@ -100,7 +100,7 @@ jobs:
             const latest = passFiles.sort().pop();
             console.log(JSON.parse(fs.readFileSync('contracts/deployments/artifacts/' + latest)).evidence.deployedAddress);
           " 2>/dev/null || echo "")
-          
+
           if [ -z "$FACTORY_ADDR" ]; then
             echo "⚠️  Probe 1 SKIPPED: Cannot determine factory address"
             echo "probe1_status=skipped" >> "$GITHUB_OUTPUT"
@@ -128,7 +128,7 @@ jobs:
               probe();
             " 2>&1 && echo "probe1_status=passed" >> "$GITHUB_OUTPUT" || echo "probe1_status=failed" >> "$GITHUB_OUTPUT"
           fi
-        
+
         env:
           RPC_URL: ${{ env.RPC_URL }}
 
@@ -137,9 +137,9 @@ jobs:
         if: always()
         run: |
           set -euo pipefail
-          
+
           PROBE1="${{ steps.probes.outputs.probe1_status }}"
-          
+
           if [ "$PROBE1" = "passed" ]; then
             STATUS="PASS"
             echo "✅ Soak probe batch: PASS"
@@ -150,9 +150,9 @@ jobs:
             STATUS="SKIPPED"
             echo "⚠️  Soak probe batch: SKIPPED"
           fi
-          
+
           RESULTS_FILE="contracts/deployments/artifacts/soak-results-$(date +%Y%m%d-%H%M%S).json"
-          
+
           cat > "$RESULTS_FILE" << EOF
           {
             "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
@@ -163,7 +163,7 @@ jobs:
             "overallStatus": "\$STATUS"
           }
           EOF
-          
+
           echo "Results written to: $RESULTS_FILE"
           echo "soak_status=$STATUS" >> "$GITHUB_OUTPUT"
 
@@ -178,9 +178,9 @@ jobs:
         if: always()
         run: |
           set -euo pipefail
-          
+
           STATUS="${{ steps.compile.outputs.soak_status }}"
-          
+
           case "$STATUS" in
             PASS)
               echo "✅ Soak Clock Status: PASS - All probes successful"
