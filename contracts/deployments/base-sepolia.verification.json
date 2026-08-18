@@ -1,0 +1,13 @@
+{
+  "version": "1.0",
+  "chain": "base-sepolia",
+  "factoryAddress": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1",
+  "bondSink": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+  "verificationId": "wave-5-sprint2-rehearsal-t21-chip",
+  "commitSha": "2bcb5c1",
+  "deployedAt": "2026-08-18T12:00:00Z",
+  "proofHash": "0x326263623563317c323032362d30382d31385431333a30393a35342e3132335a",
+  "factoryBytecodePrefix": "{\"object\":\"0x6101006",
+  "templateBytecodePrefix": "{\"object\":\"0x6080604",
+  "generatedAt": "2026-08-18T13:09:54.125Z"
+}
