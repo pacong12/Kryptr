@@ -1,0 +1,72 @@
+{
+  "name": "mainnet-peak",
+  "description": "Simulates high-traffic mainnet patterns during peak hours and major market events",
+  "targetDurationSec": 3600,
+  "virtualUsers": 200,
+  "endpoints": [
+    {
+      "path": "/api/health",
+      "weight": 15,
+      "method": "GET",
+      "responseTimeTargetMs": 80
+    },
+    {
+      "path": "/api/v1/wallets",
+      "weight": 20,
+      "method": "GET",
+      "authRequired": true,
+      "responseTimeTargetMs": 120
+    },
+    {
+      "path": "/api/v1/wallets/{walletId}/balance",
+      "weight": 25,
+      "method": "GET",
+      "authRequired": true,
+      "responseTimeTargetMs": 150
+    },
+    {
+      "path": "/api/v1/transfers",
+      "weight": 18,
+      "method": "POST",
+      "body": {"amount": 5000, "currency": "USDC"},
+      "authRequired": true,
+      "responseTimeTargetMs": 180
+    },
+    {
+      "path": "/api/v1/orders/dca",
+      "weight": 12,
+      "method": "POST",
+      "body": {"frequency": "HOURLY", "amount": 2000},
+      "authRequired": true,
+      "responseTimeTargetMs": 220
+    },
+    {
+      "path": "/api/v1/stats/dashboard",
+      "weight": 10,
+      "method": "GET",
+      "authRequired": true,
+      "responseTimeTargetMs": 140
+    }
+  ],
+  "trafficPattern": {
+    "peakHours": [9, 10, 11, 12, 13, 14, 15, 16],
+    "spikeProbability": 0.3,
+    "userDistribution": {
+      "readRequests": 75,
+      "writeRequests": 25
+    },
+    "burstWindows": [
+      {
+        "startOffsetSec": 300,
+        "durationSec": 60,
+        "usersMultiplier": 2.5
+      }
+    ]
+  },
+  "thresholds": {
+    "p95ResponseTimeMs": 250,
+    "p99ResponseTimeMs": 400,
+    "errorRatePercent": 0.5,
+    "minSuccessfulRequests": 99.5
+  }
+}

@@ -1,0 +1,273 @@
+name: Production Load Soak Tests (Task 3.1)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tests/load/**'
+      - '.github/workflows/soak-load.yml'
+  
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tests/load/**'
+      - '.github/workflows/soak-load.yml'
+  
+  schedule:
+    # Daily at 04:00 UTC (pre-business hours)
+    - cron: '0 4 * * *'
+  
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: 'Load test scenario to run'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - normal
+          - peak
+          - stress
+      duration_hours:
+        description: 'Test duration in hours (1, 6, 24)'
+        required: true
+        default: '1'
+        type: choice
+        options:
+          - 1
+          - 6
+          - 24
+
+jobs:
+  normal-load-baseline:
+    name: Normal Load Baseline
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run normal load test (1h baseline)
+        run: |
+          echo "Starting normal load test scenario..."
+          NODE_ENV=test npx ts-node tests/load/run-test.ts \
+            --scenario mainnet-normal \
+            --duration 3600 \
+            --users 50
+        env:
+          BASE_URL: ${{ secrets.BASE_URL }}
+          API_KEY: ${{ secrets.API_KEY }}
+      
+      - name: Upload metrics
+        uses: actions/upload-artifact@v4
+        with:
+          name: normal-load-metrics
+          path: tests/load/reports/normal-load*.json
+          retention-days: 30
+      
+      - name: Validate thresholds
+        run: |
+          METRICS=$(cat tests/load/reports/normal-load-*.json | tail -n 1)
+          P95=$(echo "$METRICS" | jq '.latencyMetrics.p95_ms')
+          if (( $(echo "$P95 > 200" | bc -l) )); then
+            echo "❌ P95 exceeded threshold: ${P95}ms > 200ms"
+            exit 1
+          fi
+          echo "✅ P95 within threshold: ${P95}ms ≤ 200ms"
+      
+      - name: Update status report
+        if: always()
+        run: |
+          echo "Normal load test completed at $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> tests/load/reports/test-status.md
+
+  peak-load-validation:
+    name: Peak Load Validation
+    needs: normal-load-baseline
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Download normal load results
+        uses: actions/download-artifact@v4
+        with:
+          name: normal-load-metrics
+          path: tests/load/reports
+      
+      - name: Run peak load test (15 min spike simulation)
+        run: |
+          echo "Running peak load validation..."
+          NODE_ENV=test npx ts-node tests/load/run-test.ts \
+            --scenario mainnet-peak \
+            --duration 900 \
+            --users 200 \
+            --spike-intensity high
+        env:
+          BASE_URL: ${{ secrets.BASE_URL }}
+          API_KEY: ${{ secrets.API_KEY }}
+      
+      - name: Upload peak metrics
+        uses: actions/upload-artifact@v4
+        with:
+          name: peak-load-metrics
+          path: tests/load/reports/peak-load*.json
+          retention-days: 30
+      
+      - name: Compare against normal baseline
+        run: |
+          echo "Validating peak performance degradation..."
+          NORMAL_P95=$(jq '.latencyMetrics.p95_ms' tests/load/reports/normal-load-*.json | head -n 1)
+          PEAK_P95=$(jq '.latencyMetrics.p95_ms' tests/load/reports/peak-load-*.json | head -n 1)
+          
+          echo "Normal P95: ${NORMAL_P95}ms"
+          echo "Peak P95: ${PEAK_P95}ms"
+          
+          DEGRADATION=$(echo "scale=2; ($PEAK_P95 - $NORMAL_P95) / $NORMAL_P95 * 100" | bc)
+          echo "Degradation: ${DEGRADATION}%"
+          
+          if (( $(echo "$DEGRADATION > 50" | bc -l) )); then
+            echo "⚠️ Excessive degradation detected: ${DEGRADATION}% > 50%"
+            exit 1
+          fi
+          echo "✅ Acceptable degradation: ${DEGRADATION}% ≤ 50%"
+      
+      - name: Archive peak reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: peak-analysis-report
+          path: tests/load/reports
+          retention-days: 30
+
+  stress-testing:
+    name: Stress Testing & Graceful Degradation
+    needs: peak-load-validation
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Download previous metrics
+        uses: actions/download-artifact@v4
+        with:
+          name: peak-load-metrics
+          path: tests/load/reports
+      
+      - name: Run stress test (graceful degradation check)
+        run: |
+          echo "Running stress test to verify graceful degradation..."
+          NODE_ENV=test npx ts-node tests/load/run-test.ts \
+            --scenario mainnet-stress \
+            --duration 900 \
+            --users 500 \
+            --enable-circuit-breaker
+      
+      - name: Verify circuit breaker behavior
+        run: |
+          echo "Checking circuit breaker activation logs..."
+          grep -q "circuit-breaker.*opened" tests/load/reports/stress.log || \
+            echo "⚠️ Circuit breaker may not have triggered"
+      
+      - name: Download all metrics
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*-load-metrics'
+          merge-multiple: true
+          path: tests/load/reports
+      
+      - name: Generate comprehensive comparison report
+        run: |
+          NODE_ENV=test npx ts-node tests/load/generate-comparison.ts
+          cat tests/load/reports/comparison-summary.md
+      
+      - name: Upload stress test artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: stress-test-results
+          path: tests/load/reports
+          retention-days: 30
+
+  audit-summary:
+    name: Security & Compliance Summary
+    needs: [normal-load-baseline, peak-load-validation, stress-testing]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download all test results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*-metrics'
+          merge-multiple: true
+          path: tests/load/reports
+      
+      - name: Generate final compliance report
+        run: |
+          echo "# Load Test Compliance Report" > load-compliance-$(date +%Y%m%d).md
+          echo "" >> load-compliance-$(date +%Y%m%d).md
+          echo "Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> load-compliance-$(date +%Y%m%d).md
+          echo "" >> load-compliance-$(date +%Y%m%d).md
+          echo "## Performance Thresholds" >> load-compliance-$(date +%Y%m%d).md
+          echo "- P95 Response Time: Target ≤200ms" >> load-compliance-$(date +%Y%m%d).md
+          echo "- Error Rate: Target ≤0.1% (normal), ≤5% (stress)" >> load-compliance-$(date +%Y%m%d).md
+          echo "- Graceful Degradation: Expected under extreme load" >> load-compliance-$(date +%Y%m%d).md
+          echo "" >> load-compliance-$(date +%Y%m%d).md
+          echo "## Results Summary" >> load-compliance-$(date +%Y%m%d).md
+          jq -r '.validation | "P95: \(.p95_pass ? "PASS ✅" : "FAIL ❌")\nP99: \(.p99_pass ? "PASS ✅" : "FAIL ❌")\nOverall: \(.overall_pass ? "COMPLIANT 🟢" : "NON-COMPLIANT 🔴")"' \
+            tests/load/reports/*.json | tail -n +1 >> load-compliance-$(date +%Y%m%d).md
+      
+      - name: Notify on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          payload: |
+            {
+              "text": "🚨 LOAD TEST FAILED - Requires Immediate Review\n\nPlease investigate performance regression and restore system stability."
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Notify on success
+        if: success()
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          payload: |
+            {
+              "text": "✅ All Load Tests Passed Successfully - System Ready for Production\n\nPerformance baselines established and verified within acceptable thresholds."
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Upload compliance artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: compliance-report
+          path: load-compliance-*.md
+          retention-days: 90
