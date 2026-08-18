@@ -4,35 +4,35 @@ on:
   workflow_dispatch:
     inputs:
       chainId:
-        description: "Chain ID (84532 or 46630)"
+        description: 'Chain ID (84532 or 46630)'
         required: true
         type: string
       rpcUrl:
-        description: "RPC URL"
+        description: 'RPC URL'
         required: true
         type: string
       blockscoutBase:
-        description: "Blockscout base URL (no trailing slash)"
+        description: 'Blockscout base URL (no trailing slash)'
         required: true
         type: string
       bPin:
-        description: "B_pin block number (factory deploy block)"
+        description: 'B_pin block number (factory deploy block)'
         required: true
         type: string
       bClone:
-        description: "B_clone block number (clone deploy block)"
+        description: 'B_clone block number (clone deploy block)'
         required: true
         type: string
       cloneTx:
-        description: "Clone tx hash"
+        description: 'Clone tx hash'
         required: true
         type: string
       factoryAddr:
-        description: "Factory contract address"
+        description: 'Factory contract address'
         required: true
         type: string
       templateAddr:
-        description: "Template contract address"
+        description: 'Template contract address'
         required: true
         type: string
 
