@@ -50,6 +50,8 @@ import { CreateOrderUseCase } from './application/create-order.usecase';
 import { CancelOrderUseCase } from './application/cancel-order.usecase';
 import { SetKillSwitchUseCase } from './application/set-kill-switch.usecase';
 import { SchedulerTickUseCase } from './application/scheduler-tick.usecase';
+import { DCASlotExecutionUseCase } from './application/dca-execution.usecase';
+import { LimitSlotExecutionUseCase } from './application/limit-execution.usecase';
 import { ExecuteOrderSlotUseCase } from './application/execute-order-slot.usecase';
 import { FinalizeFailedExecutionUseCase } from './application/finalize-failed-execution.usecase';
 import { GetWorkerHealthUseCase } from './application/get-worker-health.usecase';
@@ -159,6 +161,8 @@ export const TRIGGER_QUEUE_NAME = 'automation.trigger';
     CancelOrderUseCase,
     SetKillSwitchUseCase,
     SchedulerTickUseCase,
+    DCASlotExecutionUseCase,
+    LimitSlotExecutionUseCase,
     ExecuteOrderSlotUseCase,
     FinalizeFailedExecutionUseCase,
     GetWorkerHealthUseCase,
