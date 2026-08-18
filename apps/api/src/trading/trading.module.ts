@@ -8,6 +8,8 @@ import { PreviewSwapExecutionUseCase } from './application/preview-swap-executio
 import { DEX_AGGREGATOR } from './domain/dex-aggregator.port';
 import { QUOTE_STORE } from './domain/quote-store.port';
 import { StaticMockDexAdapter } from './infrastructure/static-mock-dex.adapter';
+import { ZeroExVenueAdapter } from './infrastructure/zero-ex-venue.adapter';
+import { ZERO_EX_VENUE_ADAPTER } from './domain/zero-ex-venue.adapter.types';
 import { ZeroExDexAdapter } from './infrastructure/zero-ex-dex.adapter';
 import { InMemoryQuoteStore } from './infrastructure/in-memory-quote-store';
 import { PostgresQuoteStore } from './infrastructure/postgres-quote-store';
@@ -25,6 +27,7 @@ import { isPostgresPersistence } from '../persistence/prisma-client';
   imports: [forwardRef(() => WalletModule), forwardRef(() => SecurityModule)],
   controllers: [TradingController],
   providers: [
+    { provide: ZERO_EX_VENUE_ADAPTER, useClass: ZeroExVenueAdapter },
     RequestQuoteUseCase,
     GetQuoteUseCase,
     PreviewSwapExecutionUseCase,
