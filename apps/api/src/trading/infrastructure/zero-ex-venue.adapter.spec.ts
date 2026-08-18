@@ -1,6 +1,9 @@
 import { Test } from '@nestjs/testing';
 import { ZeroExVenueAdapter } from './zero-ex-venue.adapter';
-import type { VirtualPoolResult, VenueAccrualSnapshot } from '../domain/zero-ex-venue.adapter.types';
+import type {
+  VirtualPoolResult,
+  VenueAccrualSnapshot,
+} from '../domain/zero-ex-venue.adapter.types';
 
 describe('ZeroExVenueAdapter', () => {
   let adapter: ZeroExVenueAdapter;
@@ -15,12 +18,12 @@ describe('ZeroExVenueAdapter', () => {
 
   describe('createPool', () => {
     it('returns virtual pool result with deterministic venueId', async () => {
-      const result = await adapter.createPool(
+      const result = (await adapter.createPool(
         'wallet-base-demo',
         'token-launchpad-v1',
         8.75, // venueBps (additive model)
         { totalFeeBps: 175, recipients: [], scheduleVersion: 'v1.0.0' },
-      ) as VirtualPoolResult;
+      )) as VirtualPoolResult;
 
       expect(result).toMatchObject({
         venueId: '84532:uniswap-v4:token-launchpad-v1',
@@ -31,16 +34,26 @@ describe('ZeroExVenueAdapter', () => {
     });
 
     it('validates venueBps as non-negative (PR #130 enforcement)', async () => {
-      await expect(adapter.createPool('w1', 't1', -5, { totalFeeBps: 175, recipients: [], scheduleVersion: 'v1.0.0' }))
-        .rejects.toThrow('venueBps must be non-negative');
+      await expect(
+        adapter.createPool('w1', 't1', -5, {
+          totalFeeBps: 175,
+          recipients: [],
+          scheduleVersion: 'v1.0.0',
+        }),
+      ).rejects.toThrow('venueBps must be non-negative');
     });
 
     it('preserves additive fee model — base fee split unaffected by venue accrual', async () => {
-      const result = await adapter.createPool('w1', 't1', 8.75, {
-        totalFeeBps: 175,
-        recipients: [{ address: '0xrecipient1', shareBps: 50 }],
-        scheduleVersion: 'v1.0.0',
-      }) as VirtualPoolResult;
+      const result = (await adapter.createPool(
+        'w1',
+        'token-launchpad-v1',
+        8.75,
+        {
+          totalFeeBps: 175,
+          recipients: [{ address: '0xrecipient1', shareBps: 50 }],
+          scheduleVersion: 'v1.0.0',
+        },
+      )) as VirtualPoolResult;
 
       // Base fee schedule preserved unchanged per two-ledger separation (§8.1 theorem)
       expect(result.venueId).toContain('token-launchpad-v1');
@@ -61,7 +74,9 @@ describe('ZeroExVenueAdapter', () => {
     });
 
     it('handles overflow-safe calculation via scaled integer arithmetic (§4.5.1 overflow guard)', () => {
-      const largeTradeAmount = BigInt('115792089237316195423570985008687907853269984665640564039457584007913129639935'); // Near 2^256
+      const largeTradeAmount = BigInt(
+        '115792089237316195423570985008687907853269984665640564039457584007913129639935',
+      ); // Near 2^256
 
       // Should NOT throw overflow error
       const snapshot = adapter.getAccrualSnapshot(largeTradeAmount, 175);
@@ -87,7 +102,10 @@ describe('ZeroExVenueAdapter', () => {
     it('preserves INV-FEE-2 conservation for base schedule recipients (§4.5 C1)', () => {
       const baseFeeWei = BigInt(175);
       const recipientShares = [BigInt(50), BigInt(50), BigInt(50), BigInt(25)];
-      const sumShares = recipientShares.reduce((acc, share) => acc + share, BigInt(0));
+      const sumShares = recipientShares.reduce(
+        (acc, share) => acc + share,
+        BigInt(0),
+      );
 
       expect(sumShares).toBe(baseFeeWei);
     });
