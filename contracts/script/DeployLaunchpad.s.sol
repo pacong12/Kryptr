@@ -25,7 +25,7 @@ contract DeployLaunchpad is Script {
 
     DeploymentInfo internal deployment;
 
-    function setUp() public view virtual {
+    function setUp() public virtual {
         BOND_AMOUNT = vm.envOr("BOND_AMOUNT", uint256(1 ether));
         BOND_SINK = vm.envAddress("BOND_SINK");
         require(BOND_SINK != address(0), "BOND_SINK cannot be zero");
