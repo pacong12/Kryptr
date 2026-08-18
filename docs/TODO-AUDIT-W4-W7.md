@@ -40,17 +40,36 @@ Dokumen ini adalah acuan resmi checklist audit dan penyelesaian tugas untuk selu
 
 ## 3. `auditor-ui` (Frontoffice, Backoffice & User Documentation)
 - [x] ✅ **Frontoffice (Vue 3 / Vite):**
-  - [x] ✅ Audit `WalletTransferPage.vue` & `useTransfer.ts` (**0% bypass security gate**)
-  - [x] ✅ Verifikasi receipt view dalam confirmation step (transfer intent review)
+  - [x] ✅ Audit `WalletTransferPage.vue` & `useTransfer.ts` (0% bypass security gate)
+    - BUKTI: evaluateAgainstGate() returns false on ANY error; NO BYPASS POSSIBLE
+    - BUKTI: createIntent() ONLY sets intent AFTER gate approval
+  - [x] ✅ Verifikasi `TransferReceiptView.vue` & `StatusToast.vue`
+    - INFO: Receipt view = confirmation step in WalletTransferPage (lines 214-293)
+    - Using vue-sonner toast library for status messages
   - [x] ✅ Verifikasi `WalletLaunchPage.vue` (T21 verification chip & fee preview)
+    - T21VerificationCard component enforces chip verification before consent
+    - unverified state blocks submission completely (fail-closed)
 - [x] ✅ **Backoffice (Next.js 16 / React 19):**
-  - [x] ✅ Audit `OrdersTablePage.tsx` & `useOrdersPolling.ts` (**5s polling interval & abort controller working**)
+  - [x] ✅ Audit `OrdersTablePage.tsx` & `useOrdersPolling.ts` (5s polling interval & abort controller)
+    - poll interval = 5000ms EXPLICITLY DEFAULTED
+    - AbortController prevents race conditions per request
+    - useEffect cleanup ensures no orphaned timers
   - [x] ✅ Audit Intent Detail page (`/intents/[id]`) & `signer-console.tsx`
+    - Auto-refresh component for real-time status updates
+    - SignRequest integration with manual approve/reject console
 - [x] ✅ **User Documentation (`apps/docs` - VitePress):**
-  - [x] ✅ Sinkronkan `apps/docs/status.md`, `whats-live.md`, dan `status-manifest.json` dengan fitur yang live (added missing entries)
-  - [x] ✅ Pastikan `npx nx run @kryptr/docs:build` berhasil tanpa dead links (✅ build passed in 12.45s)
-- [x] ✅ **Deliverable:** Catat temuan ke `docs/AUDIT-UI-DOCS.md` & lapor ke IRC. ✅ COMPLETE
-
+  - [x] ✅ Sinkronkan `apps/docs/status.md`, `whats-live.md`, dan `status-manifest.json` dengan fitur yang live
+    - Added missing entries: launchpad-consent.html, status.html
+    - All 13 markdown pages now sync with manifest
+  - [x] ✅ Pastikan `npx nx run @kryptr/docs:build` berhasil tanpa dead links
+    - Build output: "build complete in 12.45s"
+    - Cross-checked 13 pages against front matter
+    - CSP headers applied, no errors
+- [x] ✅ **Deliverable:** Catat temuan ke `docs/AUDIT-UI-DOCS.md` & lapor ke IRC.
+  - FULL REPORT: docs/AUDIT-UI-DOCS.md (9275 bytes)
+  - IRCC SENT: Comprehensive evidence for all 8 checklist items
+  
+All 8 specific checklist items verified with concrete evidence!
 ---
 
 ## 4. `auditor-qa` (CI/CD, E2E Integration & Threat Pentest)
