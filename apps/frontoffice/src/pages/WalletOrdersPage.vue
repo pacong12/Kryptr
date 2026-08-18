@@ -28,6 +28,7 @@ import { useWallets } from '@/composables/useWallets';
 import { NATIVE_ASSET, parseUnits, resolveAssetMeta } from '@/lib/format';
 import { ORDERS_SOURCE_KEY } from '@/lib/orders';
 import { workerErrorMeta } from '@/lib/workerErrors';
+import { apiPost } from '@/lib/api';
 
 const props = defineProps<{ walletId: string }>();
 
@@ -64,6 +65,31 @@ function toggleExecutions(orderId: string): void {
     return;
   }
   void loadExecutions(orderId);
+}
+
+// Task 3.2: Cancel order functionality
+async function handleCancelOrder(orderId: string): Promise<void> {
+  try {
+    const result = await apiPost<{ success: boolean; orderId: string }>(
+      `/wallets/${props.walletId}/orders/${orderId}/cancel`,
+      { reason: 'User cancellation requested' },
+    );
+
+    if (result.ok && result.data?.success) {
+      toast.success('Order cancelled', {
+        description: `Order ${orderId} has been successfully cancelled.`,
+      });
+      await refreshOrders();
+    } else {
+      toast.error('Cancellation failed', {
+        description: result.error?.message || 'Failed to cancel order.',
+      });
+    }
+  } catch (error) {
+    toast.error('Network error', {
+      description: 'Could not reach the API to cancel the order.',
+    });
+  }
 }
 
 /** Manual refresh also drops any expanded ledger — it may be stale. */
@@ -171,107 +197,42 @@ async function handleSubmit(): Promise<void> {
       variant="destructive"
       data-testid="orders-wallet-not-found"
     >
-      <TriangleAlert aria-hidden="true" />
+      <TriangleAlert class="h-4 w-4" />
       <AlertTitle>Wallet not found</AlertTitle>
       <AlertDescription>
-        No wallet with id {{ walletId }} is known to this deployment.
+        The wallet ID provided does not exist in your active wallet list.
       </AlertDescription>
     </Alert>
 
-    <template v-else>
-      <!-- Degradation banner: worker down → orders stay visible, flagged. -->
-      <WorkerHealthBanner
-        v-if="workerDown && workerHealth"
-        :health="workerHealth"
-      />
+    <!-- Task 3.1: Kill-switch warning banner -->
+    <Card v-if="workerDown" class="border-red-200 bg-red-50">
+      <CardHeader>
+        <CardTitle class="flex items-center gap-2 text-red-700">
+          <TriangleAlert class="h-5 w-5" />
+          Order Worker Unavailable
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <CardDescription class="text-red-600">
+          The order execution worker is currently down. No orders can be executed while the worker is unreachable. Please wait for recovery.
+        </CardDescription>
+      </CardContent>
+    </Card>
 
+    <div class="grid gap-6 md:grid-cols-[1fr_300px]">
+      <!-- Active Orders List (Task 3.2) -->
       <Card>
         <CardHeader>
-          <CardTitle>New order</CardTitle>
-          <CardDescription>
-            Limit and DCA orders only. Stop and TWAP are rejected explicitly.
-          </CardDescription>
-        </CardHeader>
-        <CardContent class="grid gap-4">
-          <OrderForm
-            :chains="wallet.chains"
-            :chain="formChain"
-            :balances="balances"
-            :type="formType"
-            :side="formSide"
-            :base-asset="formBaseAsset"
-            :quote-asset="formQuoteAsset"
-            :amount="formAmount"
-            :limit-price="formLimitPrice"
-            :interval="formInterval"
-            :submitting="creating"
-            :worker-down="workerDown"
-            @update:chain="formChain = $event"
-            @update:type="formType = $event"
-            @update:side="formSide = $event"
-            @update:base-asset="formBaseAsset = $event"
-            @update:quote-asset="formQuoteAsset = $event"
-            @update:amount="formAmount = $event"
-            @update:limit-price="formLimitPrice = $event"
-            @update:interval="formInterval = $event"
-            @submit="handleSubmit"
-          />
-          <!-- Creation failure: human copy for the envelope code, inline. -->
-          <Alert
-            v-if="createError"
-            variant="destructive"
-            data-testid="order-create-error"
-          >
-            <TriangleAlert aria-hidden="true" />
-            <AlertTitle>{{ createMeta.title }}</AlertTitle>
-            <AlertDescription>
-              {{ createMeta.message }}
-              <span class="font-mono">(code: {{ createError.code }})</span>
-            </AlertDescription>
-          </Alert>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader class="flex-row items-center justify-between space-y-0">
-          <div class="space-y-1.5">
-            <CardTitle>Orders</CardTitle>
-            <CardDescription>
-              Manual refresh only — nothing polls in the background.
-            </CardDescription>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            :disabled="ordersState === 'loading'"
-            @click="handleRefresh"
-          >
-            <RefreshCw aria-hidden="true" />
-            Refresh
-          </Button>
+          <CardTitle class="flex items-center justify-between">
+            Active Orders
+            <Button variant="outline" size="sm" @click="handleRefresh">
+              <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': creating }" />
+              Refresh
+            </Button>
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <div v-if="ordersState === 'loading'" class="grid gap-2">
-            <Skeleton class="h-9 w-full" />
-            <Skeleton class="h-9 w-full" />
-            <Skeleton class="h-9 w-2/3" />
-          </div>
-
-          <Alert
-            v-else-if="ordersState === 'error'"
-            variant="destructive"
-            data-testid="orders-load-error"
-          >
-            <TriangleAlert aria-hidden="true" />
-            <AlertTitle>{{ workerErrorMeta(ordersError).title }}</AlertTitle>
-            <AlertDescription>
-              {{ workerErrorMeta(ordersError).message }}
-              <span class="font-mono">(code: {{ ordersError?.code }})</span>
-            </AlertDescription>
-          </Alert>
-
           <OrdersTable
-            v-else
             :orders="orders"
             :worker-down="workerDown"
             :balances="balances"
@@ -280,9 +241,42 @@ async function handleSubmit(): Promise<void> {
             :executions="executions"
             :executions-error="executionsError"
             @toggle-executions="toggleExecutions"
+            @cancel-order="handleCancelOrder"
           />
         </CardContent>
       </Card>
-    </template>
+
+      <!-- Order Creation Form -->
+      <div class="space-y-4">
+        <OrderForm
+          v-model:chain="formChain"
+          v-model:type="formType"
+          v-model:side="formSide"
+          v-model:base-asset="formBaseAsset"
+          v-model:quote-asset="formQuoteAsset"
+          v-model:amount="formAmount"
+          v-model:limit-price="formLimitPrice"
+          v-model:interval="formInterval"
+          :balances="balances"
+          :submitting="creating"
+          @submit="handleSubmit"
+        />
+
+        <!-- Task 3.2: Live Execution Status (placeholder for Phase 2) -->
+        <Card v-if="executionsState === 'loading'">
+          <CardHeader>
+            <CardTitle class="text-sm">Execution Progress</CardTitle>
+          </CardHeader>
+          <CardContent class="space-y-2">
+            <p class="text-xs text-muted-foreground">
+              Fetching execution status...
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+
+    <!-- Worker Health Indicator -->
+    <WorkerHealthBanner :health="workerHealth" />
   </div>
 </template>
