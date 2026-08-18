@@ -1,10 +1,11 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ok, type AgentWallet, type ApiEnvelope, type TransactionIntent, type WalletBalance, type ChainId } from '@kryptr/shared-types';
 import { CreateWalletUseCase } from './application/create-wallet.usecase';
 import { ListWalletsUseCase } from './application/list-wallets.usecase';
 import { GetBalancesUseCase } from './application/get-balances.usecase';
 import { CreateTransferUseCase } from '../security/application/create-transfer.usecase';
 import { CreateWalletDto } from './dto/create-wallet.dto';
+import { JwtAuthGuard } from '../security/domain/jwt.auth.guard';
 
 /**
  * Thin controller: DTO validation happens in the global ValidationPipe,
@@ -37,6 +38,7 @@ export class WalletController {
   }
 
   @Post(':id/transfer')
+  @UseGuards(JwtAuthGuard)
   async transfer(
     @Param('id') walletId: string,
     @Body('chain') chain: string,

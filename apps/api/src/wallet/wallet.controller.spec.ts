@@ -4,6 +4,7 @@ import { CreateWalletUseCase } from './application/create-wallet.usecase';
 import { ListWalletsUseCase } from './application/list-wallets.usecase';
 import { GetBalancesUseCase } from './application/get-balances.usecase';
 import { WalletController } from './wallet.controller';
+import { CreateTransferUseCase } from '../security/application/create-transfer.usecase';
 import { WalletNotFoundError } from './domain/wallet.errors';
 
 const WALLET: AgentWallet = {
@@ -30,17 +31,20 @@ describe('WalletController (envelope shape)', () => {
   let createWallet: { execute: jest.Mock };
   let listWallets: { execute: jest.Mock };
   let getBalances: { execute: jest.Mock };
+  let createTransfer: { execute: jest.Mock };
 
   beforeAll(async () => {
     createWallet = { execute: jest.fn().mockResolvedValue(WALLET) };
     listWallets = { execute: jest.fn().mockResolvedValue([WALLET]) };
     getBalances = { execute: jest.fn().mockResolvedValue(BALANCES) };
+    createTransfer = { execute: jest.fn() };
     module = await Test.createTestingModule({
       controllers: [WalletController],
       providers: [
         { provide: CreateWalletUseCase, useValue: createWallet },
         { provide: ListWalletsUseCase, useValue: listWallets },
         { provide: GetBalancesUseCase, useValue: getBalances },
+        { provide: CreateTransferUseCase, useValue: createTransfer },
       ],
     }).compile();
     controller = module.get(WalletController);
@@ -51,6 +55,7 @@ describe('WalletController (envelope shape)', () => {
     createWallet.execute.mockResolvedValue(WALLET);
     listWallets.execute.mockResolvedValue([WALLET]);
     getBalances.execute.mockResolvedValue(BALANCES);
+    createTransfer.execute.mockClear();
   });
 
   afterAll(async () => {

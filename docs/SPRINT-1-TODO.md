@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 # Sprint 1: Critical Remediation - Operational Checklist
 
 **Created:** 2026-08-18  
@@ -423,6 +424,8 @@ Timeline: Must resolve by [date/time]
 **Last Updated:** 2026-08-18  
 **Next Review:** After daily standup  
 =======
+=======
+>>>>>>> 7c7e9fc8a (feat(core): Sprint 1 Auth Middleware, Rate Limiting & Wallet ID Hardening)
 # SPRINT 1 ACTIONABLE TODO LIST (Critical Remediation)
 
 Sprint target: 2026-08-18 to 2026-09-01
@@ -520,4 +523,7 @@ Worktree: `/home/muting/kryptr-wt/new-contracts`
 - [ ] Review PRs when submitted.
 - [ ] Ensure all GitHub Actions checks pass before squash-merging.
 - [ ] Update `docs/SPRINT-1-TODO.md` checklist status upon each PR merge.
+<<<<<<< HEAD
 >>>>>>> 433c465f4 (feat(ui): Sprint 1 CSP Headers, Test Timing Fix)
+=======
+>>>>>>> 7c7e9fc8a (feat(core): Sprint 1 Auth Middleware, Rate Limiting & Wallet ID Hardening)

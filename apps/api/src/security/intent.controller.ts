@@ -1,13 +1,18 @@
-import { Controller, Get, Post, Param, Query } from '@nestjs/common';
+import { Controller, Get, Post, Param, Query, UseGuards } from '@nestjs/common';
 import { ok, type ApiEnvelope, type TransactionIntent, type ChainId } from '@kryptr/shared-types';
 import { CreateTransferUseCase } from './application/create-transfer.usecase';
 import { GetIntentUseCase } from './application/get-intent.usecase';
+import { JwtAuthGuard, Public } from './domain/jwt.auth.guard';
 
 /**
  * Thin intent controller - routes transfer intents through security gate
  * and provides intent lookup endpoints.
+ * 
+ * POST /intents (create) requires JWT authentication
+ * GET routes are public for viewing intent status (read-only)
  */
 @Controller('intents')
+@UseGuards(JwtAuthGuard)
 export class IntentController {
   constructor(
     private readonly createTransfer: CreateTransferUseCase,
