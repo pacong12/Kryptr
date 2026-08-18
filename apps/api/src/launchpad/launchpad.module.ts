@@ -8,6 +8,8 @@ import { InMemoryLaunchRecordStore } from './infrastructure/in-memory-launch-rec
 import { PostgresDeployRecordStore } from './infrastructure/postgres-deploy-record-store';
 import { RATE_LIMIT_PROVIDER } from './infrastructure/in-memory-fixed-window.rate-limit';
 import { isPostgresPersistence } from '../persistence/prisma-client';
+import { FilesystemAbiConsumer } from './infrastructure/filesystem-abi-consumer';
+import { ABICONSUMER_TOKEN, type AbiConsumerPort } from './domain/abi-consumer.port';
 
 /**
  * Launchpad composition root (wave-5 deploy-gate branch). Exports the
@@ -19,10 +21,14 @@ import { isPostgresPersistence } from '../persistence/prisma-client';
  * Wave-6 S1: LAUNCH_RECORD_STORE is the deploy-record home (ceremony
  * publish → readback lifecycle); VERIFICATION_STORE gains a Postgres
  * backing under PERSISTENCE_MODE=postgres (git artifacts stay canonical).
+ * 
+ * Wave-6 S2: Contract ABI Consumer - loads TokenFactory.json for contract
+ * interface validation and deployment preparation.
  */
 @Module({
   controllers: [LaunchpadController],
   providers: [
+    // Artifact stores
     {
       provide: VERIFICATION_STORE,
       useFactory: () =>
@@ -38,7 +44,10 @@ import { isPostgresPersistence } from '../persistence/prisma-client';
           : new InMemoryLaunchRecordStore(),
     },
     RATE_LIMIT_PROVIDER,
+    
+    // ABI Consumer Integration (Task 1.3 Sprint 2)
+    FilesystemAbiConsumer,
   ],
-  exports: [VERIFICATION_STORE, LAUNCH_RECORD_STORE],
+  exports: [VERIFICATION_STORE, LAUNCH_RECORD_STORE, ABICONSUMER_TOKEN],
 })
 export class LaunchpadModule {}
