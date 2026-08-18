@@ -190,23 +190,23 @@ describe('WalletLaunchPage (launch consent, fail-closed)', () => {
     wrapper.unmount();
   });
 
+
   it('displays loading skeleton while draft is being fetched', async () => {
+    // Defer the draft response indefinitely until we explicitly resolve
+    let draftResolver: (() => void) | null = null;
+    const draftDeferred = new Promise<void>((resolve) => {
+      draftResolver = resolve;
+    });
+
     const impl = vi.fn(
-      async (_input: string | URL | Request, _init?: RequestInit) => {
-        // Simulate a longer network delay that exceeds our flush timing
-        const { promise, resolve } = Promise.withResolvers<void>();
-        setTimeout(resolve, 100);
-        await promise;
-        return {
-          ok: false,
-          status: 503,
-          text: async () =>
-            JSON.stringify({
-              ok: false,
-              data: null,
-              error: { code: 'not_found', message: 'nope' },
-            }),
-        };
+      async (input: string | URL | Request, _init?: RequestInit) => {
+        const url = typeof input === 'string' ? input : input.toString();
+        // Wait for our manual trigger before responding to draft endpoint
+        if (url.includes('/launchpad/wallets/') && url.endsWith('/draft')) {
+          await draftDeferred;
+        }
+        // Throw on all endpoints to trigger network error → fixture fallback
+        throw new TypeError('fetch failed');
       },
     );
     vi.stubGlobal('fetch', impl);
@@ -218,22 +218,14 @@ describe('WalletLaunchPage (launch consent, fail-closed)', () => {
     await router.push({ name: 'wallet-launch', params: { walletId: WALLET_ID } });
     await router.isReady();
 
-    // Flush once immediately - should see loading skeleton (draft fetching)
+    // Immediately flush - should see loading skeleton (draft fetching started)
     await flushPromises();
-    const { promise: p1, resolve: r1 } = Promise.withResolvers<void>();
-    setTimeout(r1, 10);
-    await p1;
-    await flushPromises();
+    expect(wrapper.find('[data-testid="launch-loading-skeleton"]').exists()).toBe(
+      true,
+    );
 
-    // Skeleton should be visible during initial load phase
-    const skeleton = wrapper.find('[data-testid="launch-loading-skeleton"]');
-    expect(skeleton.exists()).toBe(true);
-
-    // Wait for fetch to resolve and fixture fallback to kick in
-    await flushPromises();
-    const { promise: p2, resolve: r2 } = Promise.withResolvers<void>();
-    setTimeout(r2, 120);
-    await p2;
+    // Now trigger the draft response which will cause fixture fallback
+    draftResolver?.();
     await flushPromises();
 
     // Should now show badged fixtures + verified chip (mock mode)
