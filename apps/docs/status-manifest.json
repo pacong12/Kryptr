@@ -80,6 +80,12 @@
       "title": "What's live today",
       "status": "live",
       "summary": "Status index rendered from the manifest — live, preview, planned."
+    },
+    {
+      "path": "/status.html",
+      "title": "Wave 6 status",
+      "status": "live",
+      "summary": "Status progress for S1-S3, Tier D, soak clock, and venue marketplace."
     }
   ]
 }
