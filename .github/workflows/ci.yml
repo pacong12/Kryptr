@@ -183,13 +183,13 @@ jobs:
           echo "Running ZeroExVenueAdapter integration tests..."
           echo "Invariant compliance: INV-FEE-2, INV-FEE-4, INV-VENUE-1"
           echo "Fail-closed: any violation blocks merge"
-          npx nx run @kryptr/api:test --testPathPattern=zero-ex-venue
+          npx nx run @kryptr/api:test --testPathPatterns=zero-ex-venue
 
       - name: Invariant assertion hooks (zero tolerance)
         run: |
           set -euo pipefail
           echo "Running invariant assertion hooks..."
-          npx nx run @kryptr/api:test --testPathPattern=invariant --passWithNoTests
+          npx nx run @kryptr/api:test --testPathPatterns=invariant --passWithNoTests
 
   fork-tests:
     if: contains(github.event.pull_request.labels.*.name, 'fork-tests')
@@ -275,7 +275,7 @@ jobs:
       - name: Integration — PostgresSigner + SignRequestStore
         if: steps.signing_changed.outputs.changed != '0'
         run: |
-          npx nx run api:test --testPathPattern=postgres-signer.integration --testPathPattern=postgres-sign-request-store.integration
+          npx nx run api:test --testPathPatterns=postgres-signer.integration --testPathPatterns=postgres-sign-request-store.integration
 
   gitleaks:
     runs-on: ubuntu-latest
