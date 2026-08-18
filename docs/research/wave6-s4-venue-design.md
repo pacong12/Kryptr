@@ -55,8 +55,8 @@ manifests — commit-to-repo = lineage, per S2 ruling):
   "chain": { "chainId": 84532, "name": "base-sepolia" },
   "venues": [
     {
-      "venueId": "base-sepolia:uniswap-v4:launchpool",
-      "kind": "uniswap-v4-pool", // adapter family selector
+      "venueId": "base-sepolia:0x-v2:liquidity",
+      "kind": "0x-v2-liquidity", // primary adapter family selector (Wave 3 foundation; Uniswap v4 secondary)
       "adapterPort": "DexAggregatorPort", // wave-2 ruling: port behind adapter
       "poolCreationParams": { "venueBps": 8.75 }, // venue share lives HERE, nowhere else
       "feeAccrualLayer": "venue",
@@ -212,7 +212,7 @@ Tier V claim, no launch.
 | Rounding/dust policy (§4.5) — Review54 APPROVED with C1–C3                                                                                                      | user (final co-owner)                |
 | Testnet signing for FK-2 live half (runbook §9.3)                                                                                                               | Main + user                          |
 | Venue availability on Robinhood stage 2 (chainId 46630)                                                                                                         | VaultAPI                             |
-| Adapter-first venue kind for wave-6 build (Uniswap v4 pool vs 0x liquidity)                                                                                     | VaultAPI + user                      |
+| Adapter venue priority pinned: 0x v2 as first adapter (Wave 3 foundation), Uniswap v4 as second adapter | RESOLVED (Conductor ruling) |
 | venueBps economics: additive vs carve-out from the trader-paid fee — MUST be pinned when the adapter-first venue kind is chosen (row above); currently implicit | VaultAPI + user                      |
 | On-chain registry trigger conditions (§2.3)                                                                                                                     | deferred — revisit only on real need |
 
