@@ -3,6 +3,7 @@ import type {
   SignRequest,
   UnsignedTxPreview,
 } from '@kryptr/shared-types';
+import type { Prisma } from '@prisma/client';
 import { encodePacked, keccak256 } from 'viem';
 import type { SignerPort } from '../domain/signer.port';
 import { getPrismaClient } from '../../persistence/prisma-client';
@@ -34,21 +35,39 @@ export class PostgresSigner implements SignerPort {
   }): Promise<SignRequest> {
     const digest = this.digestOf(input.chain, input.preview);
 
-    const row = await this.db.signRequest.upsert({
-      where: { intentId: input.intentId },
-      create: {
-        id: `sr-${input.intentId}`,
-        intentId: input.intentId,
-        status: 'dry_run',
-        unsignedTx: input.preview as unknown as Record<string, unknown>,
-        digest,
-        note: 'dry-run only — persisted to postgres',
-        createdAt: new Date(this.now()),
-      },
-      update: {},
-    });
+    const rows = await this.db.$queryRawArray<
+      | {
+          id: string;
+          intentId: string;
+          status: string;
+          unsignedTx: unknown;
+          digest: string | null;
+          note: string | null;
+          createdAt: Date;
+        }
+      | never
+    >`
+      INSERT INTO sign_requests (id, intent_id, status, unsigned_tx, digest, note, created_at)
+      VALUES (
+        ${`sr-${input.intentId}`},
+        ${input.intentId},
+        'dry_run',
+        ${JSON.stringify(input.preview)}::jsonb,
+        ${digest},
+        'dry-run only — persisted to postgres',
+        ${new Date(this.now())}
+      )
+      ON CONFLICT (intent_id) DO NOTHING
+      RETURNING *
+    `;
 
-    return this.mapEntity(row);
+    if (rows.length === 0) {
+      // Conflict occurred - already exists, return existing
+      const existing = await this.getStatus(input.intentId);
+      return existing!;
+    }
+
+    return this.mapEntity(rows[0]);
   }
 
   async getStatus(id: string): Promise<SignRequest | null> {
@@ -81,7 +100,7 @@ export class PostgresSigner implements SignerPort {
     intentId: string;
     status: string;
     unsignedTx: unknown;
-    digest: string;
+    digest: string | null;
     note: string | null;
     createdAt: Date;
   }): SignRequest {
@@ -90,8 +109,8 @@ export class PostgresSigner implements SignerPort {
       intentId: row.intentId,
       status: row.status as SignRequest['status'],
       unsignedTx: row.unsignedTx as UnsignedTxPreview,
-      digest: row.digest as `0x${string}`,
-      note: row.note ?? undefined,
+      digest: row.digest as `0x${string}` | null,
+      note: row.note ?? '',
       createdAt: row.createdAt.toISOString(),
     };
   }
