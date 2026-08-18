@@ -1,6 +1,16 @@
 /**
  * Venue registry validator (wave-6 S4, design §2.2).
  *
+ * FAIL-CLOSED posture: Every venue file enforces ADDITIVE MODEL economics per user P2 decision:
+ * - Venue fee is APPLIED ADDITIVELY to base fee (175 bps)
+ * - Trader pays: 175 bps base + venue_share (total increases)
+ * - No carve-out from base fee pool (preserves INV-FEE-2 conservation integrity)
+ *
+ * Schema Requirements Aligned with §8 E-13..E-17:
+ * - accrualBasis MUST be "trade_amount" for active venues (TC-19/E-17)
+ * - venueBps in poolCreationParams validated as non-negative number
+ * - Two-ledger separation: Schedule vs Venue accruals tracked independently
+ *
  * Fail-closed posture: every contracts/deployments/venues/{chain}.venues.json
  * must carry the schema defined in wave6-s4-venue-design.md §2.2. Enforces:
  *   - shape validation (required fields, correct types)
@@ -26,6 +36,7 @@ const venuesDir = join(here, '..', 'deployments', 'venues');
 
 const VALID_STATUSES = ['active', 'suspended', 'superseded'];
 const VENUE_ID_RE = /^[a-z0-9][a-z0-9:-]*[a-z0-9]$/;
+const HIGH_VENUE_BPS_THRESHOLD = 20; // Warning threshold: >20 bps venue share
 
 function fail(file, reason) {
   console.error(`[venues] INVALID ${file}: ${reason}`);
@@ -110,6 +121,10 @@ for (const file of files) {
       fail(file, `${prefix}: missing or invalid "poolCreationParams"`);
     } else if (typeof v.poolCreationParams.venueBps !== 'number' || v.poolCreationParams.venueBps < 0) {
       fail(file, `${prefix}: poolCreationParams.venueBps must be non-negative`);
+    } else if (v.poolCreationParams.venueBps > HIGH_VENUE_BPS_THRESHOLD) {
+      // ADDITIVE MODEL: High venue share warning (transparency concern)
+      warn(file, `${prefix}: venueBps=${v.poolCreationParams.venueBps} exceeds ${HIGH_VENUE_BPS_THRESHOLD} bps — ensure trader transparency (additive model)`);
+      warnings++;
     }
     if (typeof v.feeAccrualLayer !== 'string' || v.feeAccrualLayer.trim().length === 0) {
       fail(file, `${prefix}: missing or empty "feeAccrualLayer"`);
@@ -119,6 +134,7 @@ for (const file of files) {
     }
 
     // accrualBasis: OPTIONAL but fail-closed for active venues (E-17/TC-19)
+    // ADDITIVE MODEL: Must be "trade_amount" for active venues to preserve INV-FEE-2
     if (typeof v.accrualBasis === 'undefined' || v.accrualBasis === null) {
       if (v.status === 'active') {
         fail(file, `${prefix}: active venue MUST document accrualBasis (E-17/TC-19 fail-closed)`);
