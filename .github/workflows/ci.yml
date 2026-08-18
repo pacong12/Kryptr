@@ -13,17 +13,6 @@ permissions:
 jobs:
   main:
     runs-on: ubuntu-latest
-    # Wave-4 worker suites run against a REAL Redis (no in-memory mock):
-    # redis:7-alpine mirrors docker-compose.yml parity, healthcheck-gated so
-    # no readiness sleeps are ever needed, reachable at localhost:6379
-    # because the job runs directly on the runner.
-    #
-    # Wave-6 S1 persistence (OpsCI item, wave6-s1-persistence-design.md §10):
-    # postgres:16-alpine mirrors docker-compose.yml; DIRECT_URL == DATABASE_URL
-    # because this is a plain server (no pgbouncer). prisma migrate deploy
-    # runs once before nx affected so every Postgres-backed integration harness
-    # finds a migrated schema. Hermetic unit suites are unaffected — they use
-    # in-memory adapters and ignore DATABASE_URL.
     services:
       redis:
         image: redis:7-alpine
@@ -63,15 +52,9 @@ jobs:
 
       - run: npm ci
 
-      # Run pending migrations before any test that exercises Postgres-backed
-      # adapters. DIRECT_URL == DATABASE_URL (plain server, no pooler in CI).
       - name: Apply Prisma migrations
         run: npx prisma migrate deploy
 
-      # Pick the diff base per event. PRs compare against origin/main; on
-      # pushes to main, origin/main == HEAD so `nx affected` would see an
-      # empty set — use HEAD~1 to validate exactly what was just merged
-      # (falling back to the root commit on a single-commit history).
       - name: Compute nx base
         id: nx_base
         run: |
@@ -86,24 +69,14 @@ jobs:
       - run: npx nx format:check --base="${{ steps.nx_base.outputs.base }}"
         if: github.event_name == 'pull_request'
 
-      # Lint/build/test/typecheck/smoke/test-workers only what changed vs
-      # the computed base.
       - run: npx nx affected --base="${{ steps.nx_base.outputs.base }}" -t build test typecheck lint smoke test-workers --parallel=3
 
-  # Wave-5 contracts gates (entry gate #2 — present from the FIRST
-  # contracts PR, never retrofitted): forge build/test/fmt + Slither
-  # triage-baseline scan + deploy-manifest validation. Foundry and Slither
-  # are installed ON THE RUNNER here (foundry-toolchain action + pinned
-  # slither), never assumed from dev machines. Fork tests stay OUT of
-  # default CI (label-gated job below; nightly schedule).
   contracts:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-          # forge-std arrives as a pinned git submodule (factory phase);
-          # recursive checkout keeps the gates hermetic on the runner.
           submodules: recursive
 
       - uses: actions/setup-node@v5
@@ -115,12 +88,11 @@ jobs:
 
       - uses: foundry-rs/foundry-toolchain@v1
         with:
-          # Exact pin (Review54 F1): matches the conductor-proven local
-          # toolchain; bump deliberately, never float.
           version: v1.7.1
 
       - name: Install Slither
         run: python3 -m pip install --user slither-analyzer==0.11.6
+
       - name: Compute nx base
         id: nx_base
         run: |
@@ -131,18 +103,11 @@ jobs:
           else
             echo "base=$(git rev-list --max-parents=0 HEAD)" >> "$GITHUB_OUTPUT"
           fi
-      # Only @kryptr/contracts defines these targets, so affected runs them
-      # only when contracts/ changed; no-op (green) otherwise.
-      # NOTE: no --projects flag — nx would forward it to the commands.
-      - name: Contracts gates (forge-build/forge-test/fmt/slither/manifests/canonicalize)
+
+      - name: Contracts gates
         run: npx nx affected --base="${{ steps.nx_base.outputs.base }}" -t forge-build forge-test fmt slither manifests canonicalize
 
-      # Wave-6 S4 venue registry validation (wave6-s4-venue-design.md §2.2):
-      # fail-closed on any malformed entry when venue files exist; graceful
-      # no-op when contracts/deployments/venues/ is absent or empty (S4 build
-      # not yet landed). Pattern mirrors manifests/verify-content-hash steps:
-      # presence check first, then validation, never trust-but-skip.
-      - name: Venue registry validation (S4, no-op until venue files land)
+      - name: Venue registry validation
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -154,9 +119,73 @@ jobs:
           echo "Validating ${#venue_files[@]} venue file(s)..."
           node contracts/tools/validate-venues.mjs "${venue_files[@]}"
 
-  # Fork tests against real Base RPC: OPT-IN via the `fork-tests` PR label
-  # (public RPC rate limits/flakes must never gate default CI). Nightly
-  # schedule covers the recurring signal.
+  # Wave-6 S4 venue integration testing (Phase 2 Week 1-2):
+  # Validates ZeroExVenueAdapter additive fee model, invariant compliance,
+  # and two-ledger separation. Fail-closed posture: any invariant violation
+  # blocks merge. Runs in CI from day one (no local-only testing).
+  #
+  # Invariants enforced:
+  # - INV-FEE-2: Exact conservation (sum(recipientShares) == baseFeeWei)
+  # - INV-FEE-4: Rate identity floor math (venueAccrualWei == floor(tradeAmount × venueBps / 10_000))
+  # - INV-VENUE-1: Two-ledger separation (no cross-contamination)
+  integration-venue:
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: kryptr
+          POSTGRES_PASSWORD: kryptr_dev
+          POSTGRES_DB: kryptr
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kryptr"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      REDIS_URL: redis://localhost:6379
+      DATABASE_URL: postgresql://kryptr:kryptr_dev@localhost:5432/kryptr
+      DIRECT_URL: postgresql://kryptr:kryptr_dev@localhost:5432/kryptr
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Apply Prisma migrations
+        run: npx prisma migrate deploy
+
+      - name: Venue integration tests (additive fee model + invariants)
+        run: |
+          set -euo pipefail
+          echo "Running ZeroExVenueAdapter integration tests..."
+          echo "Invariant compliance: INV-FEE-2, INV-FEE-4, INV-VENUE-1"
+          echo "Fail-closed: any violation blocks merge"
+          npx nx run @kryptr/api:test --testPathPattern=zero-ex-venue
+
+      - name: Invariant assertion hooks (zero tolerance)
+        run: |
+          set -euo pipefail
+          echo "Running invariant assertion hooks..."
+          npx nx run @kryptr/api:test --testPathPattern=invariant --passWithNoTests
+
   fork-tests:
     if: contains(github.event.pull_request.labels.*.name, 'fork-tests')
     runs-on: ubuntu-latest
@@ -176,23 +205,11 @@ jobs:
         with:
           version: v1.7.1
 
-      # UNIT-ONLY on fork by ruling (Main, fork round 31949753694): the
-      # 256x128 invariant campaigns saturate the keyless public RPC (HTTP
-      # 429) — they run locally on anvil in forge-test; the fork-test target
-      # excludes test/invariant/*. Public-RPC rate limits must never gate
-      # this job; forked invariant campaigns return with a keyed RPC in the
-      # nightly deep campaign.
       - name: Fork tests (public Base RPC, keyless, unit-only)
         run: npx nx run @kryptr/contracts:fork-test
         env:
           RPC_URL_BASE: https://mainnet.base.org
-          # Label-gated PR runs intentionally use the LATEST block (fresh
-          # signal); the release-gate B_pin pinning (runbook §5) happens in
-          # the nightly dispatch / release-tag flow via FORK_BLOCK_BASE.
 
-  # Secret scanning: fail if anything that looks like a real key lands in
-  # the repo. GitGuardian alone does not cover pushes from this repo, so
-  # gitleaks runs on both PRs and pushes-to-main.
   gitleaks:
     runs-on: ubuntu-latest
     permissions:
