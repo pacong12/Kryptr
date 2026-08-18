@@ -9,6 +9,7 @@ import type {
   Order,
   OrderExecution,
   SecurityDecision,
+  SignRequest,
   SwapQuote,
   TransactionIntent,
   TransactionStatus,
@@ -894,3 +895,33 @@ export const MOCK_FACTORY_HEALTH: FactoryHealth = {
   pendingReviews: 2,
   checkedAt: '2026-08-16T09:30:00.000Z',
 };
+
+// Wave 6: signing console fixtures — pending /signing/ endpoint from vault.
+export const MOCK_SIGN_REQUESTS: SignRequest[] = [
+  {
+    id: 'sr_001',
+    intentId: 'int_9f3a',
+    status: 'pending',
+    unsignedTx: {
+      to: '0x9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e0d',
+      data: '0x',
+      value: '0x3782dace9d9000',
+    },
+    digest: '0xdeadbeef1234567890abcdef1234567890abcdef1234567890abcdef12345678',
+    note: 'Pending external signer decision',
+    createdAt: '2026-08-17T10:00:00.000Z',
+  },
+  {
+    id: 'sr_002',
+    intentId: 'int_7c1e',
+    status: 'dry_run',
+    unsignedTx: {
+      to: '0x0a1b2c3d4e5f60718293a4b5c6d7e8f901234567',
+      data: '0xa9059cbb',
+      value: '0x0',
+    },
+    digest: '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+    note: 'dry-run only — nothing broadcast',
+    createdAt: '2026-08-17T09:45:00.000Z',
+  },
+];
