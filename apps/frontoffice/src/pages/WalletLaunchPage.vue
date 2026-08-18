@@ -107,7 +107,11 @@ async function handleSubmit(): Promise<void> {
       </CardContent>
     </Card>
 
-    <div v-else-if="consent.draftState.value === 'loading'" class="grid gap-4">
+    <div
+      v-else-if="consent.draftState.value === 'loading'"
+      data-testid="launch-loading-skeleton"
+      class="grid gap-4"
+    >
       <Skeleton class="h-40 w-full" />
       <Skeleton class="h-40 w-full" />
       <Skeleton class="h-24 w-full" />
