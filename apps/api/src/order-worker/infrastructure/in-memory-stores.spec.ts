@@ -93,8 +93,8 @@ describe('InMemoryOrderStore — terminal guard', () => {
     const store = new InMemoryOrderStore();
     await store.save(order('open'));
     await store.save({ ...order('open'), id: 'ord-2', status: 'cancelled' });
-    expect((await store.findOpen()).map((o) => o.id)).toEqual(['ord-1']);
-    expect((await store.findAll()).map((o) => o.id).sort()).toEqual([
+    expect((await store.findOpen()).map((o: { id: string }) => o.id)).toEqual(['ord-1']);
+    expect((await store.findAll()).map((o: { id: string }) => o.id).sort()).toEqual([
       'ord-1',
       'ord-2',
     ]);
@@ -112,7 +112,7 @@ describe('InMemoryOrderStore — terminal guard', () => {
     await store.save(order('open'));
     await store.save({ ...order('open'), id: 'ord-paused', status: 'paused' });
     await store.save({ ...order('open'), id: 'ord-filled', status: 'filled' });
-    expect((await store.findLive()).map((o) => o.id).sort()).toEqual([
+    expect((await store.findLive()).map((o: { id: string }) => o.id).sort()).toEqual([
       'ord-1',
       'ord-paused',
     ]);

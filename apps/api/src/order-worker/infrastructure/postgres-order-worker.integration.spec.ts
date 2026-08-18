@@ -21,7 +21,6 @@ describePostgres('Order Worker Postgres Adapters (S1 Fase 2, live Postgres)', ()
     id,
     walletId: '0x0000000000000000000000000000000000000001',
     chain: 'base',
-    kind: 'swap',
     status,
     schedule: {
       cron: '* * * * *',
