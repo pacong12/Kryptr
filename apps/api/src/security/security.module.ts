@@ -27,6 +27,7 @@ import { ManifestDeployAllowlist } from './infrastructure/manifest-deploy-allowl
 import { PostgresSpendLedger } from './infrastructure/postgres-spend-ledger';
 import { PostgresIntentStore } from './infrastructure/postgres-intent-store';
 import { PostgresDecisionAudit } from './infrastructure/postgres-decision-audit';
+import { PostgresSecurityPolicyProvider } from './infrastructure/postgres-security-policy-provider';
 import { isPostgresPersistence } from '../persistence/prisma-client';
 
 /**
@@ -72,7 +73,13 @@ import { isPostgresPersistence } from '../persistence/prisma-client';
           ? new PostgresSpendLedger()
           : new InMemorySpendLedger(),
     },
-    { provide: POLICY_PROVIDER, useClass: InMemorySecurityPolicyProvider },
+    {
+      provide: POLICY_PROVIDER,
+      useFactory: () =>
+        isPostgresPersistence()
+          ? new PostgresSecurityPolicyProvider()
+          : new InMemorySecurityPolicyProvider(),
+    },
     {
       provide: INTENT_STORE,
       useFactory: () =>
