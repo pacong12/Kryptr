@@ -1,0 +1,58 @@
+{
+  "name": "mainnet-normal",
+  "description": "Simulates typical mainnet transaction patterns during normal operating hours",
+  "targetDurationSec": 86400,
+  "virtualUsers": 50,
+  "endpoints": [
+    {
+      "path": "/api/health",
+      "weight": 30,
+      "method": "GET",
+      "responseTimeTargetMs": 100
+    },
+    {
+      "path": "/api/v1/wallets",
+      "weight": 25,
+      "method": "GET",
+      "authRequired": true,
+      "responseTimeTargetMs": 150
+    },
+    {
+      "path": "/api/v1/transfers",
+      "weight": 20,
+      "method": "POST",
+      "body": {"amount": 1000, "currency": "USDC"},
+      "authRequired": true,
+      "responseTimeTargetMs": 200
+    },
+    {
+      "path": "/api/v1/orders/dca",
+      "weight": 15,
+      "method": "POST",
+      "body": {"frequency": "DAILY", "amount": 500},
+      "authRequired": true,
+      "responseTimeTargetMs": 250
+    },
+    {
+      "path": "/api/v1/stats/dashboard",
+      "weight": 10,
+      "method": "GET",
+      "authRequired": true,
+      "responseTimeTargetMs": 180
+    }
+  ],
+  "trafficPattern": {
+    "peakHours": [9, 10, 11, 14, 15, 16],
+    "lowTrafficHours": [0, 1, 2, 3, 4, 5],
+    "userDistribution": {
+      "readRequests": 70,
+      "writeRequests": 30
+    }
+  },
+  "thresholds": {
+    "p95ResponseTimeMs": 200,
+    "p99ResponseTimeMs": 300,
+    "errorRatePercent": 0.1,
+    "minSuccessfulRequests": 99.9
+  }
+}

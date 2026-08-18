@@ -3,7 +3,12 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
-    "prepare": "node scripts/install-hooks.mjs"
+    "prepare": "node scripts/install-hooks.mjs",
+    "test:load:normal": "NODE_ENV=test ts-node tests/load/run-test.ts --scenario mainnet-normal",
+    "test:load:peak": "NODE_ENV=test ts-node tests/load/run-test.ts --scenario mainnet-peak",
+    "test:load:stress": "NODE_ENV=test ts-node tests/load/run-test.ts --scenario mainnet-stress",
+    "test:load:all": "npm run test:load:normal && npm run test:load:peak && npm run test:load:stress",
+    "test:load:report": "ts-node tests/load/generate-comparison.ts"
   },
   "private": true,
   "devDependencies": {
