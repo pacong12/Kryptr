@@ -63,8 +63,7 @@ contract DeployLaunchpad is Script {
         deployment.blockNumber = block.number;
         deployment.timestamp = block.timestamp;
         bytes memory hashBytes = bytes(vm.envString("COMMIT_HASH"));
-        deployment.commitHash = hashBytes.length >= 7 ? 
-            string(hashBytes[0:7]) : "local-dev";
+        deployment.commitHash = hashBytes.length >= 7 ? string(hashBytes[0:7]) : "local-dev";
 
         emitDeploymentManifest();
 
@@ -77,11 +76,17 @@ contract DeployLaunchpad is Script {
     function emitDeploymentManifest() internal {
         string memory manifestPath = string.concat("deployments/", deployment.chainName, ".json");
         string memory manifest = string.concat(
-            '{"chain":"', deployment.chainName,
-            '","factoryAddress":"', abi.encodePacked(deployment.factoryAddress),
-            '","bondSink":"', abi.encodePacked(BOND_SINK),
-            '", "verificationId": null,"commitSha":"', deployment.commitHash,
-            '","deployedAt":"', vm.toString(deployment.timestamp), '"}'
+            '{"chain":"',
+            deployment.chainName,
+            '","factoryAddress":"',
+            abi.encodePacked(deployment.factoryAddress),
+            '","bondSink":"',
+            abi.encodePacked(BOND_SINK),
+            '", "verificationId": null,"commitSha":"',
+            deployment.commitHash,
+            '","deployedAt":"',
+            vm.toString(deployment.timestamp),
+            '"}'
         );
         vm.writeFile(manifestPath, manifest);
         console.log("Manifest written:", manifestPath);
