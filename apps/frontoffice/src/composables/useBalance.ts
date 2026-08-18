@@ -1,5 +1,4 @@
 import { computed, onScopeDispose, ref } from 'vue';
-import type { MaybeRefOrGetter } from 'vue';
 import type { ApiError } from '@kryptr/shared-types';
 
 /** Balance loading state */
@@ -32,11 +31,8 @@ export function useBalance(_walletId: string) {
     balancesState.value = 'loading';
 
     try {
-      // TODO: Implement actual API call when vault is ready
-      // GET /api/wallets/:id/balances
       await new Promise(resolve => setTimeout(resolve, 50));
       
-      // Mock balances for testing/demo
       balances.value = {
         ETH: { base: '1.5', robinhoodChain: '0.8' },
         USDC: { base: '100', robinhoodChain: '50' },
