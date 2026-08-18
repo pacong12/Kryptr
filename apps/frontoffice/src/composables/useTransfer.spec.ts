@@ -42,7 +42,12 @@ describe('useTransfer (transfer intent creation with security gate)', () => {
         status: 200,
         json: async () => ({ 
           ok: true, 
-          data: { decision: 'approved', policyId: 'policy-1', timestamp: new Date().toISOString() } satisfies SecurityDecision,
+          data: { 
+          intentId: `transfer-${Date.now()}`,
+          result: 'approved' as const,
+          reason: 'All checks passed',
+          decidedAt: new Date().toISOString(),
+        } satisfies SecurityDecision,
           error: null,
         }),
       })),
@@ -98,10 +103,10 @@ describe('useTransfer (transfer intent creation with security gate)', () => {
         json: async () => ({
           ok: true,
           data: { 
-            decision: 'rejected', 
-            policyId: 'policy-blocked', 
+            intentId: `transfer-${Date.now()}`,
+            result: 'rejected' as const,
             reason: 'Transfer exceeds daily limit',
-            timestamp: new Date().toISOString()
+            decidedAt: new Date().toISOString()
           } satisfies SecurityDecision,
           error: null,
         }),
