@@ -34,6 +34,7 @@ watch every decision the security gate makes.
 **Wave 6 status:** S1 Persistence ✓ complete, S2 Signing Ceremony ✓ complete, S3 Deploy Rehearsal ✓✓✓ complete & green on both testnet chains. Tier D ⏸️ postponed pending decision; Soak Clock ⏸️ not started. Factory remains DARK until Tier D PASS + soak completion. No mainnet deployment ETA announced.
 
 **Signing is dry-run only in this phase — nothing is broadcast on-chain yet.**
+
 ## 🚀 Mainnet Readiness (Phase 3)
 
 ### Current Status: Testnet Rehearsal Complete ✅
@@ -50,6 +51,7 @@ We've successfully completed extensive testing on Base Sepolia testnet with full
 ### Network Detection & Warnings
 
 The app now includes automatic network detection:
+
 - 🟢 **Production Mode**: Green banner when connected to Base Mainnet
 - 🟡 **Testnet Mode**: Amber warning banner when connected to test networks
 
