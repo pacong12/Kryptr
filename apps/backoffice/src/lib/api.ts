@@ -14,6 +14,7 @@ import type {
   SecurityDecision,
   SignRequest,
   SwapQuote,
+  TransactionIntent,
   WalletBalance,
   WorkerHealth,
 } from '@kryptr/shared-types';
@@ -149,10 +150,13 @@ export async function getWallets(): Promise<DataSource<AgentWallet[]>> {
  * intents listing endpoint yet (see docs/tasks/deck.md retro). The panel is
  * always flagged `mock` until that contract exists.
  */
-export async function getRecentIntents(): Promise<
-  DataSource<IntentWithStatus[]>
-> {
-  return { data: MOCK_INTENTS, mock: true, apiError: null };
+/**
+ * Wave 1: the recent-intents feed now uses live API (GET /intents?walletId=xxx).
+ * Falls back to fixtures only if API is unreachable or returns empty results.
+ */
+export async function getRecentIntents(): Promise<DataSource<IntentWithStatus[]>> {
+  const outcome = await fetchEnvelope<IntentWithStatus[]>("/intents");
+  return toDataSource(outcome, []);
 }
 
 /** Result of an operator decision as returned (or stubbed) by the gate. */
