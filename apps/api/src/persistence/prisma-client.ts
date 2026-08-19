@@ -37,9 +37,28 @@ export function getPrismaClient(): PrismaClient {
         'DATABASE_URL is required when PERSISTENCE_MODE=postgres (fail-closed)',
       );
     }
-    const adapter = new PrismaPg({ connectionString: url });
-    client = new PrismaClient({ adapter });
-  }
+    
+    // Production database pool tuning for high-throughput intent creation
+    const poolConfig = {
+      // Optimize Prisma connection pool for production workload
+      max: parseInt(process.env.DB_POOL_MAX ?? '20'), // Max connections in pool
+      min: parseInt(process.env.DB_POOL_MIN ?? '5'),   // Minimum idle connections
+      idleTimeoutMs: parseInt(process.env.DB_IDLE_TIMEOUT ?? '30000'), // 30s idle timeout
+      connectionTimeoutMs: parseInt(process.env.DB_CONNECTION_TIMEOUT ?? '10000'), // 10s connect timeout
+      statementTimeout: parseInt(process.env.DB_STATEMENT_TIMEOUT ?? '30000'), // 30s query timeout
+    };
+    
+    const adapter = new PrismaPg({ 
+      connectionString: url,
+      ...poolConfig, // Apply pool tuning configuration
+    });
+    
+    client = new PrismaClient({ 
+      adapter,
+      log: process.env.DB_LOG_LEVEL === 'debug' 
+        ? ['query', 'error', 'warn'] 
+        : ['error'],
+    });
   return client;
 }
 
