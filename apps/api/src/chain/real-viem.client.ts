@@ -4,7 +4,8 @@ import type { ViemClientPort } from './viem-client.port';
 
 export const DEFAULT_RPC_URL_BASE = 'https://mainnet.base.org';
 export const FALLBACK_RPC_URL_BASE = 'https://base-rpc.publicnode.com';
-export const SECONDARY_RPC_URL_BASE = 'https://base-mainnet.g.alchemy.com/v2/demo';
+export const SECONDARY_RPC_URL_BASE =
+  'https://base-mainnet.g.alchemy.com/v2/demo';
 
 const HEALTH_TTL_MS = 30_000;
 const MULTICALL3 = '0xcA11bde05977b3631167028862bE2a173976CA11';
@@ -73,13 +74,13 @@ export class RealViemClient implements ViemClientPort {
     const secondaryRpcUrl = options.secondaryRpcUrl ?? SECONDARY_RPC_URL_BASE;
     const fetchImpl = options.fetchImpl ?? globalThis.fetch;
     let nextId = 0;
-    
+
     // Production RPC fallback chain with circuit breaker
     const rpcChain = [rpcUrl, fallbackRpcUrl, secondaryRpcUrl];
     let currentIdx = 0;
     let failureCount = 0;
     const MAX_FAILURES = 3;
-    
+
     const request = async ({
       method,
       params,
@@ -93,7 +94,7 @@ export class RealViemClient implements ViemClientPort {
         method,
         params: params ?? [],
       });
-      
+
       const post = async (
         url: string,
       ): Promise<{ result?: unknown; error?: { message?: string } }> => {
@@ -111,7 +112,7 @@ export class RealViemClient implements ViemClientPort {
           error?: { message?: string };
         };
       };
-      
+
       // Try RPCs in sequence with exponential backoff
       let lastError: Error | null = null;
       for (let attempt = 0; attempt < rpcChain.length; attempt++) {
@@ -135,10 +136,10 @@ export class RealViemClient implements ViemClientPort {
           }
         }
       }
-      
+
       throw lastError ?? new Error('All RPC providers failed');
     };
-    
+
     // viem's PublicClient satisfies the seam at runtime; the generic
     // multicall overload is narrower on paper, hence the cast.
     const client = createPublicClient({
