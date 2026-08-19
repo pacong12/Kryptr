@@ -88,10 +88,6 @@ export class RealViemClient implements ViemClientPort {
     const request = async ({
       method,
       params,
-    }: {
-      method: string;
-      params?: unknown;
-    }): Promise<unknown> => {
       const payload = JSON.stringify({
         jsonrpc: '2.0',
         id: ++nextId,
@@ -99,7 +95,7 @@ export class RealViemClient implements ViemClientPort {
         params: params ?? [],
       });
 
-      ): Promise<{ result?: unknown; error?: { message?: string } }> => {
+      const post = async (url: string): Promise<{ result?: unknown; error?: { message?: string } }> => {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
         try {
@@ -133,6 +129,20 @@ export class RealViemClient implements ViemClientPort {
             throw new Error(json.error.message ?? 'json-rpc error');
           }
           failureCount = 0;
+          currentIdx = (currentIdx + 1) % rpcChain.length; // Rotate for load balancing
+          return json.result;
+        } catch (err) {
+          lastError = err instanceof Error ? err : new Error(String(err));
+          failureCount++;
+          // If consecutive failures exceed threshold, skip this RPC temporarily
+          if (failureCount >= MAX_FAILURES) {
+            currentIdx = (currentIdx + 1) % rpcChain.length;
+            failureCount = 0;
+          }
+        }
+      }
+
+      throw lastError ?? new Error('All RPC providers failed');
           currentIdx = (currentIdx + 1) % rpcChain.length; // Rotate for load balancing
           return json.result;
         } catch (err) {
