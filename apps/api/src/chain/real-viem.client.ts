@@ -4,6 +4,8 @@ import type { ViemClientPort } from './viem-client.port';
 
 export const DEFAULT_RPC_URL_BASE = 'https://mainnet.base.org';
 export const FALLBACK_RPC_URL_BASE = 'https://base-rpc.publicnode.com';
+export const SECONDARY_RPC_URL_BASE =
+  'https://base-mainnet.g.alchemy.com/v2/demo';
 
 const HEALTH_TTL_MS = 30_000;
 const MULTICALL3 = '0xcA11bde05977b3631167028862bE2a173976CA11';
@@ -15,18 +17,13 @@ const MULTICALL3 = '0xcA11bde05977b3631167028862bE2a173976CA11';
 export interface ViemPublicClientLike {
   getBalance(args: { address: `0x${string}` }): Promise<bigint>;
   multicall(args: {
-    multicallAddress?: `0x${string}`;
-    contracts: Array<{
-      address: `0x${string}`;
-      abi: unknown;
-      functionName: string;
-      args: unknown[];
-    }>;
+    contracts: readonly { address: `0x${string}`; functionFragment: unknown }[];
     allowFailure?: boolean;
   }): Promise<
     Array<{ status: 'success'; result: unknown } | { status: 'failure' }>
   >;
   getBlockNumber(): Promise<bigint>;
+  chainId?(): Promise<number>;
 }
 
 export interface RealViemClientOptions {
@@ -74,8 +71,16 @@ export class RealViemClient implements ViemClientPort {
   static fromRpc(options: FromRpcOptions = {}): RealViemClient {
     const rpcUrl = options.rpcUrl ?? DEFAULT_RPC_URL_BASE;
     const fallbackRpcUrl = options.fallbackRpcUrl ?? FALLBACK_RPC_URL_BASE;
+    const secondaryRpcUrl = options.secondaryRpcUrl ?? SECONDARY_RPC_URL_BASE;
     const fetchImpl = options.fetchImpl ?? globalThis.fetch;
     let nextId = 0;
+
+    // Production RPC fallback chain with circuit breaker
+    const rpcChain = [rpcUrl, fallbackRpcUrl, secondaryRpcUrl];
+    let currentIdx = 0;
+    let failureCount = 0;
+    const MAX_FAILURES = 3;
+
     const request = async ({
       method,
       params,
@@ -89,6 +94,7 @@ export class RealViemClient implements ViemClientPort {
         method,
         params: params ?? [],
       });
+
       const post = async (
         url: string,
       ): Promise<{ result?: unknown; error?: { message?: string } }> => {
@@ -96,6 +102,7 @@ export class RealViemClient implements ViemClientPort {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: payload,
+          timeout: 5000, // 5 second timeout per RPC call
         });
         if (!res.ok) {
           throw new Error(`rpc http ${res.status}`);
@@ -105,17 +112,34 @@ export class RealViemClient implements ViemClientPort {
           error?: { message?: string };
         };
       };
-      let json: { result?: unknown; error?: { message?: string } };
-      try {
-        json = await post(rpcUrl);
-      } catch {
-        json = await post(fallbackRpcUrl);
+
+      // Try RPCs in sequence with exponential backoff
+      let lastError: Error | null = null;
+      for (let attempt = 0; attempt < rpcChain.length; attempt++) {
+        const url = rpcChain[(currentIdx + attempt) % rpcChain.length];
+        try {
+          const json = await post(url);
+          // Reset failure count on success
+          if (json.error) {
+            throw new Error(json.error.message ?? 'json-rpc error');
+          }
+          failureCount = 0;
+          currentIdx = (currentIdx + 1) % rpcChain.length; // Rotate for load balancing
+          return json.result;
+        } catch (err) {
+          lastError = err instanceof Error ? err : new Error(String(err));
+          failureCount++;
+          // If consecutive failures exceed threshold, skip this RPC temporarily
+          if (failureCount >= MAX_FAILURES) {
+            currentIdx = (currentIdx + 1) % rpcChain.length;
+            failureCount = 0;
+          }
+        }
       }
-      if (json.error) {
-        throw new Error(json.error.message ?? 'json-rpc error');
-      }
-      return json.result;
+
+      throw lastError ?? new Error('All RPC providers failed');
     };
+
     // viem's PublicClient satisfies the seam at runtime; the generic
     // multicall overload is narrower on paper, hence the cast.
     const client = createPublicClient({

@@ -1,0 +1,76 @@
+{
+  "name": "mainnet-stress",
+  "description": "Simulates extreme stress scenarios exceeding typical maximum expected load",
+  "targetDurationSec": 1800,
+  "virtualUsers": 500,
+  "endpoints": [
+    {
+      "path": "/api/health",
+      "weight": 10,
+      "method": "GET",
+      "responseTimeTargetMs": 100
+    },
+    {
+      "path": "/api/v1/wallets",
+      "weight": 15,
+      "method": "GET",
+      "authRequired": true,
+      "responseTimeTargetMs": 200
+    },
+    {
+      "path": "/api/v1/transfers",
+      "weight": 30,
+      "method": "POST",
+      "body": {"amount": 10000, "currency": "USDC"},
+      "authRequired": true,
+      "responseTimeTargetMs": 300
+    },
+    {
+      "path": "/api/v1/orders/batch",
+      "weight": 25,
+      "method": "POST",
+      "body": {"orders": [{"frequency": "DAILY", "amount": 1000}], "maxOrders": 10},
+      "authRequired": true,
+      "responseTimeTargetMs": 400
+    },
+    {
+      "path": "/api/v1/stats/analytics",
+      "weight": 20,
+      "method": "GET",
+      "authRequired": true,
+      "responseTimeTargetMs": 500
+    }
+  ],
+  "trafficPattern": {
+    "steadyStateUsers": 500,
+    "burstWindows": [
+      {
+        "startOffsetSec": 60,
+        "durationSec": 30,
+        "usersMultiplier": 3.0
+      },
+      {
+        "startOffsetSec": 300,
+        "durationSec": 60,
+        "usersMultiplier": 2.0
+      }
+    ],
+    "concurrentWriteRequests": 50,
+    "userDistribution": {
+      "readRequests": 40,
+      "writeRequests": 60
+    }
+  },
+  "thresholds": {
+    "p95ResponseTimeMs": 500,
+    "p99ResponseTimeMs": 1000,
+    "errorRatePercent": 5.0,
+    "gracefulDegradationExpected": true,
+    "connectionPoolSaturationCheck": true
+  },
+  "failClosedBehavior": {
+    "rejectionThreshold": 80,
+    "autoScaleTrigger": 75,
+    "circuitBreakerThreshold": 90
+  }
+}
