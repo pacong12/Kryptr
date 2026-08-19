@@ -76,26 +76,49 @@ async function handleSubmit(): Promise<void> {
 <template>
   <div class="space-y-6">
     <!-- Network Detection Banner -->
-    <Card v-if="showNetworkWarning" data-testid="network-warning-banner" class="border-amber-200 bg-amber-50 dark:bg-amber-950/20">
+    <Card
+      v-if="showNetworkWarning"
+      data-testid="network-warning-banner"
+      class="border-amber-200 bg-amber-50 dark:bg-amber-950/20"
+    >
       <CardContent class="p-4">
         <div class="flex items-start gap-3">
-          <TriangleAlert class="size-5 shrink-0 text-amber-600 dark:text-amber-500" />
+          <TriangleAlert
+            class="size-5 shrink-0 text-amber-600 dark:text-amber-500"
+          />
           <div class="grid gap-1">
-            <p class="font-medium text-amber-900 dark:text-amber-100 text-sm">⚠️ Testnet Detected</p>
-            <p class="text-muted-foreground text-xs">You are currently connected to a test network. For production launches, please switch to Base Mainnet to ensure security and proper deployment. This is a preview environment.</p>
+            <p class="font-medium text-amber-900 dark:text-amber-100 text-sm">
+              ⚠️ Testnet Detected
+            </p>
+            <p class="text-muted-foreground text-xs">
+              You are currently connected to a test network. For production
+              launches, please switch to Base Mainnet to ensure security and
+              proper deployment. This is a preview environment.
+            </p>
           </div>
         </div>
       </CardContent>
     </Card>
-    <Card v-else data-testid="production-mode-banner" class="border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20">
+    <Card
+      v-else
+      data-testid="production-mode-banner"
+      class="border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20"
+    >
       <CardContent class="p-4">
         <div class="flex items-start gap-3">
           <div class="rounded-full bg-emerald-100 dark:bg-emerald-900 p-1">
             <span class="text-lg" role="img" aria-label="success">✅</span>
           </div>
           <div class="grid gap-1">
-            <p class="font-medium text-emerald-900 dark:text-emerald-100 text-sm">🚀 Production Mode Active</p>
-            <p class="text-muted-foreground text-xs">You are connected to Base Mainnet. All deployments will be live on production. Double-check all details before confirming consent.</p>
+            <p
+              class="font-medium text-emerald-900 dark:text-emerald-100 text-sm"
+            >
+              🚀 Production Mode Active
+            </p>
+            <p class="text-muted-foreground text-xs">
+              You are connected to Base Mainnet. All deployments will be live on
+              production. Double-check all details before confirming consent.
+            </p>
           </div>
         </div>
       </CardContent>
