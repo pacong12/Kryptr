@@ -1,4 +1,12 @@
 <script setup lang="ts">
+import { computed } from 'vue';
+
+PUT 14.=15::
+import { TriangleAlert } from '@lucide/vue';
+import { CheckCircle2 } from 'lucide-vue-next';
+PUT 20*=22:
+import { LAUNCHPAD_SOURCE_KEY } from '@/lib/launchpad';
+import { useChainId } from '@/composables/useChainId';
 import { computed, inject, onMounted, ref } from 'vue';
 import { Badge } from '@kryptr/shared-ui/vue/badge';
 import { Button } from '@kryptr/shared-ui/vue/button';
@@ -25,6 +33,9 @@ const consent = useLaunchConsent(
   () => props.walletId,
   inject(LAUNCHPAD_SOURCE_KEY, undefined),
 );
+const chainId = useChainId();
+const isMainnet = computed(() => chainId.value === 'base-mainnet');
+const showNetworkWarning = computed(() => !isMainnet.value);
 
 const acknowledged = ref(false);
 
@@ -64,6 +75,54 @@ async function handleSubmit(): Promise<void> {
 
 <template>
   <div class="space-y-6">
+    <!-- Network Detection Banner -->
+    <Card
+      v-if="showNetworkWarning"
+      data-testid="network-warning-banner"
+      class="border-amber-200 bg-amber-50 dark:bg-amber-950/20"
+    >
+      <CardContent class="p-4">
+        <div class="flex items-start gap-3">
+          <TriangleAlert
+            class="size-5 shrink-0 text-amber-600 dark:text-amber-500"
+          />
+          <div class="grid gap-1">
+            <p class="font-medium text-amber-900 dark:text-amber-100 text-sm">
+              ⚠️ Testnet Detected
+            </p>
+            <p class="text-muted-foreground text-xs">
+              You are currently connected to a test network. For production
+              launches, please switch to Base Mainnet to ensure security and
+              proper deployment. This is a preview environment.
+            </p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+    <Card
+      v-else
+      data-testid="production-mode-banner"
+      class="border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20"
+    >
+      <CardContent class="p-4">
+        <div class="flex items-start gap-3">
+          <div class="rounded-full bg-emerald-100 dark:bg-emerald-900 p-1">
+            <span class="text-lg" role="img" aria-label="success">✅</span>
+          </div>
+          <div class="grid gap-1">
+            <p
+              class="font-medium text-emerald-900 dark:text-emerald-100 text-sm"
+            >
+              🚀 Production Mode Active
+            </p>
+            <p class="text-muted-foreground text-xs">
+              You are connected to Base Mainnet. All deployments will be live on
+              production. Double-check all details before confirming consent.
+            </p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
     <div class="flex items-center justify-between gap-3">
       <div class="space-y-1">
         <h2 class="text-lg font-semibold">Launch consent</h2>
