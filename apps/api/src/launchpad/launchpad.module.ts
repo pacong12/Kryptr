@@ -10,10 +10,7 @@ import { RATE_LIMIT_PROVIDER } from './infrastructure/in-memory-fixed-window.rat
 import { isPostgresPersistence } from '../persistence/prisma-client';
 import { FilesystemAbiConsumer } from './infrastructure/filesystem-abi-consumer';
 import { ABICONSUMER_TOKEN, type AbiConsumerPort } from './domain/abi-consumer.port';
-<<<<<<< HEAD
-=======
 import { TokenFactoryService } from './application/token-factory.service';
->>>>>>> origin/feat/core-sprint2-order-automation
 
 /**
  * Launchpad composition root (wave-5 deploy-gate branch). Exports the
@@ -49,12 +46,6 @@ import { TokenFactoryService } from './application/token-factory.service';
     },
     RATE_LIMIT_PROVIDER,
     
-<<<<<<< HEAD
-    // ABI Consumer Integration (Task 1.3 Sprint 2)
-    FilesystemAbiConsumer,
-  ],
-  exports: [VERIFICATION_STORE, LAUNCH_RECORD_STORE, ABICONSUMER_TOKEN],
-=======
     // ABI Consumer Integration (Sprint 2)
     FilesystemAbiConsumer,
     
@@ -62,6 +53,5 @@ import { TokenFactoryService } from './application/token-factory.service';
     TokenFactoryService,
   ],
   exports: [VERIFICATION_STORE, LAUNCH_RECORD_STORE, ABICONSUMER_TOKEN, TokenFactoryService],
->>>>>>> origin/feat/core-sprint2-order-automation
 })
 export class LaunchpadModule {}
