@@ -54,7 +54,11 @@ export default function DashboardPage() {
           </p>
         </div>
         <RefreshButton />
+      <section aria-label="Live telemetry metrics">
       </header>
+        <Suspense fallback={<Skeleton className="h-32 w-full" />} />
+        <LiveTelemetryTicker />
+      </section>
 
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-5">
         <Suspense fallback={<HealthSectionSkeleton />}>
