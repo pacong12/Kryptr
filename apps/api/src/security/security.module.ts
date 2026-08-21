@@ -6,6 +6,7 @@ import { LaunchpadModule } from '../launchpad/launchpad.module';
 import { SecurityController } from './security.controller';
 import { HealthController } from './health.controller';
 import { IntentController } from './intent.controller';
+import { IntentStreamController } from './intent-stream.controller';
 import { EvaluateIntentUseCase } from './application/evaluate-intent.usecase';
 import { GetIntentTimelineUseCase } from './application/get-intent-timeline.usecase';
 import { GetFeedHealthUseCase } from './application/get-feed-health.usecase';
@@ -30,8 +31,8 @@ import { ManifestDeployAllowlist } from './infrastructure/manifest-deploy-allowl
 import { PostgresSpendLedger } from './infrastructure/postgres-spend-ledger';
 import { PostgresIntentStore } from './infrastructure/postgres-intent-store';
 import { PostgresDecisionAudit } from './infrastructure/postgres-decision-audit';
-import { PostgresSecurityPolicyProvider } from './infrastructure/postgres-security-policy-provider';
 import { isPostgresPersistence } from '../persistence/prisma-client';
+import { IntentStreamService } from './intent-stream.service';
 
 /**
  * Composition root for the security gate. Wave-2 ports bind in-memory
@@ -52,7 +53,12 @@ import { isPostgresPersistence } from '../persistence/prisma-client';
     SigningModule,
     LaunchpadModule,
   ],
-  controllers: [SecurityController, HealthController, IntentController],
+  controllers: [
+    SecurityController,
+    HealthController,
+    IntentController,
+    IntentStreamController,
+  ],
   providers: [
     EvaluateIntentUseCase,
     GetIntentTimelineUseCase,
@@ -109,6 +115,7 @@ import { isPostgresPersistence } from '../persistence/prisma-client';
           process.env.DEPLOY_MANIFESTS_DIR ?? 'contracts/deployments',
         ),
     },
+    IntentStreamService,
   ],
   exports: [
     POLICY_PROVIDER,

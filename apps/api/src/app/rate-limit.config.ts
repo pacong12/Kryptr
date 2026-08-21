@@ -1,4 +1,3 @@
-import { Type } from '@nestjs/common';
 import { ThrottlerModuleOptions } from '@nestjs/throttler';
 
 /**
@@ -13,6 +12,9 @@ export const RATE_LIMIT_CONFIG: {
   read: {
     ttl: 60000, // 1 minute
     limit: 100, // 100 requests per minute
+    headers: {
+      tryAgainInSecondsAfterRateLimitHit: 'x-rate-limit-reset',
+    },
     ignoreUserAgents: [/^HealthCheck\/.+$/, /^Monitor\/.+$/],
     warningThreshold: 90, // Warn at 90% of limit
   },
@@ -21,6 +23,9 @@ export const RATE_LIMIT_CONFIG: {
   write: {
     ttl: 60000, // 1 minute
     limit: 20, // 20 requests per minute
+    headers: {
+      tryAgainInSecondsAfterRateLimitHit: 'x-rate-limit-reset',
+    },
     ignoreUserAgents: [/^HealthCheck\/.+$/, /^Monitor\/.+$/],
     warningThreshold: 15, // Warn at 75% of limit
   },
