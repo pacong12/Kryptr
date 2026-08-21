@@ -24,6 +24,11 @@ export class IntentStreamController {
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
 
+    // SSE heartbeat interval (15 seconds)
+    const heartbeatInterval = setInterval(() => {
+      res.write(': ping\n\n');
+    }, 15000);
+
     // Subscribe to intent updates
     const unsubscribe = this.intentStreamService.onIntentUpdate(
       (event: IntentUpdateEvent) => {
@@ -32,7 +37,10 @@ export class IntentStreamController {
     );
 
     // Clean up on client disconnect
-    res.on('close', unsubscribe);
+    res.on('close', () => {
+      clearInterval(heartbeatInterval);
+      unsubscribe();
+    });
 
     return null;
   }
