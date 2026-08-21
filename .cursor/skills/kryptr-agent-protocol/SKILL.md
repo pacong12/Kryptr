@@ -68,10 +68,10 @@ node /home/muting/kryptr/scripts/agent-irc.mjs send <namamu> conductor "done: <r
 node /home/muting/kryptr/scripts/agent-irc.mjs send <namamu> all "STATUS: Pekerjaan <task/milestone> SELESAI. Sekarang status IDLE & menunggu review/instruksi selanjutnya."
 ```
 
-### Saat Idle / Menunggu Pekerjaan Baru:
-Jika kamu tidak memiliki task aktif, beritahu team:
+### Saat Masuk Status Idle / Menunggu Pekerjaan Baru:
+DILARANG HANYA DIAM saat idle. Kamu WAJIB LANGSUNG MEMINTA TUGAS SELANJUTNYA ke Conductor:
 ```bash
-node /home/muting/kryptr/scripts/agent-irc.mjs send <namamu> all "STANDBY: <namamu> sedang IDLE, siap menerima task baru atau membantu agent lain."
+agent-irc send <namamu> conductor "done: <pekerjaan-sebelumnya>. Saya sekarang STANDBY, apa tugas saya selanjutnya di roadmap/todo list?"
 ```
 
 ---

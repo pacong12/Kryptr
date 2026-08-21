@@ -121,21 +121,27 @@ async function poll() {
 
     if (prev === 'working' && (status === 'idle' || status === 'done')) {
       const summary = herdrRead(name);
-      const broadcastMsg = `🔔 ${name} SELESAI. Summary: ${summary}`;
+      const broadcastMsg = `AGENT_DONE: ${name}. Summary: ${summary}`;
       await irc('conductor-loop', 'all', broadcastMsg);
       await irc(
         'conductor-loop',
         'conductor',
-        `SELESAI: ${name} sudah idle. Ambil action.`,
+        `SELESAI: ${name} sudah idle. Berikan task selanjutnya!`,
       );
 
-      const prompt = `[NOTIFIKASI SEGERA] Agent **${name}** selesai & status idle.
-Summary output ${name}: ${summary}
-Tindakan wajib:
-1. Cek commit/status: git -C /home/muting/kryptr-wt/${name} status --short
-2. Jika ada branch/commit siap: push branch lalu buat PR
-3. Jika PR siap merge dan GA checks hijau: review + squash merge
-4. Broadcast: node /home/muting/kryptr/scripts/agent-irc.mjs send conductor all "action taken for ${name}"`;
+      // 1. Prompt sub-agent agar langsung proaktif minta tugas baru
+      promptTargetAgent(
+        name,
+        `Pekerjaanmu selesai. TANYA TUGAS SELANJUTNYA KE CONDUCTOR SEKARANG:\nagent-irc send ${name} conductor "Saya sudah selesai & standby. Apa tugas saya selanjutnya di roadmap/todo list?"`
+      );
+
+      // 2. Prompt conductor agar langsung delegasikan tugas berikutnya dari roadmap
+      const prompt = `[FLOW OTOMATIS] Sub-agent **${name}** baru saja selesai dan standby.
+Tindakan Conductor:
+1. Jika ada PR siap: review & merge.
+2. Jika branch sudah di-merge: BUKA ROADMAP/TODO LIST dan LANGSUNG BERIKAN TASK SELANJUTNYA ke @${name} via IRC!
+   Contoh: agent-irc send conductor ${name} "Task selanjutnya untukmu: <deskripsi-tugas>"
+JANGAN DIAM. Pimpin dan delegasikan task berikutnya sekarang!`;
 
       promptConductor(prompt);
     }
